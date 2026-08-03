@@ -11,6 +11,7 @@ import {
   totalOwed,
   kasiScore,
 } from "../store";
+import { SyncBadge } from "../components/SyncBadge";
 
 export function Home({
   lang,
@@ -19,7 +20,7 @@ export function Home({
   lang: Lang;
   onNavigate: (s: Screen) => void;
 }) {
-  const { state } = useStore();
+  const { state, syncStatus } = useStore();
   const takings = sumSalesToday(state.sales);
   const profit = estimatedProfitToday(state.sales);
   const owed = totalOwed(state.tabs);
@@ -31,10 +32,13 @@ export function Home({
     <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <div>
-          <div className="text-white/60 text-sm">{tr("greeting", lang)}</div>
-          <div className="font-display text-2xl font-semibold">
-            {tr("ownerName", lang)} 👋
+        <div className="flex flex-col gap-1.5">
+          <SyncBadge status={syncStatus} />
+          <div>
+            <div className="text-white/60 text-sm">{tr("greeting", lang)}</div>
+            <div className="font-display text-2xl font-semibold">
+              {tr("ownerName", lang)} 👋
+            </div>
           </div>
         </div>
         <button
