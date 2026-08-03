@@ -1,15 +1,24 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Lightbulb, TrendingUp, Trophy } from "lucide-react";
+import { Lightbulb, TrendingUp, Trophy, Sparkles } from "lucide-react";
 import type { Lang } from "../i18n";
-import { tr } from "../i18n";
-import { formatRand, kasiScore, sumWeekProfit, topSeller, useStore } from "../store";
+import { tr, trParams } from "../i18n";
+import type { TKey } from "../i18n";
+import {
+  computeInsights,
+  formatRand,
+  kasiScore,
+  sumWeekProfit,
+  topSeller,
+  useStore,
+} from "../store";
 
 export function Insights({ lang }: { lang: Lang }) {
   const { state } = useStore();
   const target = kasiScore(state);
   const weekProfit = sumWeekProfit(state.sales);
   const top = topSeller(state.sales);
+  const insights = computeInsights(state);
 
   const [display, setDisplay] = useState(300);
   useEffect(() => {
@@ -27,7 +36,6 @@ export function Insights({ lang }: { lang: Lang }) {
     return () => cancelAnimationFrame(raf);
   }, [target]);
 
-  // Score range 300..850. Progress 0..1
   const progress = Math.max(0, Math.min(1, (display - 300) / (850 - 300)));
   const scoreLabel =
     target >= 720
@@ -63,22 +71,38 @@ export function Insights({ lang }: { lang: Lang }) {
         />
         <StatCard
           icon={Trophy}
-          label={tr("topSeller", lang)}
+          label={tr("topSellerLabel", lang)}
           value={top ? top.item : "—"}
           accent="gold"
         />
       </div>
 
-      {/* Tips */}
+      {/* Dynamic AI Tips */}
       <div className="mt-6">
-        <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Lightbulb size={14} className="text-kasi-gold" />
-          {tr("aiTips", lang)}
+        <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Lightbulb size={14} className="text-kasi-gold" />
+            {tr("aiTips", lang)}
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-kasi-green/80 normal-case tracking-normal">
+            <Sparkles size={10} />
+            {tr("aiPoweredBadge", lang)}
+          </span>
         </div>
         <div className="flex flex-col gap-2">
-          <TipCard tip={tr("tip1", lang)} accent="green" />
-          <TipCard tip={tr("tip2", lang)} accent="gold" />
-          <TipCard tip={tr("tip3", lang)} accent="coral" />
+          {insights.length === 0 ? (
+            <div className="rounded-2xl bg-bg-card border border-white/5 p-4 text-white/60 text-sm">
+              Log a few more sales to unlock personalised tips.
+            </div>
+          ) : (
+            insights.map((ins) => (
+              <TipCard
+                key={ins.id}
+                tip={trParams(ins.key as TKey, lang, ins.params)}
+                accent={ins.accent}
+              />
+            ))
+          )}
         </div>
       </div>
 

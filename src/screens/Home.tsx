@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Mic, UserPlus, TrendingUp, Package } from "lucide-react";
+import { Mic, UserPlus, TrendingUp, ScanLine, MessageCircle } from "lucide-react";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
 import type { Screen } from "../App";
@@ -30,7 +30,7 @@ export function Home({
   return (
     <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <div className="text-white/60 text-sm">{tr("greeting", lang)}</div>
           <div className="font-display text-2xl font-semibold">
@@ -49,6 +49,26 @@ export function Home({
           </span>
         </button>
       </div>
+
+      {/* WhatsApp pill */}
+      <motion.button
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onNavigate("whatsapp")}
+        className="w-full mb-5 flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600/25 via-emerald-500/15 to-transparent border border-emerald-500/30"
+      >
+        <div className="w-9 h-9 rounded-xl bg-emerald-500 text-bg flex items-center justify-center">
+          <MessageCircle size={18} />
+        </div>
+        <div className="flex-1 text-left">
+          <div className="text-sm font-semibold">{tr("tryWhatsApp", lang)}</div>
+          <div className="text-[11px] text-white/60">
+            {tr("whatsappSub", lang)}
+          </div>
+        </div>
+        <span className="text-emerald-400 text-sm">→</span>
+      </motion.button>
 
       {/* Hero card */}
       <motion.div
@@ -99,21 +119,21 @@ export function Home({
             accent="green"
           />
           <ActionCard
+            icon={ScanLine}
+            label={tr("scanReceipt", lang)}
+            onClick={() => onNavigate("log")}
+            accent="gold"
+          />
+          <ActionCard
             icon={UserPlus}
             label={tr("addTab", lang)}
             onClick={() => onNavigate("tabs")}
-            accent="gold"
+            accent="coral"
           />
           <ActionCard
             icon={TrendingUp}
             label={tr("seeInsights", lang)}
             onClick={() => onNavigate("insights")}
-            accent="coral"
-          />
-          <ActionCard
-            icon={Package}
-            label={tr("addStock", lang)}
-            onClick={() => onNavigate("log")}
             accent="cream"
           />
         </div>
@@ -138,7 +158,19 @@ export function Home({
                 className="flex items-center justify-between rounded-2xl bg-bg-card border border-white/5 px-4 py-3"
               >
                 <div>
-                  <div className="font-medium">{s.item}</div>
+                  <div className="font-medium flex items-center gap-2">
+                    {s.item}
+                    {s.source === "receipt" && (
+                      <span className="text-[9px] uppercase text-kasi-gold border border-kasi-gold/30 px-1.5 py-0.5 rounded">
+                        Scan
+                      </span>
+                    )}
+                    {s.source === "voice" && (
+                      <span className="text-[9px] uppercase text-kasi-green border border-kasi-green/30 px-1.5 py-0.5 rounded">
+                        Voice
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-white/50">
                     {s.qty} × {formatRand(s.price)}
                   </div>
