@@ -1,0 +1,27 @@
+{
+  "name": "KasiKash — Kasi hustle, upgraded",
+  "short_name": "KasiKash",
+  "description": "Voice-first, multilingual finance OS for township small businesses.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0F0A",
+  "theme_color": "#0B0F0A",
+  "categories": ["business", "finance", "productivity"],
+  "lang": "en-ZA",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "180x180",
+      "purpose": "any"
+    }
+  ]
+}
