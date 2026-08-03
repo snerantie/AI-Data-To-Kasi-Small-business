@@ -6,16 +6,27 @@ import { LogSale } from "./screens/LogSale";
 import { Tabs } from "./screens/Tabs";
 import { Insights } from "./screens/Insights";
 import { Welcome } from "./screens/Welcome";
+import { Stokvel } from "./screens/Stokvel";
+import { WhatsAppBot } from "./screens/WhatsAppBot";
 import { useStore } from "./store";
 import type { Lang } from "./i18n";
 
-export type Screen = "home" | "log" | "tabs" | "insights";
+export type Screen =
+  | "home"
+  | "log"
+  | "tabs"
+  | "stokvel"
+  | "insights"
+  | "whatsapp";
+
+const SCREENS_WITH_NAV: Screen[] = ["home", "log", "tabs", "stokvel", "insights"];
 
 export default function App() {
   const { state, setLang } = useStore();
   const [screen, setScreen] = useState<Screen>("home");
 
   const lang: Lang = state.lang ?? "en";
+  const showNav = SCREENS_WITH_NAV.includes(screen);
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-6">
@@ -57,10 +68,16 @@ export default function App() {
                     <LogSale lang={lang} onNavigate={setScreen} />
                   )}
                   {screen === "tabs" && <Tabs lang={lang} />}
+                  {screen === "stokvel" && <Stokvel lang={lang} />}
                   {screen === "insights" && <Insights lang={lang} />}
+                  {screen === "whatsapp" && (
+                    <WhatsAppBot lang={lang} onNavigate={setScreen} />
+                  )}
                 </motion.div>
               </AnimatePresence>
-              <BottomNav screen={screen} onNavigate={setScreen} lang={lang} />
+              {showNav && (
+                <BottomNav screen={screen} onNavigate={setScreen} lang={lang} />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
