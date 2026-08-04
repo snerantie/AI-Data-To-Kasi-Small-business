@@ -39,7 +39,7 @@ export function Stokvel({
   const {
     state,
     userId,
-    addContribution,
+    startContribution,
     createStokvelAsAdmin,
     joinStokvelByCode,
     generateInvite,
@@ -77,10 +77,26 @@ export function Stokvel({
   const daysAgo = (ts: number) =>
     Math.max(0, Math.round((Date.now() - ts) / (1000 * 60 * 60 * 24)));
 
-  const contribute = (amount: number) => {
-    addContribution(amount);
-    setFlash(amount);
-    setTimeout(() => setFlash(null), 1600);
+  const [redirecting, setRedirecting] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  const contribute = async (amount: number) => {
+    setPayError(null);
+    const result = await startContribution(amount);
+    if (result.kind === "logged") {
+      setFlash(amount);
+      setTimeout(() => setFlash(null), 1600);
+    } else if (result.kind === "redirect") {
+      setRedirecting(true);
+      // Give the UI a moment to show the "Opening Yoco..." state before
+      // navigation, so the user knows something's happening.
+      window.setTimeout(() => {
+        window.location.href = result.url;
+      }, 200);
+    } else if (result.kind === "error") {
+      setPayError(result.error);
+      window.setTimeout(() => setPayError(null), 4000);
+    }
   };
 
   // ---------------------------------------------------------------- Empty state
@@ -279,16 +295,32 @@ export function Stokvel({
 
       {/* Quick contribute */}
       <div className="mt-6">
-        <div className="text-white/50 text-xs uppercase tracking-wider mb-3">
-          {tr("quickAdd", lang)}
+        <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span>{tr("quickAdd", lang)}</span>
+          {state.paymentConfig?.isActive && (
+            <span className="normal-case tracking-normal text-[10px] text-kasi-green flex items-center gap-1">
+              ⚡ {tr("payAutoBadge", lang)}
+              {state.paymentConfig.isTest && (
+                <span className="text-kasi-gold ml-1">
+                  · {tr("payTestBadge", lang)}
+                </span>
+              )}
+            </span>
+          )}
         </div>
         <div className="grid grid-cols-4 gap-2">
           {QUICK_AMOUNTS.map((amt) => (
             <motion.button
               key={amt}
               whileTap={{ scale: 0.95 }}
+              disabled={redirecting}
               onClick={() => contribute(amt)}
-              className="py-3.5 rounded-2xl bg-bg-card border border-white/5 flex flex-col items-center gap-0.5 hover:border-kasi-green/40 active:border-kasi-green transition-colors"
+              className={
+                "py-3.5 rounded-2xl bg-bg-card border border-white/5 flex flex-col items-center gap-0.5 transition-colors " +
+                (redirecting
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:border-kasi-green/40 active:border-kasi-green")
+              }
             >
               <span className="font-display font-bold text-kasi-gold">
                 R{amt}
@@ -299,7 +331,27 @@ export function Stokvel({
             </motion.button>
           ))}
         </div>
+        {payError && (
+          <div className="mt-2 text-kasi-coral text-xs">{payError}</div>
+        )}
       </div>
+
+      {/* Opening Yoco... overlay */}
+      <AnimatePresence>
+        {redirecting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 bg-bg/85 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+          >
+            <Loader2 size={32} className="animate-spin text-kasi-green" />
+            <div className="text-white font-medium">
+              {tr("payOpeningCheckout", lang)}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Members list */}
       <div className="mt-6">

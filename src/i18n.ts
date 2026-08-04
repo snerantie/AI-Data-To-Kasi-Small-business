@@ -696,6 +696,132 @@ export const t = {
     st: "E ntse e romelloa...",
   },
 
+  // ---------------------------------------------------------------------
+  // Payments (Yoco automated contributions)
+  // ---------------------------------------------------------------------
+  sectionPayments: {
+    en: "Payments",
+    zu: "Izinkokhelo",
+    st: "Litefello",
+  },
+  payDescription: {
+    en: "Let members pay their contribution directly in the app via PayShap or card. Money lands in your Yoco account — KasiKash never touches it.",
+    zu: "Vumela amalungu akhokhe iminikelo yawo ohlelweni ngePayShap noma ngekhadi. Imali ifika ku-akhawunti yakho ye-Yoco — iKasiKash ayilibambi.",
+    st: "Lumella litho ho lefa menehelo ea bona ka kotloloho app ka PayShap kapa karete. Chelete e fihla akhaontong ea hao ea Yoco — KasiKash ha e e ame.",
+  },
+  payConfiguredTitle: {
+    en: "Automated payments active",
+    zu: "Izinkokhelo ezizenzakalelayo zisebenza",
+    st: "Litefello tse iketsang li a sebetsa",
+  },
+  payConfiguredLive: {
+    en: "Real money moves via your Yoco account.",
+    zu: "Imali yangempela ihamba nge-akhawunti yakho ye-Yoco.",
+    st: "Chelete ea sebele e tsamaea ka akhaonto ea hao ea Yoco.",
+  },
+  payConfiguredTest: {
+    en: "Sandbox mode — no real money moves. Great for demos.",
+    zu: "Imodi yezingcezu — akukho mali yangempela. Kuhle ukubonisa.",
+    st: "Mokhoa oa mohlala — ha ho chelete ea sebele. Ho hotle bakeng sa lipontšo.",
+  },
+  payBadgeLive: { en: "LIVE", zu: "PHILA", st: "PHELA" },
+  payBadgeTest: { en: "TEST", zu: "IHLOLA", st: "TEKO" },
+  payAutoBadge: { en: "Auto", zu: "Ngokuzenzakalelayo", st: "Iketsang" },
+  payTestBadge: { en: "Test", zu: "Ihlolwa", st: "Teko" },
+  payUpdateKey: {
+    en: "Update Yoco key",
+    zu: "Buyekeza ukhiye we-Yoco",
+    st: "Ntlafatsa senotlolo sa Yoco",
+  },
+  paySecretLabel: {
+    en: "Yoco secret key",
+    zu: "Ukhiye oyimfihlo we-Yoco",
+    st: "Senotlolo sa lekunutu sa Yoco",
+  },
+  paySecretPlaceholder: {
+    en: "sk_live_...  or  sk_test_...",
+    zu: "sk_live_...  noma  sk_test_...",
+    st: "sk_live_...  kapa  sk_test_...",
+  },
+  paySecretHint: {
+    en: "Find this in your Yoco dashboard → Developers → API keys.",
+    zu: "Yitholele ku-dashibhodi yakho ye-Yoco → Developers → API keys.",
+    st: "E fumane ho dashboard ea hao ea Yoco → Developers → API keys.",
+  },
+  paySecretInvalid: {
+    en: "That doesn't look like a valid Yoco secret key.",
+    zu: "Lokhu akubukeki njengokhiye we-Yoco ovumelekile.",
+    st: "Seo ha se bonahale se le senotlolo se nepahetseng sa Yoco.",
+  },
+  payModeLabel: {
+    en: "Mode",
+    zu: "Imodi",
+    st: "Mokhoa",
+  },
+  payModeTest: {
+    en: "Test (sandbox)",
+    zu: "Ihlola (i-sandbox)",
+    st: "Teko (sandbox)",
+  },
+  payModeLive: {
+    en: "Live (real money)",
+    zu: "Iphila (imali yangempela)",
+    st: "Phela (chelete ea sebele)",
+  },
+  paySaveCta: {
+    en: "Turn on payments",
+    zu: "Vula izinkokhelo",
+    st: "Bulela litefello",
+  },
+  paySaving: {
+    en: "Setting up...",
+    zu: "Kusethwa...",
+    st: "Ho behoa...",
+  },
+  paySaved: {
+    en: "Payments turned on. Members can now contribute in-app.",
+    zu: "Izinkokhelo zivuliwe. Amalungu manje angakwazi ukunikela ohlelweni.",
+    st: "Litefello li buletsoe. Litho joale li ka kenya menehelo ho app.",
+  },
+  payCancel: {
+    en: "Cancel",
+    zu: "Khansela",
+    st: "Hlakola",
+  },
+  payFeeNote: {
+    en: "KasiKash charges 0% platform fee. Yoco charges their standard ~3% + R2 per transaction to your merchant account.",
+    zu: "IKasiKash ikhokhisa u-0% kwezinkokhelo zohlaka. IYoco ikhokhisa u-3% + R2 emalini yakho njengenkokhelo yayo.",
+    st: "KasiKash e patela 0% ea tefo ea sethala. Yoco e patela ~3% + R2 ka tefello ho akhaontong ea hao ea marikanta.",
+  },
+
+  // Member-side payment flow
+  payOpeningCheckout: {
+    en: "Opening Yoco payment...",
+    zu: "Kuvulwa inkokhelo ye-Yoco...",
+    st: "Ho buloa tefello ea Yoco...",
+  },
+  payReturnProcessing: {
+    en: "Confirming your payment...",
+    zu: "Kuqinisekiswa inkokhelo yakho...",
+    st: "Ho netefatsa tefello ea hao...",
+  },
+  payReturnSuccess: {
+    en: "Payment received ✅",
+    zu: "Inkokhelo itholiwe ✅",
+    st: "Tefello e amohetsoe ✅",
+  },
+  payReturnCancel: {
+    en: "Payment cancelled. Try again when you're ready.",
+    zu: "Inkokhelo ikhanseliwe. Zama futhi lapho usukulungele.",
+    st: "Tefello e hlakoletsoe. Leka hape ha u lokile.",
+  },
+  payReturnFailed: {
+    en: "Payment didn't go through. Your bank returned an error.",
+    zu: "Inkokhelo ayiphelelanga. Ibhange lakho libuyisele iphutha.",
+    st: "Tefello ha e a atleha. Panka ea hao e khutlisitse phoso.",
+  },
+  payReturnClose: { en: "Close", zu: "Vala", st: "Koala" },
+
   appVersion: { en: "KasiKash", zu: "KasiKash", st: "KasiKash" },
 } as const;
 

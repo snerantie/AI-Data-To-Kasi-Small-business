@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BottomNav } from "./components/BottomNav";
 import { Home } from "./screens/Home";
 import { LogSale } from "./screens/LogSale";
@@ -9,8 +9,18 @@ import { Onboarding } from "./screens/Onboarding";
 import { Stokvel } from "./screens/Stokvel";
 import { Splash } from "./screens/Splash";
 import { Settings } from "./screens/Settings";
+import {
+  PaymentReturn,
+  clearPaymentReturnUrl,
+  parsePaymentReturn,
+} from "./screens/PaymentReturn";
 import { needsOnboarding, useStore } from "./store";
 import type { Lang } from "./i18n";
+
+type PaymentReturnState = {
+  kind: "success" | "cancel" | "failed";
+  paymentId: string;
+} | null;
 
 export type Screen =
   | "home"
@@ -32,10 +42,28 @@ export default function App() {
   const { state } = useStore();
   const [screen, setScreen] = useState<Screen>("home");
   const [splashDone, setSplashDone] = useState(false);
+  const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState>(null);
 
   const lang: Lang = state.lang ?? "en";
   const showNav = SCREENS_WITH_NAV.includes(screen);
   const mustOnboard = needsOnboarding(state);
+
+  // On first render, check the URL for a payment_return param. If the
+  // user just came back from Yoco we'll show the confirmation overlay.
+  useEffect(() => {
+    const detected = parsePaymentReturn();
+    if (detected) {
+      setPaymentReturn(detected);
+      // If the user is mid-onboarding and returned from a payment,
+      // route them to the Stokvel tab afterward so they see it working.
+      setScreen("stokvel");
+    }
+  }, []);
+
+  const dismissPaymentReturn = () => {
+    clearPaymentReturnUrl();
+    setPaymentReturn(null);
+  };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-6">
@@ -92,6 +120,19 @@ export default function App() {
                 <BottomNav screen={screen} onNavigate={setScreen} lang={lang} />
               )}
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Yoco payment-return overlay */}
+        <AnimatePresence>
+          {paymentReturn && splashDone && (
+            <PaymentReturn
+              key={paymentReturn.paymentId}
+              lang={lang}
+              kind={paymentReturn.kind}
+              paymentId={paymentReturn.paymentId}
+              onDismiss={dismissPaymentReturn}
+            />
           )}
         </AnimatePresence>
       </div>

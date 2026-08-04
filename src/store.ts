@@ -27,6 +27,16 @@ import {
   upsertProfile as remoteUpsertProfile,
 } from "./lib/remote";
 import type { AuthResult, CurrentAuth } from "./lib/remote";
+import {
+  createCheckout as paymentCreateCheckout,
+  fetchPaymentConfigStatus,
+  savePaymentConfig as paymentSaveConfig,
+  subscribeToStokvelPayments,
+} from "./lib/payments";
+import type {
+  PaymentConfigStatus,
+  SavePaymentConfigResult,
+} from "./lib/payments";
 
 // ---- Types -----------------------------------------------------------------
 
@@ -102,8 +112,14 @@ export type AppState = {
   sales: Sale[];
   tabs: Tab[];
   stokvel: Stokvel | null;
+  paymentConfig: PaymentConfigStatus | null;
   onboarded: boolean;
 };
+
+export type ContributeAction =
+  | { kind: "logged"; amount: number }
+  | { kind: "redirect"; url: string; paymentId: string; isTest: boolean }
+  | { kind: "error"; error: string };
 
 export type SyncStatus = "local" | "connecting" | "synced" | "error";
 
@@ -120,6 +136,7 @@ const emptyState: AppState = {
   sales: [],
   tabs: [],
   stokvel: null,
+  paymentConfig: null,
 };
 
 // ---- Persistence ----------------------------------------------------------
@@ -186,6 +203,25 @@ export type PendingAuth = "verification" | "signin" | null;
 let pendingAuth: PendingAuth = null;
 const subs = new Set<() => void>();
 
+// Realtime subscription for the current stokvel's payments — teardown on
+// stokvel change so we don't leak channels.
+let paymentUnsub: (() => void) | null = null;
+
+function attachPaymentSubscription(newStokvelId: string | null) {
+  if (paymentUnsub) {
+    paymentUnsub();
+    paymentUnsub = null;
+  }
+  if (!newStokvelId || !isCloudConfigured) return;
+  paymentUnsub = subscribeToStokvelPayments(newStokvelId, () => {
+    // Any change to a stokvel_payments row for this stokvel → refetch.
+    // The DB trigger handles inserting the contribution row on succeed;
+    // re-hydrating pulls it into state alongside any other members'
+    // contributions that landed since the last fetch.
+    hydrateFromRemote();
+  });
+}
+
 function notify() {
   subs.forEach((fn) => fn());
 }
@@ -238,6 +274,15 @@ async function hydrateFromRemote(): Promise<void> {
       fetchUserPrimaryStokvel(uid),
     ]);
 
+    // Fetch payment config if a stokvel exists (needs to happen after
+    // we know the stokvel id — separate call, small overhead)
+    const paymentConfig = stokvelRes?.stokvelId
+      ? await fetchPaymentConfigStatus(stokvelRes.stokvelId)
+      : null;
+
+    const previousStokvelId = stokvelId;
+    const nextStokvelId = stokvelRes?.stokvelId ?? null;
+
     const merged: AppState = {
       ...state,
       lang: profileFetch?.language ?? state.lang,
@@ -246,11 +291,18 @@ async function hydrateFromRemote(): Promise<void> {
       sales: sales ?? state.sales,
       tabs: tabs ?? state.tabs,
       stokvel: stokvelRes?.stokvel ?? null,
+      paymentConfig,
     };
 
     state = merged;
-    stokvelId = stokvelRes?.stokvelId ?? null;
+    stokvelId = nextStokvelId;
     saveLocal(state);
+
+    // If the stokvel changed (or first load), re-attach realtime sub
+    if (previousStokvelId !== nextStokvelId) {
+      attachPaymentSubscription(nextStokvelId);
+    }
+
     setSync("synced");
     notify();
   } catch (err) {
@@ -510,6 +562,73 @@ export function useStore() {
     }
   }, []);
 
+  /**
+   * Smart contribute: routes through Yoco when the stokvel has an active
+   * payment config, otherwise falls back to the manual record-keeping
+   * path. Returns a typed result the caller acts on:
+   *   - "logged"   → contribution was recorded locally, show success UI
+   *   - "redirect" → navigate window.location to the checkout URL
+   *   - "error"    → surface error to the user
+   */
+  const startContribution = useCallback(
+    async (amount: number): Promise<ContributeAction> => {
+      if (!state.stokvel || !stokvelId) {
+        return { kind: "error", error: "no_stokvel" };
+      }
+      const cfg = state.paymentConfig;
+      if (cfg && cfg.isActive && isCloudConfigured) {
+        const result = await paymentCreateCheckout(stokvelId, amount);
+        if (result.ok) {
+          return {
+            kind: "redirect",
+            url: result.checkoutUrl,
+            paymentId: result.paymentId,
+            isTest: result.isTest,
+          };
+        }
+        return { kind: "error", error: result.error };
+      }
+      // Fallback: manual record-keeping
+      addContribution(amount);
+      return { kind: "logged", amount };
+    },
+    [addContribution],
+  );
+
+  /**
+   * Admin-only: save/update the Yoco payment config for the current
+   * stokvel. Client passes the Yoco secret key + test/live flag; the
+   * Edge Function registers a webhook against it and stores the secrets
+   * server-side. On success, refresh paymentConfig in state.
+   */
+  const savePaymentConfig = useCallback(
+    async (
+      yocoSecretKey: string,
+      isTest: boolean,
+    ): Promise<SavePaymentConfigResult> => {
+      if (!stokvelId) {
+        return { ok: false, error: "no_stokvel" };
+      }
+      const result = await paymentSaveConfig(stokvelId, yocoSecretKey, isTest);
+      if (result.ok) {
+        setState({
+          paymentConfig: { isActive: result.isActive, isTest: result.isTest },
+        });
+      }
+      return result;
+    },
+    [],
+  );
+
+  /**
+   * Force a full re-hydrate from the server. Used by the App payment
+   * return handler to make sure the newly-inserted contribution appears
+   * even if the Realtime channel missed it.
+   */
+  const refreshFromRemote = useCallback(async (): Promise<void> => {
+    await hydrateFromRemote();
+  }, []);
+
   // -- Email auth --
 
   const linkEmailToAccount = useCallback(
@@ -611,6 +730,10 @@ export function useStore() {
     addTab,
     markTabPaid,
     addContribution,
+    startContribution,
+    // payments
+    savePaymentConfig,
+    refreshFromRemote,
     // account
     resetAccount,
     linkEmailToAccount,
