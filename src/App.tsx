@@ -7,7 +7,6 @@ import { Tabs } from "./screens/Tabs";
 import { Insights } from "./screens/Insights";
 import { Onboarding } from "./screens/Onboarding";
 import { Stokvel } from "./screens/Stokvel";
-import { WhatsAppBot } from "./screens/WhatsAppBot";
 import { Splash } from "./screens/Splash";
 import { Settings } from "./screens/Settings";
 import { needsOnboarding, useStore } from "./store";
@@ -19,7 +18,6 @@ export type Screen =
   | "tabs"
   | "stokvel"
   | "insights"
-  | "whatsapp"
   | "settings";
 
 const SCREENS_WITH_NAV: Screen[] = [
@@ -85,9 +83,6 @@ export default function App() {
                     <Stokvel lang={lang} onNavigate={setScreen} />
                   )}
                   {screen === "insights" && <Insights lang={lang} />}
-                  {screen === "whatsapp" && (
-                    <WhatsAppBot lang={lang} onNavigate={setScreen} />
-                  )}
                   {screen === "settings" && (
                     <Settings lang={lang} onNavigate={setScreen} />
                   )}

@@ -47,7 +47,7 @@ export type Sale = {
   price: number;
   createdAt: number;
   raw?: string;
-  source?: "voice" | "manual" | "receipt";
+  source?: "voice" | "manual";
 };
 
 export type Tab = {
@@ -120,7 +120,7 @@ function loadInitial(): AppState {
         stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
       };
     }
-    // Migrate from v2 cache if present
+    // Migrate from v2 cache (single-time compatibility with older builds)
     const legacy = localStorage.getItem(LEGACY_KEY);
     if (legacy) {
       const parsed = JSON.parse(legacy) as Partial<AppState>;
@@ -206,7 +206,6 @@ async function hydrateFromRemote(): Promise<void> {
       return;
     }
     userId = uid;
-    // Refresh auth info alongside the data hydrate
     authInfo = await getCurrentAuth();
 
     const [profileFetch, sales, tabs, stokvelRes] = await Promise.all([
@@ -240,15 +239,12 @@ async function hydrateFromRemote(): Promise<void> {
 if (isCloudConfigured && typeof window !== "undefined") {
   hydrating = hydrateFromRemote();
 
-  // Auth state changes trigger a re-hydrate so the client picks up the
-  // new user's data (or the returned-to-anonymous session's blank slate).
   onAuthChange((event) => {
     if (
       event === "SIGNED_IN" ||
       event === "USER_UPDATED" ||
       event === "SIGNED_OUT"
     ) {
-      // If a magic link was successfully clicked, clear the pending banner
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
         pendingAuth = null;
       }
@@ -323,7 +319,6 @@ export function useStore() {
         if (stokvelId) {
           sync(() => remoteUpdateStokvel(stokvelId!, patch));
         } else {
-          // Not yet created — create it now with current values.
           sync(async () => {
             const id = await remoteCreateStokvel(userId!, {
               name: (patch.name ?? state.stokvel.name) || "My Stokvel",
@@ -355,6 +350,7 @@ export function useStore() {
     };
     setState((s) => ({ sales: [full, ...s.sales] }));
     if (userId) sync(() => remoteInsertSale(userId!, full));
+    return full;
   }, []);
 
   const addSales = useCallback((sales: Omit<Sale, "id" | "createdAt">[]) => {
@@ -366,6 +362,19 @@ export function useStore() {
     }));
     setState((s) => ({ sales: [...full, ...s.sales] }));
     if (userId) sync(() => remoteInsertSales(userId!, full));
+  }, []);
+
+  /** Undo an insert-only sale: remove it from local state + Supabase. */
+  const undoSale = useCallback((id: string) => {
+    setState((s) => ({ sales: s.sales.filter((x) => x.id !== id) }));
+    if (userId && isCloudConfigured) {
+      sync(async () => {
+        const { supabase } = await import("./lib/supabase");
+        if (supabase) {
+          await supabase.from("sales").delete().eq("id", id);
+        }
+      });
+    }
   }, []);
 
   const addTab = useCallback((tab: Omit<Tab, "id" | "createdAt">) => {
@@ -403,65 +412,6 @@ export function useStore() {
     }
   }, []);
 
-  // -- Sample data (for demos, recordings, and users who want to explore) --
-
-  const loadSampleData = useCallback(() => {
-    const now = Date.now();
-    const sampleSales: Omit<Sale, "id" | "createdAt">[] = [
-      { item: "Bread", qty: 4, price: 18, source: "voice" },
-      { item: "Airtime", qty: 2, price: 12, source: "voice" },
-      { item: "Cold drink", qty: 3, price: 15, source: "voice" },
-      { item: "Bread", qty: 6, price: 18, source: "voice" },
-      { item: "Maize meal", qty: 2, price: 45, source: "manual" },
-      { item: "Sugar", qty: 3, price: 22, source: "manual" },
-    ];
-    const sampleTabs: Omit<Tab, "id" | "createdAt">[] = [
-      { customer: "Sipho", amount: 85 },
-      { customer: "Thandi", amount: 42 },
-      { customer: "Bra Vusi", amount: 120 },
-    ];
-    const sampleContribs: number[] = [250, 300, 400, 250, 500];
-
-    // Spread over past week for realistic insights
-    const salesFull: Sale[] = sampleSales.map((s, i) => ({
-      ...s,
-      id: crypto.randomUUID(),
-      createdAt: now - 1000 * 60 * 60 * (i * 6),
-    }));
-    const tabsFull: Tab[] = sampleTabs.map((t, i) => ({
-      ...t,
-      id: crypto.randomUUID(),
-      createdAt: now - 1000 * 60 * 60 * 24 * (2 + i * 5),
-    }));
-    const contribFull: Contribution[] = sampleContribs.map((amt, i) => ({
-      id: crypto.randomUUID(),
-      amount: amt,
-      createdAt: now - 1000 * 60 * 60 * 24 * (10 + i * 15),
-    }));
-
-    setState((s) => ({
-      sales: [...salesFull, ...s.sales],
-      tabs: [...tabsFull, ...s.tabs],
-      stokvel: {
-        ...s.stokvel,
-        contributions: [...contribFull, ...s.stokvel.contributions],
-      },
-    }));
-
-    if (userId) {
-      sync(() => remoteInsertSales(userId!, salesFull));
-      salesFull.forEach(() => {
-        /* batch above covers */
-      });
-      tabsFull.forEach((t) => sync(() => remoteInsertTab(userId!, t)));
-      if (stokvelId) {
-        contribFull.forEach((c) =>
-          sync(() => remoteInsertContribution(userId!, stokvelId!, c)),
-        );
-      }
-    }
-  }, []);
-
   // -- Email auth --
 
   const linkEmailToAccount = useCallback(
@@ -482,9 +432,6 @@ export function useStore() {
       if (result.ok) {
         pendingAuth = "signin";
         notify();
-        // sendSignInLink signs out first, so the app is momentarily without
-        // a session. Trigger a re-hydrate to spin up a fresh anon session
-        // while we wait for the user to click the link.
         hydrateFromRemote();
       }
       return result;
@@ -512,7 +459,6 @@ export function useStore() {
     authInfo = { userId: null, email: null, isAnonymous: false };
     pendingAuth = null;
     notify();
-    // Immediately create a fresh anonymous session so the app stays usable.
     await hydrateFromRemote();
     return result;
   }, []);
@@ -547,7 +493,6 @@ export function useStore() {
     syncStatus,
     isCloud: isCloudConfigured,
     userId,
-    // auth
     email: authInfo.email,
     isSignedIn: Boolean(authInfo.email) && !authInfo.isAnonymous,
     isAnonymous: authInfo.isAnonymous,
@@ -560,11 +505,11 @@ export function useStore() {
     // mutations
     addSale,
     addSales,
+    undoSale,
     addTab,
     markTabPaid,
     addContribution,
-    // demo / account
-    loadSampleData,
+    // account
     resetAccount,
     // email auth
     linkEmailToAccount,
@@ -642,15 +587,6 @@ export function formatRand(n: number) {
   return "R" + n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 }
 
-/**
- * Onboarding is considered incomplete unless the user has:
- *  - picked a language
- *  - given us an owner name
- *  - given us a business name + type
- *  - named their stokvel
- * The onboarded flag is the source of truth once set; this helper is
- * used during hydration + as a fallback for legacy users.
- */
 export function needsOnboarding(state: AppState): boolean {
   if (!state.onboarded) return true;
   if (!state.lang) return true;
@@ -661,7 +597,7 @@ export function needsOnboarding(state: AppState): boolean {
   return false;
 }
 
-// ---- Dynamic "AI" insights engine -----------------------------------------
+// ---- Dynamic insights engine ---------------------------------------------
 
 export type Insight = {
   id: string;

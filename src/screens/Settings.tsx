@@ -5,11 +5,9 @@ import {
   User,
   Store,
   PiggyBank,
-  Database,
   ShieldAlert,
   Check,
   Loader2,
-  Sparkles,
   Mail,
   LogOut,
   Inbox,
@@ -44,7 +42,6 @@ export function Settings({
     setLang,
     setProfile,
     setStokvelMeta,
-    loadSampleData,
     resetAccount,
     isCloud,
     syncStatus,
@@ -54,7 +51,6 @@ export function Settings({
 
   const [saved, setSaved] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [loadedSample, setLoadedSample] = useState(false);
   const [resetting, setResetting] = useState(false);
 
   const flashSaved = (key: string) => {
@@ -111,13 +107,6 @@ export function Settings({
       setStokvelMeta({ members: n });
       flashSaved("stkMembers");
     }
-  };
-
-  // -- Data --
-  const doLoadSample = () => {
-    loadSampleData();
-    setLoadedSample(true);
-    window.setTimeout(() => setLoadedSample(false), 2500);
   };
 
   // -- Account --
@@ -263,27 +252,6 @@ export function Settings({
               </span>
             </div>
           )}
-        </Section>
-
-        {/* ---- Data ---- */}
-        <Section icon={Database} title={tr("sectionData", lang)} accent="cream">
-          <div>
-            <div className="font-medium">
-              {tr("loadSampleDataTitle", lang)}
-            </div>
-            <div className="text-white/60 text-sm mt-1">
-              {tr("loadSampleDataDesc", lang)}
-            </div>
-            <button
-              onClick={doLoadSample}
-              className="mt-3 px-4 py-2.5 rounded-xl bg-kasi-cream/10 border border-kasi-cream/20 text-kasi-cream text-sm font-medium flex items-center gap-2"
-            >
-              <Sparkles size={14} />
-              {loadedSample
-                ? tr("loadedSample", lang)
-                : tr("loadSampleDataCta", lang)}
-            </button>
-          </div>
         </Section>
 
         {/* ---- Account ---- */}
@@ -504,7 +472,7 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
-  // -- Cloud not configured ------------------------------------------------
+  // -- Cloud not configured (should be rare in production) ----------------
   if (!isCloud) {
     return (
       <div className="flex items-start gap-3">
@@ -514,8 +482,8 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
         <div>
           <div className="font-medium">{tr("accountAnonymous", lang)}</div>
           <div className="text-white/60 text-sm mt-1">
-            Cloud sync is disabled in demo mode. Ask your admin to add
-            Supabase env vars to enable sign-in.
+            The cloud connection isn't set up on this build. Contact
+            support to enable saving your account across devices.
           </div>
         </div>
       </div>
