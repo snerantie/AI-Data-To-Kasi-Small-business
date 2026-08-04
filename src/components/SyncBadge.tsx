@@ -1,23 +1,22 @@
 import { motion } from "framer-motion";
-import { Cloud, CloudOff, Loader2, WifiOff } from "lucide-react";
+import { Cloud, Loader2, WifiOff } from "lucide-react";
 import type { SyncStatus } from "../store";
 
 /**
- * Small pill that surfaces whether the app is saving to a real
- * cloud backend or running in demo-only (localStorage) mode.
+ * Small pill that surfaces whether the app is currently connected to
+ * the cloud backend. Rendered from Home.
  *
- *   local       → CloudOff, muted   "Demo"
- *   connecting  → Loader spinning   "Sync..."
- *   synced      → Cloud, green      "Cloud"
- *   error       → WifiOff, coral    "Offline"
+ *   local       → hidden entirely (localStorage-only, e.g. no Supabase
+ *                 configured — a legitimate technical fallback, but we
+ *                 don't advertise it as a mode).
+ *   connecting  → gold spinner "Sync"
+ *   synced      → green cloud   "Cloud"
+ *   error       → coral wifi-off "Offline"
  */
 export function SyncBadge({ status }: { status: SyncStatus }) {
+  if (status === "local") return null;
+
   const config = {
-    local: {
-      icon: CloudOff,
-      label: "Demo",
-      className: "text-white/40 border-white/10 bg-white/[0.03]",
-    },
     connecting: {
       icon: Loader2,
       label: "Sync",

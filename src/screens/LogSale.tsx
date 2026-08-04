@@ -1,14 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Mic,
-  MicOff,
-  Check,
-  RotateCcw,
-  Sparkles,
-  ScanLine,
-  Camera,
-  X,
-} from "lucide-react";
+import { Mic, MicOff, Check, RotateCcw, Undo2, Keyboard } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
@@ -16,42 +7,34 @@ import { createRecognizer, isSpeechSupported, parseSale } from "../voice";
 import type { ParsedSale } from "../voice";
 import { useStore, formatRand } from "../store";
 import type { Screen } from "../App";
+import type { Sale } from "../store";
 
 type Phase = "idle" | "listening" | "parsed";
 
-type ReceiptPhase = "closed" | "camera" | "scanning" | "done";
-
-// Sample OCR output — used by the receipt scan mock.
-const DEMO_RECEIPT = [
-  { item: "Bread", qty: 6, price: 18 },
-  { item: "Sugar", qty: 2, price: 22 },
-  { item: "Milk", qty: 3, price: 26 },
-  { item: "Cold drink", qty: 4, price: 15 },
-];
-
 export function LogSale({
   lang,
-  onNavigate,
 }: {
   lang: Lang;
   onNavigate: (s: Screen) => void;
 }) {
-  const { addSale, addSales } = useStore();
+  const { addSale, undoSale } = useStore();
   const [phase, setPhase] = useState<Phase>("idle");
   const [transcript, setTranscript] = useState("");
   const [parsed, setParsed] = useState<ParsedSale | null>(null);
   const [manual, setManual] = useState({ item: "", qty: 1, price: 0 });
+  const [showManual, setShowManual] = useState(false);
   const [supported, setSupported] = useState(true);
-  const [receiptPhase, setReceiptPhase] = useState<ReceiptPhase>("closed");
-  const [receiptItems, setReceiptItems] = useState<typeof DEMO_RECEIPT>([]);
+  const [micError, setMicError] = useState<string | null>(null);
+  const [undoSalePayload, setUndoSalePayload] = useState<Sale | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const recRef = useRef<ReturnType<typeof createRecognizer>>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSupported(isSpeechSupported());
   }, []);
 
   const startListening = () => {
+    setMicError(null);
     setTranscript("");
     setParsed(null);
     setPhase("listening");
@@ -59,7 +42,8 @@ export function LogSale({
     const r = createRecognizer(lang);
     if (!r) {
       setSupported(false);
-      simulateDemoTranscript();
+      setPhase("idle");
+      setShowManual(true);
       return;
     }
     recRef.current = r;
@@ -70,7 +54,13 @@ export function LogSale({
       setParsed(p);
       setPhase("parsed");
     };
-    r.onerror = () => setPhase("idle");
+    r.onerror = (event: unknown) => {
+      const err = event as { error?: string };
+      if (err.error === "not-allowed" || err.error === "service-not-allowed") {
+        setMicError(tr("micPermissionDenied", lang));
+      }
+      setPhase("idle");
+    };
     r.onend = () => {
       setPhase((p) => (p === "listening" ? "idle" : p));
     };
@@ -78,31 +68,9 @@ export function LogSale({
       r.start();
     } catch {
       setSupported(false);
-      simulateDemoTranscript();
+      setPhase("idle");
+      setShowManual(true);
     }
-  };
-
-  const simulateDemoTranscript = () => {
-    const scripts: Record<Lang, string[]> = {
-      en: ["I sold 3 bread at R18", "2 airtime R12", "sold 4 cold drink R15"],
-      zu: [
-        "Ngithengise izinkwa ezintathu ngo-18",
-        "Amaairtime amabili 12",
-        "izinkwa ezine ngo 15",
-      ],
-      st: [
-        "Ke rekisitse bohobe bo bo bararo ka 18",
-        "Li-airtime tse peli 12",
-        "Ke rekisitse senoelo se sengoe ka 15",
-      ],
-    };
-    const pick = scripts[lang][Math.floor(Math.random() * 3)];
-    setTimeout(() => {
-      setTranscript(pick);
-      const p = parseSale(pick);
-      setParsed(p);
-      setPhase("parsed");
-    }, 1800);
   };
 
   const stopListening = () => {
@@ -114,157 +82,151 @@ export function LogSale({
     setPhase("idle");
   };
 
+  const commitSale = (payload: {
+    item: string;
+    qty: number;
+    price: number;
+    raw?: string;
+    source: "voice" | "manual";
+  }) => {
+    const full = addSale(payload);
+    setUndoSalePayload(full);
+    setPhase("idle");
+    setTranscript("");
+    setParsed(null);
+    setManual({ item: "", qty: 1, price: 0 });
+    // Auto-dismiss the undo toast after 6s
+    window.setTimeout(() => {
+      setUndoSalePayload((cur) => (cur?.id === full.id ? null : cur));
+    }, 6000);
+  };
+
   const confirm = () => {
     if (parsed) {
-      addSale({
+      commitSale({
         item: parsed.item,
         qty: parsed.qty,
         price: parsed.price,
         raw: transcript,
         source: "voice",
       });
-      setPhase("idle");
-      setTranscript("");
-      setParsed(null);
-      onNavigate("home");
     }
   };
 
   const saveManual = () => {
-    if (!manual.item || manual.qty <= 0 || manual.price <= 0) return;
-    addSale({ ...manual, source: "manual" });
-    setManual({ item: "", qty: 1, price: 0 });
-    onNavigate("home");
+    if (!manual.item.trim() || manual.qty <= 0 || manual.price <= 0) return;
+    commitSale({ ...manual, item: manual.item.trim(), source: "manual" });
+    setShowManual(false);
   };
 
-  // ---- Receipt scan flow ----
-  const openReceipt = () => {
-    setReceiptPhase("camera");
-    setReceiptItems([]);
-  };
-
-  const runOcrMock = () => {
-    setReceiptPhase("scanning");
-    // Reveal extracted items one-by-one for effect
-    setReceiptItems([]);
-    DEMO_RECEIPT.forEach((line, i) => {
-      window.setTimeout(() => {
-        setReceiptItems((prev) => [...prev, line]);
-        if (i === DEMO_RECEIPT.length - 1) {
-          window.setTimeout(() => setReceiptPhase("done"), 400);
-        }
-      }, 600 + i * 500);
-    });
-  };
-
-  const applyReceipt = () => {
-    addSales(receiptItems.map((r) => ({ ...r, source: "receipt" as const })));
-    setReceiptPhase("closed");
-    setReceiptItems([]);
-    onNavigate("home");
+  const handleUndo = async () => {
+    if (!undoSalePayload) return;
+    setUndoing(true);
+    undoSale(undoSalePayload.id);
+    setUndoSalePayload(null);
+    setUndoing(false);
+    // Keep the user on this screen so they see the undo landed
   };
 
   return (
     <div className="h-full flex flex-col px-5 pt-8 pb-32 overflow-y-auto">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="text-white/60 text-xs uppercase tracking-wider">
-            {tr("logSale", lang)}
-          </div>
-          <div className="font-display text-2xl font-semibold">
-            {tr("micTapToSpeak", lang)}
-          </div>
+      {/* Header */}
+      <div className="mb-6">
+        <div className="text-white/60 text-xs uppercase tracking-wider">
+          {tr("logSale", lang)}
         </div>
-        <Sparkles className="text-kasi-gold" size={22} />
+        <div className="font-display text-2xl font-semibold mt-1">
+          {tr("micTapToSpeak", lang)}
+        </div>
       </div>
 
-      {/* Scan receipt button */}
-      <button
-        onClick={openReceipt}
-        className="w-full mb-6 flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-kasi-gold/20 via-kasi-gold/10 to-transparent border border-kasi-gold/30"
-      >
-        <div className="w-9 h-9 rounded-xl bg-kasi-gold text-bg flex items-center justify-center">
-          <ScanLine size={18} />
-        </div>
-        <div className="flex-1 text-left">
-          <div className="text-sm font-semibold">{tr("scanTitle", lang)}</div>
-          <div className="text-[11px] text-white/60">
-            {tr("scanSubtitle", lang)}
+      {/* Voice not supported: gentle nudge to type instead */}
+      {!supported && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 rounded-2xl border border-kasi-gold/25 bg-kasi-gold/[0.08] p-4"
+        >
+          <div className="text-kasi-gold font-semibold text-sm">
+            {tr("voiceUnavailableTitle", lang)}
           </div>
-        </div>
-        <span className="text-kasi-gold text-sm">→</span>
-      </button>
+          <div className="text-white/70 text-sm mt-1">
+            {tr("voiceUnavailableBody", lang)}
+          </div>
+        </motion.div>
+      )}
 
-      {/* Big Mic */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6">
-        <div className="relative flex items-center justify-center">
-          {phase === "listening" && (
-            <>
-              <motion.div
-                className="absolute inset-0 rounded-full bg-kasi-green/30"
-                animate={{ scale: [1, 1.8, 2.4], opacity: [0.6, 0.2, 0] }}
-                transition={{ duration: 1.8, repeat: Infinity }}
-                style={{ width: 200, height: 200 }}
-              />
-              <motion.div
-                className="absolute inset-0 rounded-full bg-kasi-green/30"
-                animate={{ scale: [1, 1.6, 2.2], opacity: [0.5, 0.15, 0] }}
-                transition={{ duration: 1.8, repeat: Infinity, delay: 0.4 }}
-                style={{ width: 200, height: 200 }}
-              />
-            </>
-          )}
-          <motion.button
-            whileTap={{ scale: 0.94 }}
-            onClick={phase === "listening" ? stopListening : startListening}
-            className={
-              "relative w-44 h-44 rounded-full flex items-center justify-center shadow-2xl transition-colors " +
-              (phase === "listening"
-                ? "bg-kasi-coral"
-                : "bg-kasi-green shadow-glow")
-            }
-          >
-            {phase === "listening" ? (
-              <MicOff size={60} className="text-bg" />
-            ) : (
-              <Mic size={60} className="text-bg" />
+      {/* Big Mic — only when voice is available */}
+      {supported && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-6">
+          <div className="relative flex items-center justify-center">
+            {phase === "listening" && (
+              <>
+                <motion.div
+                  className="absolute inset-0 rounded-full bg-kasi-green/30"
+                  animate={{ scale: [1, 1.8, 2.4], opacity: [0.6, 0.2, 0] }}
+                  transition={{ duration: 1.8, repeat: Infinity }}
+                  style={{ width: 220, height: 220 }}
+                />
+                <motion.div
+                  className="absolute inset-0 rounded-full bg-kasi-green/30"
+                  animate={{ scale: [1, 1.6, 2.2], opacity: [0.5, 0.15, 0] }}
+                  transition={{ duration: 1.8, repeat: Infinity, delay: 0.4 }}
+                  style={{ width: 220, height: 220 }}
+                />
+              </>
             )}
-          </motion.button>
-        </div>
-
-        <div className="text-center min-h-[72px] flex flex-col items-center justify-center gap-1 max-w-[300px]">
-          {phase === "idle" && (
-            <>
-              <p className="text-white/80 text-sm">
-                {tr("micTapToSpeak", lang)}
-              </p>
-              <p className="text-white/40 text-xs">
-                {lang === "en"
-                  ? `Try: "${tr("sampleSuggestion1", lang)}"`
-                  : lang === "zu"
-                    ? `Zama: "${tr("sampleSuggestion1", lang)}"`
-                    : `Leka: "${tr("sampleSuggestion1", lang)}"`}
-              </p>
-              {!supported && (
-                <p className="text-kasi-gold text-[11px] mt-2">
-                  Demo mode — using simulated transcription
-                </p>
-              )}
-            </>
-          )}
-          {phase === "listening" && (
-            <motion.p
-              className="text-kasi-green font-medium text-lg"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={phase === "listening" ? stopListening : startListening}
+              className={
+                "relative w-52 h-52 rounded-full flex items-center justify-center shadow-2xl transition-colors " +
+                (phase === "listening"
+                  ? "bg-kasi-coral"
+                  : "bg-kasi-green shadow-glow")
+              }
+              aria-label={phase === "listening" ? "Stop" : "Start voice input"}
             >
-              {tr("listening", lang)}
-            </motion.p>
-          )}
-        </div>
-      </div>
+              {phase === "listening" ? (
+                <MicOff size={72} className="text-bg" />
+              ) : (
+                <Mic size={72} className="text-bg" />
+              )}
+            </motion.button>
+          </div>
 
-      {/* Parsed result */}
+          <div className="text-center min-h-[64px] flex flex-col items-center justify-center gap-1 max-w-[320px]">
+            {phase === "idle" && (
+              <>
+                <p className="text-white/85 text-base">
+                  {tr("micTapToSpeak", lang)}
+                </p>
+                <p className="text-white/45 text-sm">
+                  {lang === "en"
+                    ? `Try: "${tr("sampleSuggestion1", lang)}"`
+                    : lang === "zu"
+                      ? `Zama: "${tr("sampleSuggestion1", lang)}"`
+                      : `Leka: "${tr("sampleSuggestion1", lang)}"`}
+                </p>
+                {micError && (
+                  <p className="text-kasi-coral text-xs mt-2">{micError}</p>
+                )}
+              </>
+            )}
+            {phase === "listening" && (
+              <motion.p
+                className="text-kasi-green font-medium text-xl"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                {tr("listening", lang)}
+              </motion.p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Parsed result confirm card */}
       <AnimatePresence>
         {phase === "parsed" && parsed && (
           <motion.div
@@ -298,14 +260,14 @@ export function LogSale({
                   setTranscript("");
                   setParsed(null);
                 }}
-                className="flex-1 py-3 rounded-2xl bg-bg border border-white/10 text-white/80 flex items-center justify-center gap-2"
+                className="flex-1 py-3 rounded-2xl bg-bg border border-white/10 text-white/80 flex items-center justify-center gap-2 text-base"
               >
                 <RotateCcw size={16} />
                 {tr("retry", lang)}
               </button>
               <button
                 onClick={confirm}
-                className="flex-[2] py-3 rounded-2xl bg-kasi-green text-bg font-semibold flex items-center justify-center gap-2 shadow-glow"
+                className="flex-[2] py-3 rounded-2xl bg-kasi-green text-bg font-semibold flex items-center justify-center gap-2 shadow-glow text-base"
               >
                 <Check size={18} />
                 {tr("confirm", lang)}
@@ -315,198 +277,108 @@ export function LogSale({
         )}
       </AnimatePresence>
 
-      {/* Manual fallback */}
+      {/* Manual entry — always available as a fallback, expandable */}
       {phase !== "parsed" && (
-        <details className="mt-4 rounded-2xl bg-bg-card/60 border border-white/5 px-4 py-3">
-          <summary className="text-white/70 text-sm cursor-pointer">
-            {tr("manualEntry", lang)}
-          </summary>
-          <div className="mt-3 flex flex-col gap-2">
-            <input
-              value={manual.item}
-              onChange={(e) => setManual({ ...manual, item: e.target.value })}
-              placeholder={tr("item", lang)}
-              className="w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-green"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                value={manual.qty}
-                onChange={(e) =>
-                  setManual({ ...manual, qty: Number(e.target.value) })
-                }
-                placeholder={tr("qty", lang)}
-                className="w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-green"
-              />
-              <input
-                type="number"
-                value={manual.price || ""}
-                onChange={(e) =>
-                  setManual({ ...manual, price: Number(e.target.value) })
-                }
-                placeholder={tr("price", lang)}
-                className="w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-green"
-              />
-            </div>
+        <div className="mt-4">
+          {!showManual && supported && (
             <button
-              onClick={saveManual}
-              className="mt-2 py-3 rounded-xl bg-kasi-gold text-bg font-semibold"
+              onClick={() => setShowManual(true)}
+              className="w-full py-3.5 rounded-2xl bg-bg-card border border-white/10 text-white/80 flex items-center justify-center gap-2 text-base"
             >
-              {tr("save", lang)}
+              <Keyboard size={18} />
+              {tr("typeInstead", lang)}
             </button>
-          </div>
-        </details>
-      )}
-
-      {/* Receipt scan modal */}
-      <AnimatePresence>
-        {receiptPhase !== "closed" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-30 bg-bg/95 backdrop-blur flex flex-col"
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-              <div className="font-display font-semibold text-lg">
-                {tr("scanTitle", lang)}
+          )}
+          {(showManual || !supported) && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 rounded-2xl bg-bg-card border border-white/10 p-4 flex flex-col gap-3"
+            >
+              <input
+                value={manual.item}
+                onChange={(e) => setManual({ ...manual, item: e.target.value })}
+                placeholder={tr("item", lang)}
+                autoFocus
+                className="w-full px-4 py-4 rounded-xl bg-bg border border-white/10 text-white text-base outline-none focus:border-kasi-green"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={manual.qty}
+                  onChange={(e) =>
+                    setManual({ ...manual, qty: Number(e.target.value) })
+                  }
+                  placeholder={tr("qty", lang)}
+                  className="w-full px-4 py-4 rounded-xl bg-bg border border-white/10 text-white text-base outline-none focus:border-kasi-green"
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={manual.price || ""}
+                  onChange={(e) =>
+                    setManual({ ...manual, price: Number(e.target.value) })
+                  }
+                  placeholder={tr("price", lang)}
+                  className="w-full px-4 py-4 rounded-xl bg-bg border border-white/10 text-white text-base outline-none focus:border-kasi-green"
+                />
               </div>
               <button
-                onClick={() => {
-                  setReceiptPhase("closed");
-                  setReceiptItems([]);
-                }}
-                className="p-1"
+                onClick={saveManual}
+                disabled={
+                  !manual.item.trim() || manual.qty <= 0 || manual.price <= 0
+                }
+                className={
+                  "mt-1 py-4 rounded-xl font-semibold text-base transition-colors " +
+                  (manual.item.trim() && manual.qty > 0 && manual.price > 0
+                    ? "bg-kasi-gold text-bg"
+                    : "bg-white/5 text-white/30 cursor-not-allowed")
+                }
               >
-                <X size={22} />
+                {tr("save", lang)}
               </button>
-            </div>
+            </motion.div>
+          )}
+        </div>
+      )}
 
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {/* Camera / choose file */}
-              {receiptPhase === "camera" && (
-                <div className="h-full flex flex-col items-center justify-center gap-6">
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="w-56 h-72 rounded-3xl border-2 border-dashed border-kasi-gold/50 bg-kasi-gold/5 flex flex-col items-center justify-center gap-3"
-                  >
-                    <Camera size={48} className="text-kasi-gold" />
-                    <div className="text-white/60 text-sm px-4 text-center">
-                      {tr("scanSubtitle", lang)}
-                    </div>
-                  </motion.div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={() => runOcrMock()}
-                  />
-                  <button
-                    onClick={() => {
-                      // Try opening camera picker; if not available or user cancels,
-                      // still run the demo OCR.
-                      fileRef.current?.click();
-                      window.setTimeout(() => {
-                        if (receiptPhase === "camera") runOcrMock();
-                      }, 300);
-                    }}
-                    className="px-6 py-3 rounded-2xl bg-kasi-gold text-bg font-semibold flex items-center gap-2 shadow-gold"
-                  >
-                    <Camera size={18} />
-                    {tr("choosePhoto", lang)}
-                  </button>
-                  <div className="text-kasi-gold text-[11px]">
-                    {tr("demoReceiptNote", lang)}
-                  </div>
-                </div>
-              )}
-
-              {/* Scanning + revealing items */}
-              {(receiptPhase === "scanning" || receiptPhase === "done") && (
-                <div>
-                  <div className="rounded-3xl border border-white/10 bg-bg-card/60 p-4 mb-4 relative overflow-hidden">
-                    <div className="text-xs uppercase tracking-wider text-white/50 mb-3 flex items-center gap-2">
-                      {receiptPhase === "scanning" ? (
-                        <>
-                          <motion.span
-                            className="w-2 h-2 rounded-full bg-kasi-gold"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 1, repeat: Infinity }}
-                          />
-                          {tr("scanning", lang)}
-                        </>
-                      ) : (
-                        <>
-                          <Check size={14} className="text-kasi-green" />
-                          {tr("extractedItems", lang)}
-                        </>
-                      )}
-                    </div>
-
-                    {receiptPhase === "scanning" && (
-                      <motion.div
-                        className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-kasi-gold to-transparent"
-                        initial={{ top: 0 }}
-                        animate={{ top: "100%" }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                      />
-                    )}
-
-                    <div className="flex flex-col gap-2">
-                      <AnimatePresence>
-                        {receiptItems.map((r, i) => (
-                          <motion.div
-                            key={r.item + i}
-                            initial={{ opacity: 0, x: -12 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="flex items-center justify-between rounded-xl bg-bg/60 border border-white/5 px-3 py-2"
-                          >
-                            <div>
-                              <div className="text-sm font-medium">{r.item}</div>
-                              <div className="text-[11px] text-white/50">
-                                {r.qty} × {formatRand(r.price)}
-                              </div>
-                            </div>
-                            <div className="font-display font-semibold text-kasi-green">
-                              +{formatRand(r.qty * r.price)}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {receiptPhase === "done" && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={applyReceipt}
-                      className="w-full py-4 rounded-2xl bg-kasi-green text-bg font-display font-bold text-lg shadow-glow flex items-center justify-center gap-2"
-                    >
-                      <Check size={20} />
-                      {tr("addAll", lang)} ({receiptItems.length})
-                    </motion.button>
-                  )}
-                </div>
-              )}
-            </div>
+      {/* Undo toast after a sale is logged */}
+      <AnimatePresence>
+        {undoSalePayload && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="absolute bottom-24 left-4 right-4 rounded-2xl bg-kasi-green text-bg px-4 py-3 font-semibold flex items-center justify-between shadow-glow"
+          >
+            <span className="flex items-center gap-2">
+              <Check size={16} />
+              {tr("saleLogged", lang)}: +
+              {formatRand(undoSalePayload.qty * undoSalePayload.price)}
+            </span>
+            <button
+              onClick={handleUndo}
+              disabled={undoing}
+              className="flex items-center gap-1 text-bg font-bold underline text-sm"
+            >
+              <Undo2 size={14} />
+              {tr("undo", lang)}
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
-}
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-bg/60 border border-white/5 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-white/40">
-        {label}
+  function Field({ label, value }: { label: string; value: string }) {
+    return (
+      <div className="rounded-xl bg-bg/60 border border-white/5 px-3 py-2">
+        <div className="text-[10px] uppercase tracking-wider text-white/40">
+          {label}
+        </div>
+        <div className="text-white font-semibold truncate">{value}</div>
       </div>
-      <div className="text-white font-semibold truncate">{value}</div>
-    </div>
-  );
+    );
+  }
 }
