@@ -46,6 +46,103 @@ export async function resetToFreshAnon(): Promise<string | null> {
   return ensureSession();
 }
 
+// ---- Auth (email magic link) -----------------------------------------------
+
+export type AuthResult =
+  | { ok: true; kind: "verification_sent" | "signin_sent" | "signed_out" }
+  | { ok: false; error: string };
+
+export type CurrentAuth = {
+  userId: string | null;
+  email: string | null;
+  isAnonymous: boolean;
+};
+
+/**
+ * Snapshot of the current auth state — used by the store on boot and
+ * whenever an auth event fires.
+ */
+export async function getCurrentAuth(): Promise<CurrentAuth> {
+  if (!supabase) return { userId: null, email: null, isAnonymous: false };
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
+  if (!user) return { userId: null, email: null, isAnonymous: false };
+  // Supabase's TS types don't officially expose is_anonymous yet, but
+  // it's part of the user payload from the API.
+  const isAnon = Boolean(
+    (user as unknown as { is_anonymous?: boolean }).is_anonymous,
+  );
+  return {
+    userId: user.id,
+    email: user.email ?? null,
+    isAnonymous: isAnon,
+  };
+}
+
+const redirectOrigin = () =>
+  typeof window !== "undefined" ? window.location.origin : undefined;
+
+/**
+ * Attach an email to the current anonymous user. Sends a verification
+ * email — after the user clicks, the anonymous account is upgraded to
+ * a permanent email account. Same user_id, all data preserved.
+ */
+export async function linkEmail(email: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase.auth.updateUser(
+    { email },
+    { emailRedirectTo: redirectOrigin() },
+  );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, kind: "verification_sent" };
+}
+
+/**
+ * Send a sign-in magic link to an existing account. Used when signing
+ * in on a new device.
+ *
+ * We sign out of the anonymous session first so the click on the link
+ * establishes a clean session for the existing user. If the user never
+ * clicks, they'll be re-anonymised on next boot.
+ */
+export async function sendSignInLink(email: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirectOrigin(),
+      shouldCreateUser: false,
+    },
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, kind: "signin_sent" };
+}
+
+/**
+ * Sign the user out. Callers should immediately create a new anonymous
+ * session (see ensureSession) so the app remains usable.
+ */
+export async function signOut(): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase.auth.signOut();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, kind: "signed_out" };
+}
+
+/**
+ * Subscribe to auth state changes (sign-in, sign-out, user-updated on
+ * email verification, token refresh, etc.).
+ * Returns an unsubscribe function.
+ */
+export function onAuthChange(
+  cb: (event: string) => void,
+): () => void {
+  if (!supabase) return () => {};
+  const { data } = supabase.auth.onAuthStateChange((event) => cb(event));
+  return () => data.subscription.unsubscribe();
+}
+
 // ---- Profile ---------------------------------------------------------------
 
 type ProfileRow = {

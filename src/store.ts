@@ -8,15 +8,21 @@ import {
   fetchSales,
   fetchStokvel,
   fetchTabs,
+  getCurrentAuth,
   insertContribution as remoteInsertContribution,
   insertSale as remoteInsertSale,
   insertSales as remoteInsertSales,
   insertTab as remoteInsertTab,
+  linkEmail as remoteLinkEmail,
+  onAuthChange,
   resetToFreshAnon,
+  sendSignInLink as remoteSendSignInLink,
+  signOut as remoteSignOut,
   updateStokvel as remoteUpdateStokvel,
   updateTabPaid as remoteUpdateTabPaid,
   upsertProfile as remoteUpsertProfile,
 } from "./lib/remote";
+import type { AuthResult, CurrentAuth } from "./lib/remote";
 
 // ---- Types -----------------------------------------------------------------
 
@@ -147,6 +153,13 @@ let state: AppState = loadInitial();
 let userId: string | null = null;
 let stokvelId: string | null = null;
 let syncStatus: SyncStatus = isCloudConfigured ? "connecting" : "local";
+let authInfo: CurrentAuth = {
+  userId: null,
+  email: null,
+  isAnonymous: false,
+};
+export type PendingAuth = "verification" | "signin" | null;
+let pendingAuth: PendingAuth = null;
 const subs = new Set<() => void>();
 
 function notify() {
@@ -193,6 +206,8 @@ async function hydrateFromRemote(): Promise<void> {
       return;
     }
     userId = uid;
+    // Refresh auth info alongside the data hydrate
+    authInfo = await getCurrentAuth();
 
     const [profileFetch, sales, tabs, stokvelRes] = await Promise.all([
       fetchProfile(uid),
@@ -224,6 +239,22 @@ async function hydrateFromRemote(): Promise<void> {
 
 if (isCloudConfigured && typeof window !== "undefined") {
   hydrating = hydrateFromRemote();
+
+  // Auth state changes trigger a re-hydrate so the client picks up the
+  // new user's data (or the returned-to-anonymous session's blank slate).
+  onAuthChange((event) => {
+    if (
+      event === "SIGNED_IN" ||
+      event === "USER_UPDATED" ||
+      event === "SIGNED_OUT"
+    ) {
+      // If a magic link was successfully clicked, clear the pending banner
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        pendingAuth = null;
+      }
+      hydrateFromRemote();
+    }
+  });
 }
 
 function sync<T>(op: () => Promise<T>) {
@@ -431,6 +462,61 @@ export function useStore() {
     }
   }, []);
 
+  // -- Email auth --
+
+  const linkEmailToAccount = useCallback(
+    async (email: string): Promise<AuthResult> => {
+      const result = await remoteLinkEmail(email);
+      if (result.ok) {
+        pendingAuth = "verification";
+        notify();
+      }
+      return result;
+    },
+    [],
+  );
+
+  const signInWithEmail = useCallback(
+    async (email: string): Promise<AuthResult> => {
+      const result = await remoteSendSignInLink(email);
+      if (result.ok) {
+        pendingAuth = "signin";
+        notify();
+        // sendSignInLink signs out first, so the app is momentarily without
+        // a session. Trigger a re-hydrate to spin up a fresh anon session
+        // while we wait for the user to click the link.
+        hydrateFromRemote();
+      }
+      return result;
+    },
+    [],
+  );
+
+  const clearPendingAuth = useCallback(() => {
+    if (pendingAuth === null) return;
+    pendingAuth = null;
+    notify();
+  }, []);
+
+  const signOut = useCallback(async (): Promise<AuthResult> => {
+    const result = await remoteSignOut();
+    try {
+      localStorage.removeItem(KEY);
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      // ignore
+    }
+    state = { ...emptyState };
+    userId = null;
+    stokvelId = null;
+    authInfo = { userId: null, email: null, isAnonymous: false };
+    pendingAuth = null;
+    notify();
+    // Immediately create a fresh anonymous session so the app stays usable.
+    await hydrateFromRemote();
+    return result;
+  }, []);
+
   // -- Account / reset --
 
   const resetAccount = useCallback(async () => {
@@ -461,6 +547,11 @@ export function useStore() {
     syncStatus,
     isCloud: isCloudConfigured,
     userId,
+    // auth
+    email: authInfo.email,
+    isSignedIn: Boolean(authInfo.email) && !authInfo.isAnonymous,
+    isAnonymous: authInfo.isAnonymous,
+    pendingAuth,
     // onboarding
     setLang,
     setProfile,
@@ -475,6 +566,11 @@ export function useStore() {
     // demo / account
     loadSampleData,
     resetAccount,
+    // email auth
+    linkEmailToAccount,
+    signInWithEmail,
+    signOut,
+    clearPendingAuth,
   };
 }
 

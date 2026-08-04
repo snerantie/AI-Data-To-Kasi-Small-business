@@ -10,10 +10,13 @@ import {
   Check,
   Loader2,
   Sparkles,
+  Mail,
+  LogOut,
+  Inbox,
 } from "lucide-react";
 import type { Screen } from "../App";
 import type { Lang, TKey } from "../i18n";
-import { LANGS, tr } from "../i18n";
+import { LANGS, tr, trParams } from "../i18n";
 import type { BusinessType } from "../store";
 import { formatRand, useStore } from "../store";
 
@@ -45,6 +48,8 @@ export function Settings({
     resetAccount,
     isCloud,
     syncStatus,
+    isAnonymous,
+    pendingAuth,
   } = useStore();
 
   const [saved, setSaved] = useState<string | null>(null);
@@ -287,61 +292,58 @@ export function Settings({
           title={tr("sectionAccount", lang)}
           accent="coral"
         >
-          <div>
-            <div className="font-medium">{tr("accountAnonymous", lang)}</div>
-            <div className="text-white/60 text-sm mt-1">
-              {tr("accountAnonymousDesc", lang)}
-            </div>
-          </div>
+          <AccountAuthBlock lang={lang} />
 
-          <div className="mt-4 rounded-2xl border border-kasi-coral/20 bg-kasi-coral/[0.05] p-3">
-            <div className="text-sm font-medium text-kasi-coral">
-              {tr("accountReset", lang)}
-            </div>
-            <div className="text-white/60 text-xs mt-1 mb-3">
-              {tr("accountResetDesc", lang)}
-            </div>
+          {isCloud && isAnonymous && !pendingAuth && (
+            <div className="mt-4 rounded-2xl border border-kasi-coral/20 bg-kasi-coral/[0.05] p-3">
+              <div className="text-sm font-medium text-kasi-coral">
+                {tr("accountReset", lang)}
+              </div>
+              <div className="text-white/60 text-xs mt-1 mb-3">
+                {tr("accountResetDesc", lang)}
+              </div>
 
-            <AnimatePresence mode="wait">
-              {!confirmReset ? (
-                <motion.button
-                  key="ask"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setConfirmReset(true)}
-                  className="px-3 py-2 rounded-lg bg-kasi-coral/15 border border-kasi-coral/30 text-kasi-coral text-xs font-medium"
-                >
-                  {tr("accountReset", lang)}
-                </motion.button>
-              ) : (
-                <motion.div
-                  key="confirm"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col gap-2"
-                >
-                  <button
-                    onClick={doReset}
-                    disabled={resetting}
-                    className="px-3 py-2 rounded-lg bg-kasi-coral text-bg text-xs font-semibold flex items-center justify-center gap-1"
+              <AnimatePresence mode="wait">
+                {!confirmReset ? (
+                  <motion.button
+                    key="ask"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setConfirmReset(true)}
+                    className="px-3 py-2 rounded-lg bg-kasi-coral/15 border border-kasi-coral/30 text-kasi-coral text-xs font-medium"
                   >
-                    {resetting ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : null}
-                    {tr("accountResetConfirm", lang)}
-                  </button>
-                  <button
-                    onClick={() => setConfirmReset(false)}
-                    className="px-3 py-2 rounded-lg bg-bg-card border border-white/10 text-white/70 text-xs"
+                    {tr("accountReset", lang)}
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col gap-2"
                   >
-                    {tr("accountResetCancel", lang)}
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                    <button
+                      onClick={doReset}
+                      disabled={resetting}
+                      className="px-3 py-2 rounded-lg bg-kasi-coral text-bg text-xs font-semibold flex items-center justify-center gap-1"
+                    >
+                      {resetting ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : null}
+                      {tr("accountResetConfirm", lang)}
+                    </button>
+                    <button
+                      onClick={() => setConfirmReset(false)}
+                      className="px-3 py-2 rounded-lg bg-bg-card border border-white/10 text-white/70 text-xs"
+                    >
+                      {tr("accountResetCancel", lang)}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </Section>
 
         <div className="pt-2 text-center text-white/30 text-[10px]">
@@ -471,5 +473,278 @@ function SavedBadge() {
       <Check size={10} />
       Saved
     </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AccountAuthBlock
+//
+// Handles the four possible auth states in the Settings Account section:
+//   1. Not cloud-configured (demo mode)  → informational note only
+//   2. pendingAuth is set                → "check your inbox" panel
+//   3. Signed in with an email           → email + Sign out button
+//   4. Anonymous                         → two-mode form (save data / sign in)
+// ---------------------------------------------------------------------------
+function AccountAuthBlock({ lang }: { lang: Lang }) {
+  const {
+    isCloud,
+    isSignedIn,
+    email,
+    pendingAuth,
+    linkEmailToAccount,
+    signInWithEmail,
+    signOut,
+    clearPendingAuth,
+  } = useStore();
+
+  const [mode, setMode] = useState<"save" | "signin">("save");
+  const [emailInput, setEmailInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  // -- Cloud not configured ------------------------------------------------
+  if (!isCloud) {
+    return (
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+          <Mail size={16} className="text-white/40" />
+        </div>
+        <div>
+          <div className="font-medium">{tr("accountAnonymous", lang)}</div>
+          <div className="text-white/60 text-sm mt-1">
+            Cloud sync is disabled in demo mode. Ask your admin to add
+            Supabase env vars to enable sign-in.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+  const submit = async () => {
+    const clean = emailInput.trim();
+    if (!isValidEmail(clean)) {
+      setError(tr("authInvalidEmail", lang));
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    const result =
+      mode === "save"
+        ? await linkEmailToAccount(clean)
+        : await signInWithEmail(clean);
+    setSubmitting(false);
+    if (result.ok) {
+      setPendingEmail(clean);
+      setEmailInput("");
+    } else {
+      // If linkEmail fails because the email exists, nudge user to sign in
+      const msg = result.error.toLowerCase();
+      if (
+        mode === "save" &&
+        (msg.includes("already") ||
+          msg.includes("registered") ||
+          msg.includes("exists") ||
+          msg.includes("taken"))
+      ) {
+        setError(null);
+        setMode("signin");
+        setEmailInput(clean);
+      } else {
+        setError(result.error);
+      }
+    }
+  };
+
+  const dismiss = () => {
+    clearPendingAuth();
+    setPendingEmail(null);
+    setError(null);
+  };
+
+  const doSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+    setSigningOut(false);
+  };
+
+  // -- Pending state (verification or sign-in email sent) ------------------
+  if (pendingAuth) {
+    const isVerification = pendingAuth === "verification";
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-start gap-3"
+      >
+        <div className="flex items-center gap-2 text-kasi-green">
+          <Inbox size={18} />
+          <span className="font-semibold text-sm">
+            {tr(
+              isVerification
+                ? "authPendingVerificationTitle"
+                : "authPendingSigninTitle",
+              lang,
+            )}
+          </span>
+        </div>
+        <div className="text-white/75 text-sm leading-relaxed">
+          {trParams(
+            isVerification ? "authPendingVerification" : "authPendingSignin",
+            lang,
+            { email: pendingEmail ?? "…" },
+          )}
+        </div>
+        <div className="text-white/40 text-xs">
+          {tr("authPendingExpires", lang)}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={dismiss}
+            className="px-3 py-2 rounded-lg bg-bg border border-white/10 text-white/70 text-xs"
+          >
+            {tr("authDismiss", lang)}
+          </button>
+          <button
+            onClick={() => {
+              dismiss();
+              setEmailInput("");
+            }}
+            className="px-3 py-2 rounded-lg text-kasi-gold text-xs"
+          >
+            {tr("authTryAnother", lang)}
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // -- Signed in with email ------------------------------------------------
+  if (isSignedIn && email) {
+    return (
+      <div>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center shrink-0">
+            <Mail size={16} className="text-kasi-green" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("authSignedInAs", lang)}
+            </div>
+            <div className="font-medium truncate">{email}</div>
+            <div className="text-white/60 text-xs mt-1">
+              {tr("authSignedInDesc", lang)}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={doSignOut}
+          disabled={signingOut}
+          className="mt-4 w-full py-2.5 rounded-xl bg-bg border border-white/10 text-white/80 text-sm font-medium flex items-center justify-center gap-2"
+        >
+          {signingOut ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <LogOut size={14} />
+          )}
+          {tr("authSignOut", lang)}
+        </button>
+      </div>
+    );
+  }
+
+  // -- Anonymous: save data / sign in form ---------------------------------
+  const isSaveMode = mode === "save";
+
+  return (
+    <div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={mode}
+          initial={{ opacity: 0, x: 6 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -6 }}
+          transition={{ duration: 0.18 }}
+        >
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/25 flex items-center justify-center shrink-0">
+              <Mail size={16} className="text-kasi-gold" />
+            </div>
+            <div>
+              <div className="font-medium">
+                {tr(
+                  isSaveMode ? "accountAnonymous" : "authSignInHeader",
+                  lang,
+                )}
+              </div>
+              <div className="text-white/60 text-xs mt-1 leading-relaxed">
+                {tr(
+                  isSaveMode ? "accountAnonymousDesc" : "authSignInDesc",
+                  lang,
+                )}
+              </div>
+            </div>
+          </div>
+
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("authEmailLabel", lang)}
+          </label>
+          <input
+            type="email"
+            inputMode="email"
+            autoCapitalize="off"
+            autoCorrect="off"
+            value={emailInput}
+            onChange={(e) => {
+              setEmailInput(e.target.value);
+              if (error) setError(null);
+            }}
+            placeholder={tr("authEmailPlaceholder", lang)}
+            className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-green"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !submitting) submit();
+            }}
+          />
+          {error && (
+            <div className="mt-2 text-xs text-kasi-coral">{error}</div>
+          )}
+
+          <button
+            onClick={submit}
+            disabled={submitting || !emailInput.trim()}
+            className={
+              "mt-3 w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all " +
+              (emailInput.trim() && !submitting
+                ? isSaveMode
+                  ? "bg-kasi-green text-bg shadow-glow"
+                  : "bg-kasi-gold text-bg shadow-gold"
+                : "bg-white/5 text-white/30 cursor-not-allowed")
+            }
+          >
+            {submitting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Mail size={14} />
+            )}
+            {submitting
+              ? tr("authSending", lang)
+              : tr(isSaveMode ? "authSaveDataCta" : "authSignInCta", lang)}
+          </button>
+
+          <button
+            onClick={() => {
+              setMode(isSaveMode ? "signin" : "save");
+              setError(null);
+            }}
+            className="mt-2 w-full text-center text-xs text-white/50 underline"
+          >
+            {tr(isSaveMode ? "authAlreadyHaveAccount" : "authBackToSave", lang)}
+          </button>
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 }

@@ -515,9 +515,104 @@ export const t = {
     st: "Kopano e sa tsejoeng",
   },
   accountAnonymousDesc: {
-    en: "Your data is saved to this device. Sign in with a phone or email to sync across devices (coming soon).",
-    zu: "Idatha yakho igciniwe kule divayisi. Ngena ngefoni noma i-imeyili ukuvumelanisa (isiza maduze).",
-    st: "Data ea hao e bolokiloe khonopheng ena. Kena ka mohala kapa email ho kopanya (e ea tla).",
+    en: "Your data is saved to this device only. Add an email below to save it and access it from any phone.",
+    zu: "Idatha yakho igciniwe kule divayisi kuphela. Faka i-imeyili ukuze uyigcine futhi uyifinyelele kunoma iyiphi ifoni.",
+    st: "Data ea hao e bolokiloe khonopheng ena feela. Kenya email ka tlase ho e boloka le ho e fumana mohaleng ofe kapa ofe.",
+  },
+
+  // Email magic-link auth
+  authSignedInAs: {
+    en: "Signed in as",
+    zu: "Ungene njengo",
+    st: "U kentse joalo ka",
+  },
+  authSignedInDesc: {
+    en: "Your data is safe. You can sign in from any device with this email.",
+    zu: "Idatha yakho iphephile. Ungangena kunoma iyiphi idivayisi nge-imeyili.",
+    st: "Data ea hao e bolokehile. U ka kena ho tsoa khonopheng efe kapa efe ka email ena.",
+  },
+  authSignOut: { en: "Sign out", zu: "Phuma", st: "Tsoa" },
+
+  authEmailLabel: { en: "Email", zu: "I-imeyili", st: "Email" },
+  authEmailPlaceholder: {
+    en: "you@example.com",
+    zu: "wena@isibonelo.com",
+    st: "uena@mohlala.com",
+  },
+
+  authSaveDataCta: {
+    en: "Send verification link",
+    zu: "Thumela isixhumanisi sokuqinisekisa",
+    st: "Romela sehokelo sa netefatso",
+  },
+  authAlreadyHaveAccount: {
+    en: "Already have an account? Sign in",
+    zu: "Usenayo i-akhawunti? Ngena",
+    st: "U se u na le akhaonto? Kena",
+  },
+
+  authSignInHeader: {
+    en: "Sign in to your account",
+    zu: "Ngena ku-akhawunti yakho",
+    st: "Kena akhaontong ea hao",
+  },
+  authSignInDesc: {
+    en: "We'll email you a magic link — click it on this device.",
+    zu: "Sizokuthumelela isixhumanisi nge-imeyili — sicindezele kule divayisi.",
+    st: "Re tla u romella sehokelo ka email — se tobetse khonopheng ena.",
+  },
+  authSignInCta: {
+    en: "Send sign-in link",
+    zu: "Thumela isixhumanisi sokungena",
+    st: "Romela sehokelo sa ho kena",
+  },
+  authBackToSave: {
+    en: "Back — save this account instead",
+    zu: "Emuva — gcina le akhawunti",
+    st: "Morao — boloka akhaonto ena",
+  },
+
+  authPendingVerificationTitle: {
+    en: "Check your inbox 📬",
+    zu: "Hlola ibhokisi yakho 📬",
+    st: "Sheba email ea hao 📬",
+  },
+  authPendingVerification: {
+    en: "We sent a verification link to {email}. Click it on this device to save your account.",
+    zu: "Sithumele isixhumanisi sokuqinisekisa ku-{email}. Sicindezele kule divayisi ukugcina i-akhawunti yakho.",
+    st: "Re rometse sehokelo sa netefatso ho {email}. Se tobetse khonopheng ena ho boloka akhaonto ea hao.",
+  },
+  authPendingSigninTitle: {
+    en: "Magic link sent 📬",
+    zu: "Isixhumanisi sithunyelwe 📬",
+    st: "Sehokelo se rometsoe 📬",
+  },
+  authPendingSignin: {
+    en: "We sent a sign-in link to {email}. Open it on the device you want to use.",
+    zu: "Sithumele isixhumanisi sokungena ku-{email}. Sicindezele kudivayisi ofuna ukuyisebenzisa.",
+    st: "Re rometse sehokelo sa ho kena ho {email}. Se bule khonopheng eo u batlang ho e sebelisa.",
+  },
+  authPendingExpires: {
+    en: "The link expires in 1 hour. Didn't get it? Check spam.",
+    zu: "Isixhumanisi siphelelwa ehoreni. Awusitholanga? Hlola i-spam.",
+    st: "Sehokelo se felella hora e le 'ngoe. Ha oa se fumana? Sheba spam.",
+  },
+  authDismiss: { en: "Dismiss", zu: "Chitha", st: "Tlohela" },
+  authTryAnother: {
+    en: "Use a different email",
+    zu: "Sebenzisa enye i-imeyili",
+    st: "Sebelisa email e 'ngoe",
+  },
+
+  authInvalidEmail: {
+    en: "Please enter a valid email",
+    zu: "Sicela ufake i-imeyili evumelekile",
+    st: "Ka kopo kenya email e nepahetseng",
+  },
+  authSending: {
+    en: "Sending...",
+    zu: "Iyathunyelwa...",
+    st: "E ntse e romelloa...",
   },
   accountReset: {
     en: "Reset account",
