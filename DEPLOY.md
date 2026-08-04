@@ -65,6 +65,33 @@ Anonymous auth lets people use KasiKash without signing up first. Perfect for th
 - Find **Anonymous Sign-Ins** in the list.
 - Toggle it **on** and save.
 
+### 3b. Enable email sign-in (for magic links)
+
+Email magic-link sign-in is how anonymous accounts get upgraded to permanent ones so data survives switching phones.
+
+- In **Authentication → Sign In / Providers**, find **Email** and confirm it's enabled (it usually is by default).
+- Below that, find **"Confirm email"** — leave it on. It's what makes the magic-link click actually upgrade the account.
+
+### 3c. Add redirect URLs so magic links work
+
+When a user clicks a magic link, Supabase redirects them back to your app. It only redirects to URLs you've whitelisted.
+
+- Go to **Authentication → URL Configuration**.
+- Set **Site URL** to your primary production URL. Pick the one you'll share — for example `https://kasikash.vercel.app`.
+- Under **Redirect URLs**, add every domain the app runs on so preview builds and both deploys work:
+  - `https://kasikash.vercel.app/**`  ← your Vercel production
+  - `https://kasikash-*.vercel.app/**`  ← Vercel PR previews (wildcards allowed)
+  - `https://kasikash.netlify.app/**`  ← your Netlify production
+  - `https://deploy-preview-*--kasikash.netlify.app/**`  ← Netlify PR previews
+  - `http://localhost:5173/**`  ← local dev
+
+  Use whatever your actual deploy URLs are. The `/**` on the end covers all paths.
+- Click **Save**.
+
+### 3d. About the free email service (optional but useful to know)
+
+Supabase's default email sender is fine for testing but limited to **2 emails / hour / user** on the free tier. For production traffic you should point Supabase at your own SMTP provider (Resend, SendGrid, Postmark, etc.) — [official guide here](https://supabase.com/docs/guides/auth/auth-smtp). Not needed to get started.
+
 ### 4. Copy the two env vars you need
 
 - Go to **Project Settings → API**.
