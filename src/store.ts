@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Lang } from "./i18n";
 import { isCloudConfigured } from "./lib/supabase";
 import {
+  createStokvel as remoteCreateStokvel,
   ensureSession,
   fetchProfile,
   fetchSales,
@@ -11,11 +12,27 @@ import {
   insertSale as remoteInsertSale,
   insertSales as remoteInsertSales,
   insertTab as remoteInsertTab,
+  resetToFreshAnon,
+  updateStokvel as remoteUpdateStokvel,
   updateTabPaid as remoteUpdateTabPaid,
   upsertProfile as remoteUpsertProfile,
 } from "./lib/remote";
 
 // ---- Types -----------------------------------------------------------------
+
+export type BusinessType =
+  | "spaza"
+  | "salon"
+  | "taxi"
+  | "tailor"
+  | "food"
+  | "other";
+
+export type Profile = {
+  ownerName: string | null;
+  businessName: string | null;
+  businessType: BusinessType | null;
+};
 
 export type Sale = {
   id: string;
@@ -51,6 +68,7 @@ export type Stokvel = {
 
 export type AppState = {
   lang: Lang | null;
+  profile: Profile;
   sales: Sale[];
   tabs: Tab[];
   stokvel: Stokvel;
@@ -59,74 +77,60 @@ export type AppState = {
 
 export type SyncStatus = "local" | "connecting" | "synced" | "error";
 
-// ---- Seed + empty ---------------------------------------------------------
+// ---- Empty starting state -------------------------------------------------
 
 const emptyState: AppState = {
   lang: null,
   onboarded: false,
+  profile: {
+    ownerName: null,
+    businessName: null,
+    businessType: null,
+  },
   sales: [],
   tabs: [],
   stokvel: {
-    name: "My Stokvel",
+    name: "",
     goal: 5000,
     members: 1,
     contributions: [],
   },
 };
 
-const demoSeed: AppState = {
-  lang: null,
-  onboarded: false,
-  sales: [
-    { id: "s1", item: "Bread", qty: 4, price: 18, createdAt: Date.now() - 1000 * 60 * 60 * 3, source: "voice" },
-    { id: "s2", item: "Airtime", qty: 2, price: 12, createdAt: Date.now() - 1000 * 60 * 60 * 2, source: "voice" },
-    { id: "s3", item: "Cold drink", qty: 3, price: 15, createdAt: Date.now() - 1000 * 60 * 30, source: "voice" },
-    { id: "s4", item: "Bread", qty: 6, price: 18, createdAt: Date.now() - 1000 * 60 * 60 * 24, source: "voice" },
-    { id: "s5", item: "Bread", qty: 5, price: 18, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2, source: "voice" },
-    { id: "s6", item: "Maize meal", qty: 2, price: 45, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3, source: "manual" },
-    { id: "s7", item: "Sugar", qty: 3, price: 22, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 4, source: "manual" },
-  ],
-  tabs: [
-    { id: "t1", customer: "Sipho", amount: 85, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2 },
-    { id: "t2", customer: "Thandi", amount: 42, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 5 },
-    { id: "t3", customer: "Bra Vusi", amount: 120, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 14 },
-  ],
-  stokvel: {
-    name: "Ma-Nomsa Stokvel",
-    goal: 5000,
-    members: 8,
-    contributions: [
-      { id: "c1", amount: 250, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 30, note: "January" },
-      { id: "c2", amount: 250, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 60 },
-      { id: "c3", amount: 500, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 90 },
-      { id: "c4", amount: 300, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 45 },
-      { id: "c5", amount: 400, createdAt: Date.now() - 1000 * 60 * 60 * 24 * 15 },
-    ],
-  },
-};
-
 // ---- Persistence ----------------------------------------------------------
 
-const KEY = "kasikash-state-v2";
+const KEY = "kasikash-state-v3";
+const LEGACY_KEY = "kasikash-state-v2";
 
 function loadInitial(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      // Ensure new fields exist when upgrading from older cached state
       return {
         ...emptyState,
         ...parsed,
+        profile: { ...emptyState.profile, ...(parsed.profile ?? {}) },
+        stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
+      };
+    }
+    // Migrate from v2 cache if present
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as Partial<AppState>;
+      return {
+        ...emptyState,
+        lang: parsed.lang ?? null,
+        onboarded: Boolean(parsed.onboarded),
+        sales: parsed.sales ?? [],
+        tabs: parsed.tabs ?? [],
         stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
       };
     }
   } catch {
     // ignore
   }
-  // No cached state: in cloud mode start empty (server is truth),
-  // in demo mode use the friendly seed data.
-  return isCloudConfigured ? emptyState : demoSeed;
+  return emptyState;
 }
 
 function saveLocal(s: AppState) {
@@ -162,6 +166,10 @@ function setState(
   state = {
     ...state,
     ...delta,
+    profile:
+      delta.profile !== undefined
+        ? { ...state.profile, ...delta.profile }
+        : state.profile,
     stokvel:
       delta.stokvel !== undefined
         ? { ...state.stokvel, ...delta.stokvel }
@@ -186,30 +194,25 @@ async function hydrateFromRemote(): Promise<void> {
     }
     userId = uid;
 
-    const [profile, sales, tabs, stokvelRes] = await Promise.all([
+    const [profileFetch, sales, tabs, stokvelRes] = await Promise.all([
       fetchProfile(uid),
       fetchSales(uid),
       fetchTabs(uid),
-      fetchStokvel(uid, {
-        name: state.stokvel.name || "My Stokvel",
-        goal: state.stokvel.goal || 5000,
-        members: state.stokvel.members || 1,
-      }),
+      fetchStokvel(uid),
     ]);
 
     const merged: AppState = {
       ...state,
-      lang: profile?.language ?? state.lang,
-      // If the profile row exists (server truth), trust it.
-      // Otherwise keep whatever local onboarding state we had.
-      onboarded: profile ? profile.onboarded : state.onboarded,
+      lang: profileFetch?.language ?? state.lang,
+      onboarded: profileFetch ? profileFetch.onboarded : state.onboarded,
+      profile: profileFetch?.profile ?? state.profile,
       sales: sales ?? state.sales,
       tabs: tabs ?? state.tabs,
       stokvel: stokvelRes?.stokvel ?? state.stokvel,
     };
 
     state = merged;
-    if (stokvelRes) stokvelId = stokvelRes.stokvelId;
+    stokvelId = stokvelRes?.stokvelId ?? null;
     saveLocal(state);
     setSync("synced");
     notify();
@@ -223,13 +226,10 @@ if (isCloudConfigured && typeof window !== "undefined") {
   hydrating = hydrateFromRemote();
 }
 
-// Best-effort fire-and-forget wrapper for remote writes.
 function sync<T>(op: () => Promise<T>) {
   if (!isCloudConfigured) return;
   op().catch((err) => {
     console.warn("[kasikash] remote sync failed:", err);
-    // We don't downgrade the sync badge here; a single failure is
-    // usually transient (offline, refresh token, etc.).
   });
 }
 
@@ -245,20 +245,76 @@ export function useStore() {
     };
   }, []);
 
+  // -- Onboarding actions --
+
   const setLang = useCallback((lang: Lang) => {
-    setState({ lang, onboarded: true });
+    setState({ lang });
     if (userId) {
-      sync(() => remoteUpsertProfile(userId!, { language: lang, onboarded: true }));
+      sync(() => remoteUpsertProfile(userId!, { language: lang }));
     } else if (isCloudConfigured) {
-      // Session might not have arrived yet — wait for it then upsert.
+      (async () => {
+        await hydrating;
+        if (userId) await remoteUpsertProfile(userId, { language: lang });
+      })();
+    }
+  }, []);
+
+  const setProfile = useCallback((patch: Partial<Profile>) => {
+    setState({ profile: patch as Profile });
+    if (userId) {
+      sync(() =>
+        remoteUpsertProfile(userId!, {
+          ownerName: patch.ownerName,
+          businessName: patch.businessName,
+          businessType: patch.businessType,
+        }),
+      );
+    } else if (isCloudConfigured) {
       (async () => {
         await hydrating;
         if (userId) {
-          await remoteUpsertProfile(userId, { language: lang, onboarded: true });
+          await remoteUpsertProfile(userId, {
+            ownerName: patch.ownerName,
+            businessName: patch.businessName,
+            businessType: patch.businessType,
+          });
         }
       })();
     }
   }, []);
+
+  const setStokvelMeta = useCallback(
+    (patch: Partial<Pick<Stokvel, "name" | "goal" | "members">>) => {
+      setState((s) => ({
+        stokvel: { ...s.stokvel, ...patch },
+      }));
+      if (userId) {
+        if (stokvelId) {
+          sync(() => remoteUpdateStokvel(stokvelId!, patch));
+        } else {
+          // Not yet created — create it now with current values.
+          sync(async () => {
+            const id = await remoteCreateStokvel(userId!, {
+              name: (patch.name ?? state.stokvel.name) || "My Stokvel",
+              goal: patch.goal ?? state.stokvel.goal,
+              members: patch.members ?? state.stokvel.members,
+            });
+            if (id) stokvelId = id;
+          });
+        }
+      }
+    },
+    [],
+  );
+
+  const finishOnboarding = useCallback(() => {
+    setState({ onboarded: true });
+    if (userId) {
+      sync(() => remoteUpsertProfile(userId!, { onboarded: true }));
+    }
+  }, []);
+
+  // -- Mutations --
 
   const addSale = useCallback((sale: Omit<Sale, "id" | "createdAt">) => {
     const full: Sale = {
@@ -275,7 +331,7 @@ export function useStore() {
     const full: Sale[] = sales.map((sale, i) => ({
       ...sale,
       id: crypto.randomUUID(),
-      createdAt: now + i, // preserve order
+      createdAt: now + i,
     }));
     setState((s) => ({ sales: [...full, ...s.sales] }));
     if (userId) sync(() => remoteInsertSales(userId!, full));
@@ -316,17 +372,88 @@ export function useStore() {
     }
   }, []);
 
-  const reset = useCallback(() => {
+  // -- Sample data (for demos, recordings, and users who want to explore) --
+
+  const loadSampleData = useCallback(() => {
+    const now = Date.now();
+    const sampleSales: Omit<Sale, "id" | "createdAt">[] = [
+      { item: "Bread", qty: 4, price: 18, source: "voice" },
+      { item: "Airtime", qty: 2, price: 12, source: "voice" },
+      { item: "Cold drink", qty: 3, price: 15, source: "voice" },
+      { item: "Bread", qty: 6, price: 18, source: "voice" },
+      { item: "Maize meal", qty: 2, price: 45, source: "manual" },
+      { item: "Sugar", qty: 3, price: 22, source: "manual" },
+    ];
+    const sampleTabs: Omit<Tab, "id" | "createdAt">[] = [
+      { customer: "Sipho", amount: 85 },
+      { customer: "Thandi", amount: 42 },
+      { customer: "Bra Vusi", amount: 120 },
+    ];
+    const sampleContribs: number[] = [250, 300, 400, 250, 500];
+
+    // Spread over past week for realistic insights
+    const salesFull: Sale[] = sampleSales.map((s, i) => ({
+      ...s,
+      id: crypto.randomUUID(),
+      createdAt: now - 1000 * 60 * 60 * (i * 6),
+    }));
+    const tabsFull: Tab[] = sampleTabs.map((t, i) => ({
+      ...t,
+      id: crypto.randomUUID(),
+      createdAt: now - 1000 * 60 * 60 * 24 * (2 + i * 5),
+    }));
+    const contribFull: Contribution[] = sampleContribs.map((amt, i) => ({
+      id: crypto.randomUUID(),
+      amount: amt,
+      createdAt: now - 1000 * 60 * 60 * 24 * (10 + i * 15),
+    }));
+
+    setState((s) => ({
+      sales: [...salesFull, ...s.sales],
+      tabs: [...tabsFull, ...s.tabs],
+      stokvel: {
+        ...s.stokvel,
+        contributions: [...contribFull, ...s.stokvel.contributions],
+      },
+    }));
+
+    if (userId) {
+      sync(() => remoteInsertSales(userId!, salesFull));
+      salesFull.forEach(() => {
+        /* batch above covers */
+      });
+      tabsFull.forEach((t) => sync(() => remoteInsertTab(userId!, t)));
+      if (stokvelId) {
+        contribFull.forEach((c) =>
+          sync(() => remoteInsertContribution(userId!, stokvelId!, c)),
+        );
+      }
+    }
+  }, []);
+
+  // -- Account / reset --
+
+  const resetAccount = useCallback(async () => {
     try {
       localStorage.removeItem(KEY);
+      localStorage.removeItem(LEGACY_KEY);
     } catch {
       // ignore
     }
-    state = isCloudConfigured ? emptyState : demoSeed;
+    state = { ...emptyState };
+    stokvelId = null;
+    userId = null;
     notify();
-    // In cloud mode we don't delete server data — the next hydration
-    // will re-populate from Supabase. This gives the demo owner an
-    // "un-onboard me" button without wiping their real records.
+
+    if (isCloudConfigured) {
+      const uid = await resetToFreshAnon();
+      if (uid) {
+        userId = uid;
+        setSync("synced");
+      } else {
+        setSync("error");
+      }
+    }
   }, []);
 
   return {
@@ -334,13 +461,20 @@ export function useStore() {
     syncStatus,
     isCloud: isCloudConfigured,
     userId,
+    // onboarding
     setLang,
+    setProfile,
+    setStokvelMeta,
+    finishOnboarding,
+    // mutations
     addSale,
     addSales,
     addTab,
     markTabPaid,
     addContribution,
-    reset,
+    // demo / account
+    loadSampleData,
+    resetAccount,
   };
 }
 
@@ -391,6 +525,7 @@ export function stokvelTotal(stokvel: Stokvel) {
 }
 
 export function stokvelProgress(stokvel: Stokvel) {
+  if (!stokvel.goal || stokvel.goal <= 0) return 0;
   return Math.max(0, Math.min(1, stokvelTotal(stokvel) / stokvel.goal));
 }
 
@@ -401,11 +536,33 @@ export function kasiScore(state: AppState): number {
   const discipline = paidTabs * 25 - unpaid * 10;
   const savings = Math.min(stokvelTotal(state.stokvel) / 25, 80);
   const base = 460;
-  return Math.max(300, Math.min(850, Math.round(base + activity + discipline + savings)));
+  return Math.max(
+    300,
+    Math.min(850, Math.round(base + activity + discipline + savings)),
+  );
 }
 
 export function formatRand(n: number) {
   return "R" + n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
+}
+
+/**
+ * Onboarding is considered incomplete unless the user has:
+ *  - picked a language
+ *  - given us an owner name
+ *  - given us a business name + type
+ *  - named their stokvel
+ * The onboarded flag is the source of truth once set; this helper is
+ * used during hydration + as a fallback for legacy users.
+ */
+export function needsOnboarding(state: AppState): boolean {
+  if (!state.onboarded) return true;
+  if (!state.lang) return true;
+  if (!state.profile.ownerName) return true;
+  if (!state.profile.businessName) return true;
+  if (!state.profile.businessType) return true;
+  if (!state.stokvel.name) return true;
+  return false;
 }
 
 // ---- Dynamic "AI" insights engine -----------------------------------------
@@ -514,7 +671,7 @@ export function computeInsights(state: AppState): Insight[] {
   }
 
   const potPct = stokvelProgress(state.stokvel) * 100;
-  if (potPct >= 80 && potPct < 100) {
+  if (potPct >= 80 && potPct < 100 && state.stokvel.name) {
     const remain = state.stokvel.goal - stokvelTotal(state.stokvel);
     insights.push({
       id: "stokvel-close",
@@ -523,7 +680,7 @@ export function computeInsights(state: AppState): Insight[] {
       priority: 55,
       params: { remain, name: state.stokvel.name },
     });
-  } else if (potPct < 30) {
+  } else if (potPct < 30 && state.stokvel.name) {
     insights.push({
       id: "stokvel-start",
       key: "insightStokvelStart",

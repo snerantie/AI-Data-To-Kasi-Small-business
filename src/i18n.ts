@@ -15,20 +15,9 @@ export const t = {
     zu: "Ibhizinisi lakho, likhulisiwe.",
     st: "Kgwebo ea hao, e ntlafalitsoe.",
   },
-  chooseLang: {
-    en: "Choose your language",
-    zu: "Khetha ulimi lwakho",
-    st: "Khetha puo ea hao",
-  },
-  getStarted: {
-    en: "Get started",
-    zu: "Qala manje",
-    st: "Qala hona joale",
-  },
 
   // Home
   greeting: { en: "Sawubona,", zu: "Sawubona,", st: "Dumela," },
-  ownerName: { en: "Mama Nomsa", zu: "Mama Nomsa", st: "Mme Nomsa" },
   todayEarnings: {
     en: "Today's takings",
     zu: "Imali yanamuhla",
@@ -90,11 +79,7 @@ export const t = {
     zu: "Cindezela ukhulume — sho okudayisile",
     st: "Tobetsa u bue — bolela seo u se rekisitseng",
   },
-  listening: {
-    en: "Listening...",
-    zu: "Ngiyalalela...",
-    st: "Ke a mamela...",
-  },
+  listening: { en: "Listening...", zu: "Ngiyalalela...", st: "Ke a mamela..." },
   heard: { en: "I heard", zu: "Ngizwile", st: "Ke utloile" },
   confirm: { en: "Confirm sale", zu: "Qinisekisa", st: "Tiisa" },
   retry: { en: "Try again", zu: "Zama futhi", st: "Leka hape" },
@@ -107,18 +92,9 @@ export const t = {
   qty: { en: "Qty", zu: "Inani", st: "Palo" },
   price: { en: "Price (R)", zu: "Intengo (R)", st: "Theko (R)" },
   save: { en: "Save", zu: "Londoloza", st: "Boloka" },
-  orScan: {
-    en: "Or scan a receipt",
-    zu: "Noma skena irisidi",
-    st: "Kapa skena risiti",
-  },
 
   // Receipt scan
-  scanTitle: {
-    en: "Scan a receipt",
-    zu: "Skena irisidi",
-    st: "Skena risiti",
-  },
+  scanTitle: { en: "Scan a receipt", zu: "Skena irisidi", st: "Skena risiti" },
   scanSubtitle: {
     en: "Photograph a supplier receipt — we'll extract items automatically.",
     zu: "Thatha isithombe serisidi — sizokhipha izinto ngokuzenzakalelayo.",
@@ -188,16 +164,8 @@ export const t = {
   },
   stokvelGoal: { en: "Goal", zu: "Umgomo", st: "Sepheo" },
   stokvelSaved: { en: "Saved", zu: "Kugciniwe", st: "Ho bolokiloe" },
-  stokvelMembers: {
-    en: "Members",
-    zu: "Amalungu",
-    st: "Litho",
-  },
-  contribute: {
-    en: "Contribute",
-    zu: "Nikela",
-    st: "Kenya",
-  },
+  stokvelMembers: { en: "Members", zu: "Amalungu", st: "Litho" },
+  contribute: { en: "Contribute", zu: "Nikela", st: "Kenya" },
   recentContributions: {
     en: "Recent contributions",
     zu: "Iminikelo yakamuva",
@@ -215,11 +183,7 @@ export const t = {
   },
 
   // Insights
-  creditScore: {
-    en: "KasiScore",
-    zu: "i-KasiScore",
-    st: "KasiScore",
-  },
+  creditScore: { en: "KasiScore", zu: "i-KasiScore", st: "KasiScore" },
   creditSub: {
     en: "Your business's financial passport",
     zu: "Ipasi yezimali yebhizinisi lakho",
@@ -257,17 +221,17 @@ export const t = {
     zu: "Iqala ngezwi. Isebenza ngaphandle kwe-inthanethi. Yakhelwe ikasi.",
     st: "E qala ka lentsoe. E sebetsa ntle le inthanete. E hahiloe bakeng sa kasi.",
   },
+  insightsEmpty: {
+    en: "Log a few more sales to unlock personalised tips.",
+    zu: "Faka okudayisa okuningi ukuvula amacebiso.",
+    st: "Kenya thekiso e meng ho notlolla likeletso.",
+  },
 
   // Sample suggestions
   sampleSuggestion1: {
     en: "Sold 3 bread at R18",
     zu: "Ngithengise izinkwa ezintathu ngo-R18",
     st: "Ke rekisitse bohobe bo bo bararo ka R18",
-  },
-  sampleSuggestion2: {
-    en: "2 airtime R12",
-    zu: "Ama-airtime amabili R12",
-    st: "Li-airtime tse peli R12",
   },
 
   // WhatsApp bot
@@ -282,9 +246,9 @@ export const t = {
     st: "Ha ho hlokahale app. Ngola feela.",
   },
   whatsappSampleBotWelcome: {
-    en: "Hi Mama Nomsa! I'm KasiKash. Just tell me what you sold and I'll keep the books. Try: \"sold 3 bread R18\"",
-    zu: "Sawubona Mama Nomsa! NginguKasiKash. Ngitshele nje ukuthi udayiseni nami ngizogcina izincwadi. Zama: \"sold 3 bread R18\"",
-    st: "Dumela Mme Nomsa! Ke KasiKash. Mpolelle feela seo u se rekisitseng 'me ke tla boloka libuka. Leka: \"sold 3 bread R18\"",
+    en: "Hi! I'm KasiKash. Just tell me what you sold and I'll keep the books. Try: \"sold 3 bread R18\"",
+    zu: "Sawubona! NginguKasiKash. Ngitshele nje ukuthi udayiseni nami ngizogcina izincwadi. Zama: \"sold 3 bread R18\"",
+    st: "Dumela! Ke KasiKash. Mpolelle feela seo u se rekisitseng 'me ke tla boloka libuka. Leka: \"sold 3 bread R18\"",
   },
   whatsappSampleUser1: {
     en: "sold 3 bread R18",
@@ -292,9 +256,9 @@ export const t = {
     st: "sold 3 bread R18",
   },
   whatsappSampleBot1: {
-    en: "Logged ✅ 3 × Bread @ R18 = R54. Today's takings: R255. Type \"score\" for your KasiScore.",
-    zu: "Kubhaliwe ✅ 3 × Bread @ R18 = R54. Imali yanamuhla: R255. Bhala \"score\" ukubona i-KasiScore yakho.",
-    st: "E ngoliloe ✅ 3 × Bread @ R18 = R54. Chelete ea kajeno: R255. Ngola \"score\" ho bona KasiScore ea hao.",
+    en: "Logged ✅ 3 × Bread @ R18 = R54. Today's takings updated. Type \"score\" for your KasiScore.",
+    zu: "Kubhaliwe ✅ 3 × Bread @ R18 = R54. Imali yanamuhla ibuyekeziwe. Bhala \"score\".",
+    st: "E ngoliloe ✅ 3 × Bread @ R18 = R54. Chelete ea kajeno e ntlafalitsoe. Ngola \"score\".",
   },
   whatsappSampleUser2: {
     en: "score",
@@ -302,9 +266,9 @@ export const t = {
     st: "score",
   },
   whatsappSampleBot2: {
-    en: "Your KasiScore: 685 🔥 You're 15 points from unlocking R2 000 stokvel-backed credit. Keep logging!",
-    zu: "I-KasiScore yakho: 685 🔥 Usasele amaphuzu angu-15 ukuvula isikweletu se-R2 000. Qhubeka ngokungenisa!",
-    st: "KasiScore ea hao: 685 🔥 U sa hloka lintlha tse 15 ho notlolla mokitlane oa R2 000. Tsoela pele u ngole!",
+    en: "Your KasiScore: 685 🔥 Keep logging to unlock stokvel-backed credit.",
+    zu: "I-KasiScore yakho: 685 🔥 Qhubeka ngokungenisa ukuvula isikweletu.",
+    st: "KasiScore ea hao: 685 🔥 Tsoela pele u ngole ho notlolla mokitlane.",
   },
   whatsappTypingIndicator: {
     en: "typing...",
@@ -316,15 +280,11 @@ export const t = {
     zu: "Bhala sold X item RY...",
     st: "Ngola sold X item RY...",
   },
-  whatsappSendCta: {
-    en: "Send",
-    zu: "Thumela",
-    st: "Romela",
-  },
+  whatsappSendCta: { en: "Send", zu: "Thumela", st: "Romela" },
   whatsappFallbackReply: {
-    en: "Got it. Type \"score\" to see your KasiScore or say what you sold, e.g. \"sold 2 airtime R12\".",
-    zu: "Kuphelile. Bhala \"score\" ukubona i-KasiScore noma sho okudayisile, sib. \"sold 2 airtime R12\".",
-    st: "Ho lokile. Ngola \"score\" ho bona KasiScore kapa bolela seo u se rekisitseng, mohlala \"sold 2 airtime R12\".",
+    en: 'Got it. Type "score" for your KasiScore, or say what you sold e.g. "sold 2 airtime R12".',
+    zu: 'Kuphelile. Bhala "score" noma sho okudayisile, sib. "sold 2 airtime R12".',
+    st: 'Ho lokile. Ngola "score" kapa bolela seo u rekisitseng, mohlala "sold 2 airtime R12".',
   },
   whatsappSaleReply: {
     en: "Logged ✅ {qty} × {item} @ R{price} = R{total}. Today's takings updated.",
@@ -332,7 +292,7 @@ export const t = {
     st: "E ngoliloe ✅ {qty} × {item} @ R{price} = R{total}. Chelete ea kajeno e ntlafalitsoe.",
   },
 
-  // Dynamic insight templates. Use {placeholders} that computeInsights fills in.
+  // Dynamic insight templates
   insightOldTabs: {
     en: "{count} customers owe you over 7 days — {name} for {days} days. Send a WhatsApp nudge.",
     zu: "Amakhasimende angu-{count} akukweletayo izinsuku ezingu-7 — u-{name} izinsuku ezingu-{days}. Thumela isikhumbuzo se-WhatsApp.",
@@ -383,6 +343,200 @@ export const t = {
     zu: "R{owed} akukweletwe. Ukuqoqa ngisho R{half} nje kuphakamisa i-KasiScore yakho.",
     st: "R{owed} e likolotong. Ho bokella le R{half} feela ho phahamisa KasiScore ea hao.",
   },
+
+  // -------------------------------------------------------------------------
+  // Onboarding
+  // -------------------------------------------------------------------------
+  onbChooseLang: {
+    en: "Choose your language",
+    zu: "Khetha ulimi lwakho",
+    st: "Khetha puo ea hao",
+  },
+  onbStepOf: {
+    en: "Step {step} of {total}",
+    zu: "Isinyathelo {step} sika-{total}",
+    st: "Mohato {step} oa {total}",
+  },
+  onbNameTitle: {
+    en: "What should we call you?",
+    zu: "Kufanele sikubize ngani?",
+    st: "Re u bitse mang?",
+  },
+  onbNameSubtitle: {
+    en: "This is the name that appears on your dashboard.",
+    zu: "Leli igama elivela kudashibhodi yakho.",
+    st: "Lena ke lebitso le hlahang letlapeng la hao.",
+  },
+  onbNamePlaceholder: {
+    en: "e.g. Nomsa",
+    zu: "isb. Nomsa",
+    st: "mohlala Nomsa",
+  },
+  onbBusinessTitle: {
+    en: "Tell us about your business",
+    zu: "Sitshele ngebhizinisi lakho",
+    st: "Re bolelle ka khoebo ea hao",
+  },
+  onbBusinessSubtitle: {
+    en: "So we can tailor your dashboard.",
+    zu: "Ukuze sikwazi ukuhlela idashibhodi yakho.",
+    st: "Hore re kgone ho lokisa letlapa la hao.",
+  },
+  onbBusinessNameLabel: {
+    en: "Business name",
+    zu: "Igama lebhizinisi",
+    st: "Lebitso la khoebo",
+  },
+  onbBusinessNamePlaceholder: {
+    en: "e.g. Nomsa's Spaza",
+    zu: "isb. Nomsa's Spaza",
+    st: "mohlala Nomsa's Spaza",
+  },
+  onbBusinessTypeLabel: {
+    en: "Type of business",
+    zu: "Uhlobo lwebhizinisi",
+    st: "Mofuta oa khoebo",
+  },
+  onbStokvelTitle: {
+    en: "Set up your stokvel",
+    zu: "Setha istokvel sakho",
+    st: "Beha stokvel ea hao",
+  },
+  onbStokvelSubtitle: {
+    en: "You can change this any time from Settings.",
+    zu: "Ungakushintsha noma kunini kuma-Settings.",
+    st: "U ka fetola sena neng kapa neng ho Settings.",
+  },
+  onbStokvelSkip: {
+    en: "I don't have a stokvel yet",
+    zu: "Anginayo istokvel okwamanje",
+    st: "Ha ke e-so be le stokvel",
+  },
+  onbStokvelNameLabel: {
+    en: "Stokvel name",
+    zu: "Igama lestokvel",
+    st: "Lebitso la stokvel",
+  },
+  onbStokvelNamePlaceholder: {
+    en: "e.g. Ma-Nomsa Stokvel",
+    zu: "isb. Ma-Nomsa Stokvel",
+    st: "mohlala Ma-Nomsa Stokvel",
+  },
+  onbStokvelGoalLabel: {
+    en: "Savings goal (R)",
+    zu: "Umgomo wokonga (R)",
+    st: "Sepheo sa polokelo (R)",
+  },
+  onbStokvelMembersLabel: {
+    en: "Members in the group",
+    zu: "Amalungu eqenjini",
+    st: "Litho tse ka har'a sehlopha",
+  },
+  onbBack: { en: "Back", zu: "Emuva", st: "Morao" },
+  onbNext: { en: "Next", zu: "Ngaphambili", st: "Latela" },
+  onbFinish: { en: "Finish", zu: "Qeda", st: "Qetela" },
+  onbSkip: { en: "Skip for now", zu: "Kweqe okwamanje", st: "Tlōla hona joale" },
+  onbGetStarted: {
+    en: "Get started",
+    zu: "Qala manje",
+    st: "Qala hona joale",
+  },
+  onbYouAreSet: {
+    en: "You're all set, {name}!",
+    zu: "Konke kulungile, {name}!",
+    st: "Ho lokile, {name}!",
+  },
+
+  // Business types
+  bizSpaza: { en: "Spaza shop", zu: "Isitolo sasekasi", st: "Lebenkele la kasi" },
+  bizSalon: { en: "Salon / barber", zu: "Isaluni / umgundi", st: "Salone / mokuti" },
+  bizTaxi: { en: "Taxi operator", zu: "Umqhubi wetekisi", st: "Mokhanni oa terene" },
+  bizTailor: { en: "Tailor / dressmaker", zu: "Umthungi", st: "Mothokoli" },
+  bizFood: {
+    en: "Food / kota / kitchen",
+    zu: "Ukudla / ikota / ikhishi",
+    st: "Lijo / kota / kichine",
+  },
+  bizOther: { en: "Other", zu: "Okunye", st: "Tse ling" },
+
+  // -------------------------------------------------------------------------
+  // Settings
+  // -------------------------------------------------------------------------
+  settingsTitle: { en: "Settings", zu: "Amasethingi", st: "Litlhophiso" },
+
+  sectionProfile: { en: "You", zu: "Wena", st: "Uena" },
+  sectionBusiness: {
+    en: "Your business",
+    zu: "Ibhizinisi lakho",
+    st: "Khoebo ea hao",
+  },
+  sectionStokvel: {
+    en: "Your stokvel",
+    zu: "Istokvel sakho",
+    st: "Stokvel ea hao",
+  },
+  sectionData: { en: "Data", zu: "Idatha", st: "Data" },
+  sectionAccount: { en: "Account", zu: "I-akhawunti", st: "Akhaonto" },
+
+  settingsOwnerLabel: {
+    en: "Your name",
+    zu: "Igama lakho",
+    st: "Lebitso la hao",
+  },
+  settingsLanguageLabel: { en: "Language", zu: "Ulimi", st: "Puo" },
+  settingsEdit: { en: "Edit", zu: "Hlela", st: "Lokisa" },
+  settingsCancel: { en: "Cancel", zu: "Khansela", st: "Hlakola" },
+  settingsSaved: { en: "Saved ✓", zu: "Kugcinwe ✓", st: "E bolokiloe ✓" },
+
+  loadSampleDataTitle: {
+    en: "Load sample data",
+    zu: "Layisha idatha yesibonelo",
+    st: "Kenya data ea mohlala",
+  },
+  loadSampleDataDesc: {
+    en: "Adds a week of demo sales, tabs, and stokvel contributions — useful for recording videos or exploring the app.",
+    zu: "Yengeza iviki yokudayisa kwedemo, izikweletu, neminikelo yestokvel.",
+    st: "E kenya beke ea thekiso ea mohlala, likoloto, le menehelo ea stokvel.",
+  },
+  loadSampleDataCta: {
+    en: "Load sample data",
+    zu: "Layisha idatha",
+    st: "Kenya data",
+  },
+  loadedSample: {
+    en: "Sample data loaded ✓",
+    zu: "Idatha yesibonelo ilayishiwe ✓",
+    st: "Data ea mohlala e kentsoe ✓",
+  },
+
+  accountAnonymous: {
+    en: "Anonymous session",
+    zu: "Iseshini engaziwa",
+    st: "Kopano e sa tsejoeng",
+  },
+  accountAnonymousDesc: {
+    en: "Your data is saved to this device. Sign in with a phone or email to sync across devices (coming soon).",
+    zu: "Idatha yakho igciniwe kule divayisi. Ngena ngefoni noma i-imeyili ukuvumelanisa (isiza maduze).",
+    st: "Data ea hao e bolokiloe khonopheng ena. Kena ka mohala kapa email ho kopanya (e ea tla).",
+  },
+  accountReset: {
+    en: "Reset account",
+    zu: "Setha kabusha i-akhawunti",
+    st: "Nchafatsa akhaonto",
+  },
+  accountResetDesc: {
+    en: "Wipe your data and start fresh. This cannot be undone.",
+    zu: "Sula idatha yakho uqale kabusha. Lokhu akunakususwa.",
+    st: "Hlakola data ea hao 'me u qale hape. Sena se ke ke sa hlakoloa.",
+  },
+  accountResetConfirm: {
+    en: "Yes, wipe everything",
+    zu: "Yebo, sula konke",
+    st: "E, hlakola tsohle",
+  },
+  accountResetCancel: { en: "No, keep my data", zu: "Cha, gcina", st: "Che, boloka" },
+
+  appVersion: { en: "KasiKash", zu: "KasiKash", st: "KasiKash" },
 } as const;
 
 export type TKey = keyof typeof t;

@@ -1,5 +1,12 @@
 import { motion } from "framer-motion";
-import { Mic, UserPlus, TrendingUp, ScanLine, MessageCircle } from "lucide-react";
+import {
+  Mic,
+  UserPlus,
+  TrendingUp,
+  ScanLine,
+  MessageCircle,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
 import type { Screen } from "../App";
@@ -28,30 +35,48 @@ export function Home({
 
   const recent = state.sales.slice(0, 4);
 
+  // Prefer real profile from onboarding. Fall back gracefully if empty.
+  const displayName = state.profile.ownerName?.trim() || "You";
+  const businessName = state.profile.businessName?.trim();
+
   return (
     <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex flex-col gap-1.5">
+      <div className="flex items-start justify-between mb-5">
+        <div className="flex flex-col gap-1.5 min-w-0">
           <SyncBadge status={syncStatus} />
-          <div>
+          <div className="min-w-0">
             <div className="text-white/60 text-sm">{tr("greeting", lang)}</div>
-            <div className="font-display text-2xl font-semibold">
-              {tr("ownerName", lang)} 👋
+            <div className="font-display text-2xl font-semibold truncate">
+              {displayName} 👋
             </div>
+            {businessName && (
+              <div className="text-white/50 text-xs truncate">
+                {businessName}
+              </div>
+            )}
           </div>
         </div>
-        <button
-          onClick={() => onNavigate("insights")}
-          className="rounded-2xl bg-bg-card border border-white/5 px-3 py-2 flex flex-col items-center min-w-[64px]"
-        >
-          <span className="text-[10px] text-white/50 uppercase tracking-wider">
-            {tr("creditScore", lang)}
-          </span>
-          <span className="font-display text-lg font-bold text-kasi-gold">
-            {score}
-          </span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onNavigate("insights")}
+            className="rounded-2xl bg-bg-card border border-white/5 px-3 py-2 flex flex-col items-center min-w-[64px]"
+          >
+            <span className="text-[10px] text-white/50 uppercase tracking-wider">
+              {tr("creditScore", lang)}
+            </span>
+            <span className="font-display text-lg font-bold text-kasi-gold">
+              {score}
+            </span>
+          </button>
+          <button
+            onClick={() => onNavigate("settings")}
+            aria-label="Settings"
+            className="w-11 h-11 rounded-2xl bg-bg-card border border-white/5 flex items-center justify-center text-white/70 hover:text-white"
+          >
+            <SettingsIcon size={18} />
+          </button>
+        </div>
       </div>
 
       {/* WhatsApp pill */}
