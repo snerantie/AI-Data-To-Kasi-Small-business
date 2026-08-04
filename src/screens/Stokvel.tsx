@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { PiggyBank, Users, Plus, Sparkles } from "lucide-react";
+import { PiggyBank, Users, Plus, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
@@ -9,14 +9,21 @@ import {
   stokvelTotal,
   useStore,
 } from "../store";
+import type { Screen } from "../App";
 
 const QUICK_AMOUNTS = [50, 100, 250, 500];
 
-export function Stokvel({ lang }: { lang: Lang }) {
+export function Stokvel({
+  lang,
+  onNavigate,
+}: {
+  lang: Lang;
+  onNavigate: (s: Screen) => void;
+}) {
   const { state, addContribution } = useStore();
   const total = stokvelTotal(state.stokvel);
   const targetProgress = stokvelProgress(state.stokvel);
-  const goalReached = targetProgress >= 1;
+  const goalReached = state.stokvel.name && targetProgress >= 1;
   const [displayed, setDisplayed] = useState(0);
   const [flash, setFlash] = useState<number | null>(null);
 
@@ -28,7 +35,7 @@ export function Stokvel({ lang }: { lang: Lang }) {
     const tick = (t: number) => {
       const p = Math.min(1, (t - start) / dur);
       const eased = 1 - Math.pow(1 - p, 3);
-      setDisplayed(Math.round(from + (targetProgress - from) * eased));
+      setDisplayed(from + (targetProgress - from) * eased);
       if (p < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -44,6 +51,32 @@ export function Stokvel({ lang }: { lang: Lang }) {
     setFlash(amount);
     setTimeout(() => setFlash(null), 1600);
   };
+
+  // ---- Empty state (user skipped stokvel during onboarding) --------------
+  if (!state.stokvel.name) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center px-6 pb-32 text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-kasi-gold/10 border border-kasi-gold/25 flex items-center justify-center">
+          <PiggyBank size={38} className="text-kasi-gold" />
+        </div>
+        <div>
+          <h2 className="font-display text-2xl font-semibold">
+            {tr("stokvelTitle", lang)}
+          </h2>
+          <p className="text-white/60 text-sm mt-1 max-w-[260px] mx-auto">
+            {tr("stokvelSub", lang)}
+          </p>
+        </div>
+        <button
+          onClick={() => onNavigate("settings")}
+          className="mt-2 flex items-center gap-2 px-4 py-3 rounded-2xl bg-kasi-gold text-bg font-semibold text-sm shadow-gold"
+        >
+          <SettingsIcon size={16} />
+          {tr("onbStokvelTitle", lang)}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
@@ -95,7 +128,9 @@ export function Stokvel({ lang }: { lang: Lang }) {
             </div>
             <div className="flex justify-between mt-2 text-[11px] text-white/60">
               <span>{Math.round(displayed * 100)}%</span>
-              <span>{tr("stokvelGoal", lang)}: {formatRand(state.stokvel.goal)}</span>
+              <span>
+                {tr("stokvelGoal", lang)}: {formatRand(state.stokvel.goal)}
+              </span>
             </div>
           </div>
 

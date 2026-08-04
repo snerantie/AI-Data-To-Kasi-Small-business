@@ -1,6 +1,13 @@
 import { supabase } from "./supabase";
 import type { Lang } from "../i18n";
-import type { Sale, Tab, Contribution, Stokvel } from "../store";
+import type {
+  Sale,
+  Tab,
+  Contribution,
+  Stokvel,
+  Profile,
+  BusinessType,
+} from "../store";
 
 /**
  * Thin CRUD wrapper around Supabase for KasiKash.
@@ -21,7 +28,6 @@ export async function ensureSession(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   if (data.session) return data.session.user.id;
 
-  // No session — create an anonymous one so the demo just works.
   const { data: anonData, error } = await supabase.auth.signInAnonymously();
   if (error || !anonData.user) {
     console.warn("[kasikash] anonymous sign-in failed:", error);
@@ -30,39 +36,83 @@ export async function ensureSession(): Promise<string | null> {
   return anonData.user.id;
 }
 
+/**
+ * Sign the current user out and immediately create a fresh anonymous
+ * session. Used by the Settings → "Reset account" flow.
+ */
+export async function resetToFreshAnon(): Promise<string | null> {
+  if (!supabase) return null;
+  await supabase.auth.signOut();
+  return ensureSession();
+}
+
 // ---- Profile ---------------------------------------------------------------
 
 type ProfileRow = {
   id: string;
   language: Lang | null;
-  onboarded: boolean;
+  onboarded: boolean | null;
+  owner_name: string | null;
+  business_name: string | null;
+  business_type: BusinessType | null;
 };
 
-export async function fetchProfile(userId: string): Promise<ProfileRow | null> {
+export type ProfileFetch = {
+  language: Lang | null;
+  onboarded: boolean;
+  profile: Profile;
+};
+
+const rowToProfile = (r: ProfileRow): ProfileFetch => ({
+  language: r.language,
+  onboarded: Boolean(r.onboarded),
+  profile: {
+    ownerName: r.owner_name,
+    businessName: r.business_name,
+    businessType: r.business_type,
+  },
+});
+
+export async function fetchProfile(userId: string): Promise<ProfileFetch | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, language, onboarded")
+    .select("id, language, onboarded, owner_name, business_name, business_type")
     .eq("id", userId)
     .maybeSingle();
   if (error) {
     console.warn("[kasikash] fetchProfile:", error.message);
     return null;
   }
-  return data as ProfileRow | null;
+  if (!data) return null;
+  return rowToProfile(data as ProfileRow);
 }
 
 export async function upsertProfile(
   userId: string,
-  patch: { language?: Lang; onboarded?: boolean },
+  patch: {
+    language?: Lang;
+    onboarded?: boolean;
+    ownerName?: string | null;
+    businessName?: string | null;
+    businessType?: BusinessType | null;
+  },
 ): Promise<void> {
   if (!supabase) return;
+
+  const row: Record<string, unknown> = {
+    id: userId,
+    updated_at: new Date().toISOString(),
+  };
+  if (patch.language !== undefined) row.language = patch.language;
+  if (patch.onboarded !== undefined) row.onboarded = patch.onboarded;
+  if (patch.ownerName !== undefined) row.owner_name = patch.ownerName;
+  if (patch.businessName !== undefined) row.business_name = patch.businessName;
+  if (patch.businessType !== undefined) row.business_type = patch.businessType;
+
   const { error } = await supabase
     .from("profiles")
-    .upsert(
-      { id: userId, ...patch, updated_at: new Date().toISOString() },
-      { onConflict: "id" },
-    );
+    .upsert(row, { onConflict: "id" });
   if (error) console.warn("[kasikash] upsertProfile:", error.message);
 }
 
@@ -224,40 +274,21 @@ const rowToContribution = (r: ContributionRow): Contribution => ({
 });
 
 /**
- * Fetch the owner's stokvel + its contributions.
- * Ensures a stokvel row exists (creates the default one if missing) so
- * subsequent contribution inserts always have a parent.
+ * Read-only stokvel fetch. Returns null if the user has no stokvel yet.
+ * Onboarding is expected to create one via createStokvel().
  */
 export async function fetchStokvel(
   userId: string,
-  defaults: { name: string; goal: number; members: number },
 ): Promise<{ stokvel: Stokvel; stokvelId: string } | null> {
   if (!supabase) return null;
 
-  let { data: sk } = await supabase
+  const { data: sk } = await supabase
     .from("stokvels")
     .select("id, name, goal, members")
     .eq("owner_id", userId)
     .maybeSingle();
 
-  if (!sk) {
-    const { data: created, error } = await supabase
-      .from("stokvels")
-      .insert({
-        owner_id: userId,
-        name: defaults.name,
-        goal: defaults.goal,
-        members: defaults.members,
-      })
-      .select("id, name, goal, members")
-      .single();
-    if (error) {
-      console.warn("[kasikash] create stokvel:", error.message);
-      return null;
-    }
-    sk = created;
-  }
-
+  if (!sk) return null;
   const skRow = sk as StokvelRow;
 
   const { data: contribs, error: cErr } = await supabase
@@ -276,6 +307,40 @@ export async function fetchStokvel(
     stokvel: rowToStokvel(skRow, contributions),
     stokvelId: skRow.id,
   };
+}
+
+export async function createStokvel(
+  userId: string,
+  s: { name: string; goal: number; members: number },
+): Promise<string | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("stokvels")
+    .insert({
+      owner_id: userId,
+      name: s.name,
+      goal: s.goal,
+      members: s.members,
+    })
+    .select("id")
+    .single();
+  if (error) {
+    console.warn("[kasikash] createStokvel:", error.message);
+    return null;
+  }
+  return (data as { id: string }).id;
+}
+
+export async function updateStokvel(
+  stokvelId: string,
+  patch: Partial<{ name: string; goal: number; members: number }>,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("stokvels")
+    .update(patch)
+    .eq("id", stokvelId);
+  if (error) console.warn("[kasikash] updateStokvel:", error.message);
 }
 
 export async function insertContribution(

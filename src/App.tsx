@@ -5,11 +5,12 @@ import { Home } from "./screens/Home";
 import { LogSale } from "./screens/LogSale";
 import { Tabs } from "./screens/Tabs";
 import { Insights } from "./screens/Insights";
-import { Welcome } from "./screens/Welcome";
+import { Onboarding } from "./screens/Onboarding";
 import { Stokvel } from "./screens/Stokvel";
 import { WhatsAppBot } from "./screens/WhatsAppBot";
 import { Splash } from "./screens/Splash";
-import { useStore } from "./store";
+import { Settings } from "./screens/Settings";
+import { needsOnboarding, useStore } from "./store";
 import type { Lang } from "./i18n";
 
 export type Screen =
@@ -18,17 +19,25 @@ export type Screen =
   | "tabs"
   | "stokvel"
   | "insights"
-  | "whatsapp";
+  | "whatsapp"
+  | "settings";
 
-const SCREENS_WITH_NAV: Screen[] = ["home", "log", "tabs", "stokvel", "insights"];
+const SCREENS_WITH_NAV: Screen[] = [
+  "home",
+  "log",
+  "tabs",
+  "stokvel",
+  "insights",
+];
 
 export default function App() {
-  const { state, setLang } = useStore();
+  const { state } = useStore();
   const [screen, setScreen] = useState<Screen>("home");
   const [splashDone, setSplashDone] = useState(false);
 
   const lang: Lang = state.lang ?? "en";
   const showNav = SCREENS_WITH_NAV.includes(screen);
+  const mustOnboard = needsOnboarding(state);
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-6">
@@ -36,16 +45,16 @@ export default function App() {
         <AnimatePresence mode="wait">
           {!splashDone ? (
             <Splash key="splash" onDone={() => setSplashDone(true)} />
-          ) : !state.onboarded ? (
+          ) : mustOnboard ? (
             <motion.div
-              key="welcome"
+              key="onboarding"
               className="absolute inset-0"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.3 }}
             >
-              <Welcome onPick={(l) => setLang(l)} />
+              <Onboarding />
             </motion.div>
           ) : (
             <motion.div
@@ -72,10 +81,15 @@ export default function App() {
                     <LogSale lang={lang} onNavigate={setScreen} />
                   )}
                   {screen === "tabs" && <Tabs lang={lang} />}
-                  {screen === "stokvel" && <Stokvel lang={lang} />}
+                  {screen === "stokvel" && (
+                    <Stokvel lang={lang} onNavigate={setScreen} />
+                  )}
                   {screen === "insights" && <Insights lang={lang} />}
                   {screen === "whatsapp" && (
                     <WhatsAppBot lang={lang} onNavigate={setScreen} />
+                  )}
+                  {screen === "settings" && (
+                    <Settings lang={lang} onNavigate={setScreen} />
                   )}
                 </motion.div>
               </AnimatePresence>
