@@ -88,8 +88,10 @@ export function Settings({
     }
   };
 
-  // -- Stokvel --
+  // -- Stokvel (admin only) --
+  const canEditStokvel = state.stokvel?.role === "admin";
   const commitStokvelName = (v: string) => {
+    if (!canEditStokvel || !state.stokvel) return;
     const name = v.trim();
     if (name && name !== state.stokvel.name) {
       setStokvelMeta({ name });
@@ -97,12 +99,14 @@ export function Settings({
     }
   };
   const commitStokvelGoal = (n: number) => {
+    if (!canEditStokvel || !state.stokvel) return;
     if (n > 0 && n !== state.stokvel.goal) {
       setStokvelMeta({ goal: n });
       flashSaved("stkGoal");
     }
   };
   const commitStokvelMembers = (n: number) => {
+    if (!canEditStokvel || !state.stokvel) return;
     if (n > 0 && n !== state.stokvel.members) {
       setStokvelMeta({ members: n });
       flashSaved("stkMembers");
@@ -223,33 +227,83 @@ export function Settings({
           title={tr("sectionStokvel", lang)}
           accent="coral"
         >
-          <Field
-            label={tr("onbStokvelNameLabel", lang)}
-            value={state.stokvel.name}
-            onCommit={commitStokvelName}
-            saved={saved === "stkName"}
-            placeholder={tr("onbStokvelNamePlaceholder", lang)}
-          />
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <NumberField
-              label={tr("onbStokvelGoalLabel", lang)}
-              value={state.stokvel.goal}
-              onCommit={commitStokvelGoal}
-              saved={saved === "stkGoal"}
-            />
-            <NumberField
-              label={tr("onbStokvelMembersLabel", lang)}
-              value={state.stokvel.members}
-              onCommit={commitStokvelMembers}
-              saved={saved === "stkMembers"}
-              min={1}
-            />
-          </div>
-          {state.stokvel.name && (
-            <div className="mt-3 text-xs text-white/50">
-              Goal: <span className="text-kasi-gold font-semibold">
-                {formatRand(state.stokvel.goal)}
-              </span>
+          {!state.stokvel ? (
+            <div className="flex flex-col items-start gap-3">
+              <div className="text-white/70 text-sm">
+                {tr("settingsStokvelNone", lang)}
+              </div>
+              <button
+                onClick={() => onNavigate("stokvel")}
+                className="px-4 py-2 rounded-xl bg-kasi-gold text-bg font-semibold text-sm"
+              >
+                {tr("stokvelNav", lang)} →
+              </button>
+            </div>
+          ) : canEditStokvel ? (
+            <>
+              <Field
+                label={tr("onbStokvelNameLabel", lang)}
+                value={state.stokvel.name}
+                onCommit={commitStokvelName}
+                saved={saved === "stkName"}
+                placeholder={tr("onbStokvelNamePlaceholder", lang)}
+              />
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <NumberField
+                  label={tr("onbStokvelGoalLabel", lang)}
+                  value={state.stokvel.goal}
+                  onCommit={commitStokvelGoal}
+                  saved={saved === "stkGoal"}
+                />
+                <NumberField
+                  label={tr("onbStokvelMembersLabel", lang)}
+                  value={state.stokvel.members}
+                  onCommit={commitStokvelMembers}
+                  saved={saved === "stkMembers"}
+                  min={1}
+                />
+              </div>
+              <div className="mt-3 text-xs text-white/50">
+                Goal:{" "}
+                <span className="text-kasi-gold font-semibold">
+                  {formatRand(state.stokvel.goal)}
+                </span>{" "}
+                &middot; {state.stokvel.memberships.length}/{state.stokvel.members}{" "}
+                {tr("stokvelMembers", lang)}
+              </div>
+            </>
+          ) : (
+            // Non-admin (regular member): read-only view
+            <div className="flex flex-col gap-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-white/50">
+                  {tr("onbStokvelNameLabel", lang)}
+                </div>
+                <div className="text-base font-medium mt-1">
+                  {state.stokvel.name}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-white/50">
+                    {tr("onbStokvelGoalLabel", lang)}
+                  </div>
+                  <div className="text-base font-medium mt-1 text-kasi-gold">
+                    {formatRand(state.stokvel.goal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-white/50">
+                    {tr("stokvelMembers", lang)}
+                  </div>
+                  <div className="text-base font-medium mt-1">
+                    {state.stokvel.memberships.length} / {state.stokvel.members}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 text-xs text-white/50 italic">
+                {tr("settingsStokvelMemberOnly", lang)}
+              </div>
             </div>
           )}
         </Section>

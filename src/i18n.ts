@@ -30,16 +30,8 @@ export const t = {
     zu: "Izenzo ezisheshayo",
     st: "Liketso tse potlakileng",
   },
-  logSale: {
-    en: "Log a sale",
-    zu: "Ngena ukudayisa",
-    st: "Ngola thekiso",
-  },
-  addTab: {
-    en: "Add a tab",
-    zu: "Faka isikweletu",
-    st: "Kenya sekoloto",
-  },
+  logSale: { en: "Log a sale", zu: "Ngena ukudayisa", st: "Ngola thekiso" },
+  addTab: { en: "Add a tab", zu: "Faka isikweletu", st: "Kenya sekoloto" },
   seeInsights: {
     en: "See insights",
     zu: "Buka izimpawu",
@@ -104,13 +96,8 @@ export const t = {
     st: "Thekiso e ngoliloe",
   },
   undo: { en: "Undo", zu: "Buyisela", st: "Khutlisa" },
-  undone: {
-    en: "Undone",
-    zu: "Kususiwe",
-    st: "Ho hlakotsoe",
-  },
+  undone: { en: "Undone", zu: "Kususiwe", st: "Ho hlakotsoe" },
 
-  // Sample suggestion
   sampleSuggestion1: {
     en: "Sold 3 bread at R18",
     zu: "Ngithengise izinkwa ezintathu ngo-R18",
@@ -142,7 +129,9 @@ export const t = {
   amount: { en: "Amount (R)", zu: "Imali (R)", st: "Chelete (R)" },
   paidJust: { en: "paid you", zu: "ukhokhile", st: "o u lefile" },
 
-  // Stokvel
+  // ---------------------------------------------------------------------
+  // Stokvel (multi-user)
+  // ---------------------------------------------------------------------
   stokvelTitle: {
     en: "Your Stokvel",
     zu: "Istokvel sakho",
@@ -162,15 +151,181 @@ export const t = {
     zu: "Iminikelo yakamuva",
     st: "Menehelo ea morao tjena",
   },
-  quickAdd: {
-    en: "Quick add",
-    zu: "Faka ngokushesha",
-    st: "Kenya kapele",
-  },
+  quickAdd: { en: "Quick add", zu: "Faka ngokushesha", st: "Kenya kapele" },
   goalReached: {
     en: "Goal reached!",
     zu: "Umgomo ufinyeleliwe!",
     st: "Sepheo se fihletsoe!",
+  },
+
+  stokvelRoleAdmin: { en: "Admin", zu: "Umqondisi", st: "Molaoli" },
+  stokvelRoleMember: { en: "Member", zu: "Ilungu", st: "Setho" },
+  stokvelMemberOf: {
+    en: "{count} of {target} members",
+    zu: "Amalungu angu-{count} kokungu-{target}",
+    st: "Litho tse {count} tsa tse {target}",
+  },
+  stokvelYouContributed: {
+    en: "You've contributed",
+    zu: "Unikelile",
+    st: "U kentse",
+  },
+  stokvelMembersList: {
+    en: "Members",
+    zu: "Amalungu",
+    st: "Litho",
+  },
+  contribBy: {
+    en: "by",
+    zu: "yi-",
+    st: "ka",
+  },
+
+  // Empty state (user has no stokvel)
+  stokvelEmptyTitle: {
+    en: "You're not in a stokvel yet",
+    zu: "Awukho kwistokvel okwamanje",
+    st: "Ha u e-so be stokveleng",
+  },
+  stokvelEmptySub: {
+    en: "Create your own or join one with a code.",
+    zu: "Yakha esakho noma joyina ngekhodi.",
+    st: "Iketsetse ea hao kapa kena ka khoutu.",
+  },
+  stokvelCreateCard: {
+    en: "Create a stokvel",
+    zu: "Yakha istokvel",
+    st: "Iketsetse stokvel",
+  },
+  stokvelCreateCardDesc: {
+    en: "You'll be the admin",
+    zu: "Uzoba umqondisi",
+    st: "U tla ba molaoli",
+  },
+  stokvelJoinCard: {
+    en: "Join with a code",
+    zu: "Joyina ngekhodi",
+    st: "Kena ka khoutu",
+  },
+  stokvelJoinCardDesc: {
+    en: "You'll be a member",
+    zu: "Uzoba ilungu",
+    st: "U tla ba setho",
+  },
+
+  // Create sheet
+  stokvelCreateHeader: {
+    en: "Start a new stokvel",
+    zu: "Qala istokvel esisha",
+    st: "Qala stokvel e ncha",
+  },
+  stokvelCreateSubmit: {
+    en: "Create stokvel",
+    zu: "Yakha istokvel",
+    st: "Etsa stokvel",
+  },
+  stokvelCreatingProgress: {
+    en: "Creating...",
+    zu: "Kuyakhiwa...",
+    st: "E ntse e etsoa...",
+  },
+
+  // Join sheet
+  stokvelJoinHeader: {
+    en: "Join a stokvel",
+    zu: "Joyina istokvel",
+    st: "Kena stokveleng",
+  },
+  stokvelJoinCodeLabel: {
+    en: "Invite code",
+    zu: "Ikhodi yesimemo",
+    st: "Khoutu ea memo",
+  },
+  stokvelJoinCodePlaceholder: {
+    en: "K-XXXX-YYYY",
+    zu: "K-XXXX-YYYY",
+    st: "K-XXXX-YYYY",
+  },
+  stokvelJoinSubmit: {
+    en: "Join",
+    zu: "Joyina",
+    st: "Kena",
+  },
+  stokvelJoiningProgress: {
+    en: "Joining...",
+    zu: "Kuyajoyinwa...",
+    st: "Ho ntse ho kenoa...",
+  },
+  stokvelJoinInvalid: {
+    en: "That code isn't valid or has expired.",
+    zu: "Ikhodi ayivumelekile noma iphelelwe.",
+    st: "Khoutu eo ha e nepahetse kapa e feletsoe.",
+  },
+
+  // Invite sheet (admin)
+  stokvelInviteBtn: {
+    en: "Invite members",
+    zu: "Mema amalungu",
+    st: "Memela litho",
+  },
+  stokvelInviteHeader: {
+    en: "Invite people to your stokvel",
+    zu: "Mema abantu kwistokvel yakho",
+    st: "Memela batho stokveleng ea hao",
+  },
+  stokvelInviteHelper: {
+    en: "Share this code — anyone with it can join.",
+    zu: "Yabelana ngale khodi — noma ubani onayo angajoyina.",
+    st: "Arolelana khoutu ena — mang kapa mang ea nang le eona a ka kena.",
+  },
+  stokvelInviteCopy: { en: "Copy code", zu: "Kopisha ikhodi", st: "Kopisha khoutu" },
+  stokvelInviteCopied: { en: "Copied ✓", zu: "Kukopishiwe ✓", st: "E kopishoa ✓" },
+  stokvelInviteShareWhatsApp: {
+    en: "Share on WhatsApp",
+    zu: "Yabelana ku-WhatsApp",
+    st: "Arolelana ho WhatsApp",
+  },
+  stokvelInviteWhatsAppMessage: {
+    en: "Come join our stokvel on KasiKash! Enter this code: {code}",
+    zu: "Woza uzojoyina istokvel yethu ku-KasiKash! Faka le khodi: {code}",
+    st: "Tloo u kene stokveleng ea rona ho KasiKash! Kenya khoutu ena: {code}",
+  },
+  stokvelInviteExpires: {
+    en: "Expires in {days} day(s)",
+    zu: "Iphelelwa ezinsukwini ezingu-{days}",
+    st: "E felella ka matsatsi a {days}",
+  },
+  stokvelInviteRefresh: {
+    en: "Generate a new code",
+    zu: "Khiqiza ikhodi entsha",
+    st: "Etsa khoutu e ncha",
+  },
+
+  // Leave stokvel
+  stokvelLeave: {
+    en: "Leave stokvel",
+    zu: "Shiya istokvel",
+    st: "Tloha stokveleng",
+  },
+  stokvelLeaveConfirm: {
+    en: "You'll stop seeing this stokvel. Your past contributions stay on record.",
+    zu: "Uzoyeka ukubona lestokvel. Iminikelo yakho edlule iyoqhubeka igciniwe.",
+    st: "U tla khaotsa ho bona stokvel ena. Menehelo ea hao ea nakong e fetileng e sala e le hona.",
+  },
+  stokvelLeaveConfirmBtn: {
+    en: "Yes, leave",
+    zu: "Yebo, shiya",
+    st: "E, tloha",
+  },
+  stokvelLeaveCancel: {
+    en: "Stay",
+    zu: "Hlala",
+    st: "Lula",
+  },
+  stokvelLeaveSoleAdmin: {
+    en: "You're the only admin. Make someone else admin first, or delete the stokvel.",
+    zu: "Nguwe kuphela ungumqondisi. Yenza omunye umuntu abe umqondisi kuqala.",
+    st: "Ke uena feela molaoli. Etsa motho e mong molaoli pele.",
   },
 
   // Insights
@@ -218,7 +373,6 @@ export const t = {
     st: "Kenya thekiso e meng ho notlolla likeletso.",
   },
 
-  // Dynamic insight templates
   insightOldTabs: {
     en: "{count} customers owe you over 7 days — {name} for {days} days. Send a WhatsApp nudge.",
     zu: "Amakhasimende angu-{count} akukweletayo izinsuku ezingu-7 — u-{name} izinsuku ezingu-{days}. Thumela isikhumbuzo se-WhatsApp.",
@@ -324,19 +478,29 @@ export const t = {
     st: "Mofuta oa khoebo",
   },
   onbStokvelTitle: {
-    en: "Set up your stokvel",
-    zu: "Setha istokvel sakho",
-    st: "Beha stokvel ea hao",
+    en: "Your stokvel",
+    zu: "Istokvel sakho",
+    st: "Stokvel ea hao",
   },
   onbStokvelSubtitle: {
-    en: "You can change this any time from Settings.",
-    zu: "Ungakushintsha noma kunini kuma-Settings.",
-    st: "U ka fetola sena neng kapa neng ho Settings.",
+    en: "Create a new one or join with a code. You can also skip and set it up later.",
+    zu: "Yakha entsha noma joyina ngekhodi. Ungakushiya futhi ukusetha kamuva.",
+    st: "Iketsetse e ncha kapa kena ka khoutu. U ka boela u tlōla u lokise hamorao.",
   },
-  onbStokvelSkip: {
-    en: "I don't have a stokvel yet",
-    zu: "Anginayo istokvel okwamanje",
-    st: "Ha ke e-so be le stokvel",
+  onbStokvelChoiceCreate: {
+    en: "Create a new stokvel",
+    zu: "Yakha istokvel esisha",
+    st: "Iketsetse stokvel e ncha",
+  },
+  onbStokvelChoiceJoin: {
+    en: "Join with a code",
+    zu: "Joyina ngekhodi",
+    st: "Kena ka khoutu",
+  },
+  onbStokvelChoiceSkip: {
+    en: "Skip for now",
+    zu: "Kweqe okwamanje",
+    st: "Tlōla hona joale",
   },
   onbStokvelNameLabel: {
     en: "Stokvel name",
@@ -354,9 +518,9 @@ export const t = {
     st: "Sepheo sa polokelo (R)",
   },
   onbStokvelMembersLabel: {
-    en: "Members in the group",
-    zu: "Amalungu eqenjini",
-    st: "Litho tse ka har'a sehlopha",
+    en: "Expected members",
+    zu: "Amalungu alindelekile",
+    st: "Litho tse lebeletsoeng",
   },
   onbBack: { en: "Back", zu: "Emuva", st: "Morao" },
   onbNext: { en: "Next", zu: "Ngaphambili", st: "Latela" },
@@ -400,6 +564,16 @@ export const t = {
   },
   settingsLanguageLabel: { en: "Language", zu: "Ulimi", st: "Puo" },
   settingsSaved: { en: "Saved ✓", zu: "Kugcinwe ✓", st: "E bolokiloe ✓" },
+  settingsStokvelMemberOnly: {
+    en: "Only the admin can edit stokvel details.",
+    zu: "Umqondisi kuphela ongahlela imininingwane yestokvel.",
+    st: "Ke molaoli feela ea ka lokisang lintlha tsa stokvel.",
+  },
+  settingsStokvelNone: {
+    en: "You're not in a stokvel. Open the Stokvel tab to create or join one.",
+    zu: "Awukho kwistokvel. Vula ithebhu yestokvel ukuze wakhe noma ujoyine.",
+    st: "Ha u stokveleng. Bula tab ea stokvel ho iketsetsa kapa ho kena.",
+  },
 
   accountAnonymous: {
     en: "Save your account",

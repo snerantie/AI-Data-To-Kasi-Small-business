@@ -2,17 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import type { Lang } from "./i18n";
 import { isCloudConfigured } from "./lib/supabase";
 import {
+  createInvite as remoteCreateInvite,
   createStokvel as remoteCreateStokvel,
   ensureSession,
+  fetchLatestInvite,
   fetchProfile,
   fetchSales,
-  fetchStokvel,
   fetchTabs,
+  fetchUserPrimaryStokvel,
   getCurrentAuth,
   insertContribution as remoteInsertContribution,
   insertSale as remoteInsertSale,
   insertSales as remoteInsertSales,
   insertTab as remoteInsertTab,
+  joinStokvelByCode as remoteJoinStokvel,
+  leaveStokvel as remoteLeaveStokvel,
   linkEmail as remoteLinkEmail,
   onAuthChange,
   resetToFreshAnon,
@@ -58,18 +62,38 @@ export type Tab = {
   paid?: boolean;
 };
 
+export type MemberRole = "admin" | "member";
+
+export type StokvelMember = {
+  userId: string;
+  role: MemberRole;
+  displayName: string;
+  joinedAt: number;
+};
+
 export type Contribution = {
   id: string;
   amount: number;
   createdAt: number;
   note?: string;
+  memberName?: string; // For display: who contributed
+  ownerId?: string;
 };
 
 export type Stokvel = {
+  id: string;
   name: string;
   goal: number;
-  members: number;
+  members: number; // Target member count set on creation
+  memberships: StokvelMember[];
   contributions: Contribution[];
+  role: MemberRole; // Current user's role in this stokvel
+};
+
+export type StokvelInvite = {
+  code: string;
+  createdAt: number;
+  expiresAt: number | null;
 };
 
 export type AppState = {
@@ -77,7 +101,7 @@ export type AppState = {
   profile: Profile;
   sales: Sale[];
   tabs: Tab[];
-  stokvel: Stokvel;
+  stokvel: Stokvel | null;
   onboarded: boolean;
 };
 
@@ -95,18 +119,13 @@ const emptyState: AppState = {
   },
   sales: [],
   tabs: [],
-  stokvel: {
-    name: "",
-    goal: 5000,
-    members: 1,
-    contributions: [],
-  },
+  stokvel: null,
 };
 
 // ---- Persistence ----------------------------------------------------------
 
-const KEY = "kasikash-state-v3";
-const LEGACY_KEY = "kasikash-state-v2";
+const KEY = "kasikash-state-v4";
+const LEGACY_KEYS = ["kasikash-state-v3", "kasikash-state-v2"];
 
 function loadInitial(): AppState {
   try {
@@ -117,21 +136,26 @@ function loadInitial(): AppState {
         ...emptyState,
         ...parsed,
         profile: { ...emptyState.profile, ...(parsed.profile ?? {}) },
-        stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
       };
     }
-    // Migrate from v2 cache (single-time compatibility with older builds)
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) {
-      const parsed = JSON.parse(legacy) as Partial<AppState>;
-      return {
-        ...emptyState,
-        lang: parsed.lang ?? null,
-        onboarded: Boolean(parsed.onboarded),
-        sales: parsed.sales ?? [],
-        tabs: parsed.tabs ?? [],
-        stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
-      };
+    // Migrate from older cache versions
+    for (const legacyKey of LEGACY_KEYS) {
+      const legacy = localStorage.getItem(legacyKey);
+      if (legacy) {
+        const parsed = JSON.parse(legacy) as Partial<AppState> & {
+          stokvel?: { name?: string };
+        };
+        return {
+          ...emptyState,
+          lang: parsed.lang ?? null,
+          onboarded: Boolean(parsed.onboarded),
+          sales: parsed.sales ?? [],
+          tabs: parsed.tabs ?? [],
+          profile: { ...emptyState.profile, ...(parsed.profile ?? {}) },
+          // Legacy stokvel shape is discarded; will be re-hydrated from server
+          stokvel: null,
+        };
+      }
     }
   } catch {
     // ignore
@@ -183,10 +207,9 @@ function setState(
       delta.profile !== undefined
         ? { ...state.profile, ...delta.profile }
         : state.profile,
+    // stokvel is either null or replaced wholesale
     stokvel:
-      delta.stokvel !== undefined
-        ? { ...state.stokvel, ...delta.stokvel }
-        : state.stokvel,
+      delta.stokvel !== undefined ? delta.stokvel : state.stokvel,
   };
   saveLocal(state);
   notify();
@@ -212,7 +235,7 @@ async function hydrateFromRemote(): Promise<void> {
       fetchProfile(uid),
       fetchSales(uid),
       fetchTabs(uid),
-      fetchStokvel(uid),
+      fetchUserPrimaryStokvel(uid),
     ]);
 
     const merged: AppState = {
@@ -222,7 +245,7 @@ async function hydrateFromRemote(): Promise<void> {
       profile: profileFetch?.profile ?? state.profile,
       sales: sales ?? state.sales,
       tabs: tabs ?? state.tabs,
-      stokvel: stokvelRes?.stokvel ?? state.stokvel,
+      stokvel: stokvelRes?.stokvel ?? null,
     };
 
     state = merged;
@@ -310,29 +333,6 @@ export function useStore() {
     }
   }, []);
 
-  const setStokvelMeta = useCallback(
-    (patch: Partial<Pick<Stokvel, "name" | "goal" | "members">>) => {
-      setState((s) => ({
-        stokvel: { ...s.stokvel, ...patch },
-      }));
-      if (userId) {
-        if (stokvelId) {
-          sync(() => remoteUpdateStokvel(stokvelId!, patch));
-        } else {
-          sync(async () => {
-            const id = await remoteCreateStokvel(userId!, {
-              name: (patch.name ?? state.stokvel.name) || "My Stokvel",
-              goal: patch.goal ?? state.stokvel.goal,
-              members: patch.members ?? state.stokvel.members,
-            });
-            if (id) stokvelId = id;
-          });
-        }
-      }
-    },
-    [],
-  );
-
   const finishOnboarding = useCallback(() => {
     setState({ onboarded: true });
     if (userId) {
@@ -340,7 +340,97 @@ export function useStore() {
     }
   }, []);
 
-  // -- Mutations --
+  // -- Stokvel actions --
+
+  /**
+   * Create a new stokvel with the current user as admin. Returns the created
+   * stokvel's id on success.
+   */
+  const createStokvelAsAdmin = useCallback(
+    async (input: {
+      name: string;
+      goal: number;
+      members: number;
+    }): Promise<string | null> => {
+      if (!userId) return null;
+      const id = await remoteCreateStokvel(userId, input);
+      if (id) {
+        stokvelId = id;
+        // Re-hydrate to pick up the new membership + stokvel row
+        await hydrateFromRemote();
+      }
+      return id;
+    },
+    [],
+  );
+
+  /**
+   * Join an existing stokvel using an invite code.
+   */
+  const joinStokvelByCode = useCallback(async (code: string) => {
+    if (!isCloudConfigured) {
+      return { ok: false, error: "Cloud not configured" } as const;
+    }
+    const result = await remoteJoinStokvel(code);
+    if (result.ok) {
+      stokvelId = result.stokvelId;
+      await hydrateFromRemote();
+    }
+    return result;
+  }, []);
+
+  /**
+   * Generate a fresh invite code (admin only). Returns the code on success.
+   */
+  const generateInvite = useCallback(async (): Promise<
+    StokvelInvite | null
+  > => {
+    if (!userId || !stokvelId) return null;
+    return await remoteCreateInvite(userId, stokvelId);
+  }, []);
+
+  /**
+   * Fetch the most recent existing invite for the current stokvel (if any).
+   */
+  const getLatestInvite = useCallback(async (): Promise<
+    StokvelInvite | null
+  > => {
+    if (!stokvelId) return null;
+    return await fetchLatestInvite(stokvelId);
+  }, []);
+
+  /**
+   * Leave the current stokvel. Refuses if the user is the sole admin.
+   */
+  const leaveStokvel = useCallback(async () => {
+    if (!userId || !stokvelId) {
+      return { ok: false, error: "no_stokvel" } as const;
+    }
+    const result = await remoteLeaveStokvel(userId, stokvelId);
+    if (result.ok) {
+      stokvelId = null;
+      setState({ stokvel: null });
+      await hydrateFromRemote();
+    }
+    return result;
+  }, []);
+
+  const setStokvelMeta = useCallback(
+    (patch: Partial<Pick<Stokvel, "name" | "goal" | "members">>) => {
+      if (!state.stokvel) return;
+      // Optimistic local update (only admins should call this; UI enforces)
+      setState({
+        stokvel: {
+          ...state.stokvel,
+          ...patch,
+        },
+      });
+      if (stokvelId) sync(() => remoteUpdateStokvel(stokvelId!, patch));
+    },
+    [],
+  );
+
+  // -- Sales --
 
   const addSale = useCallback((sale: Omit<Sale, "id" | "createdAt">) => {
     const full: Sale = {
@@ -364,7 +454,6 @@ export function useStore() {
     if (userId) sync(() => remoteInsertSales(userId!, full));
   }, []);
 
-  /** Undo an insert-only sale: remove it from local state + Supabase. */
   const undoSale = useCallback((id: string) => {
     setState((s) => ({ sales: s.sales.filter((x) => x.id !== id) }));
     if (userId && isCloudConfigured) {
@@ -376,6 +465,8 @@ export function useStore() {
       });
     }
   }, []);
+
+  // -- Tabs --
 
   const addTab = useCallback((tab: Omit<Tab, "id" | "createdAt">) => {
     const full: Tab = {
@@ -395,17 +486,24 @@ export function useStore() {
   }, []);
 
   const addContribution = useCallback((amount: number, note?: string) => {
+    if (!state.stokvel) return;
     const c: Contribution = {
       id: crypto.randomUUID(),
       amount,
       note,
       createdAt: Date.now(),
+      memberName:
+        state.stokvel.memberships.find((m) => m.userId === userId)
+          ?.displayName ?? state.profile.ownerName ?? undefined,
+      ownerId: userId ?? undefined,
     };
     setState((s) => ({
-      stokvel: {
-        ...s.stokvel,
-        contributions: [c, ...s.stokvel.contributions],
-      },
+      stokvel: s.stokvel
+        ? {
+            ...s.stokvel,
+            contributions: [c, ...s.stokvel.contributions],
+          }
+        : null,
     }));
     if (userId && stokvelId) {
       sync(() => remoteInsertContribution(userId!, stokvelId!, c));
@@ -449,7 +547,7 @@ export function useStore() {
     const result = await remoteSignOut();
     try {
       localStorage.removeItem(KEY);
-      localStorage.removeItem(LEGACY_KEY);
+      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
     } catch {
       // ignore
     }
@@ -463,12 +561,10 @@ export function useStore() {
     return result;
   }, []);
 
-  // -- Account / reset --
-
   const resetAccount = useCallback(async () => {
     try {
       localStorage.removeItem(KEY);
-      localStorage.removeItem(LEGACY_KEY);
+      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
     } catch {
       // ignore
     }
@@ -500,9 +596,15 @@ export function useStore() {
     // onboarding
     setLang,
     setProfile,
-    setStokvelMeta,
     finishOnboarding,
-    // mutations
+    // stokvel
+    createStokvelAsAdmin,
+    joinStokvelByCode,
+    generateInvite,
+    getLatestInvite,
+    leaveStokvel,
+    setStokvelMeta,
+    // sales/tabs/contributions
     addSale,
     addSales,
     undoSale,
@@ -511,7 +613,6 @@ export function useStore() {
     addContribution,
     // account
     resetAccount,
-    // email auth
     linkEmailToAccount,
     signInWithEmail,
     signOut,
@@ -561,13 +662,21 @@ export function topSeller(sales: Sale[]) {
   return best;
 }
 
-export function stokvelTotal(stokvel: Stokvel) {
+export function stokvelTotal(stokvel: Stokvel | null) {
+  if (!stokvel) return 0;
   return stokvel.contributions.reduce((a, c) => a + c.amount, 0);
 }
 
-export function stokvelProgress(stokvel: Stokvel) {
-  if (!stokvel.goal || stokvel.goal <= 0) return 0;
+export function stokvelProgress(stokvel: Stokvel | null) {
+  if (!stokvel || !stokvel.goal || stokvel.goal <= 0) return 0;
   return Math.max(0, Math.min(1, stokvelTotal(stokvel) / stokvel.goal));
+}
+
+/** Sum of one member's contributions to a stokvel */
+export function memberContributed(stokvel: Stokvel, userId: string) {
+  return stokvel.contributions
+    .filter((c) => c.ownerId === userId)
+    .reduce((a, c) => a + c.amount, 0);
 }
 
 export function kasiScore(state: AppState): number {
@@ -593,7 +702,7 @@ export function needsOnboarding(state: AppState): boolean {
   if (!state.profile.ownerName) return true;
   if (!state.profile.businessName) return true;
   if (!state.profile.businessType) return true;
-  if (!state.stokvel.name) return true;
+  // Stokvel is no longer required — user can skip and add later
   return false;
 }
 
@@ -702,23 +811,24 @@ export function computeInsights(state: AppState): Insight[] {
     });
   }
 
-  const potPct = stokvelProgress(state.stokvel) * 100;
-  if (potPct >= 80 && potPct < 100 && state.stokvel.name) {
-    const remain = state.stokvel.goal - stokvelTotal(state.stokvel);
+  const stokvel = state.stokvel;
+  const potPct = stokvelProgress(stokvel) * 100;
+  if (stokvel && potPct >= 80 && potPct < 100) {
+    const remain = stokvel.goal - stokvelTotal(stokvel);
     insights.push({
       id: "stokvel-close",
       key: "insightStokvelClose",
       accent: "green",
       priority: 55,
-      params: { remain, name: state.stokvel.name },
+      params: { remain, name: stokvel.name },
     });
-  } else if (potPct < 30 && state.stokvel.name) {
+  } else if (stokvel && potPct < 30) {
     insights.push({
       id: "stokvel-start",
       key: "insightStokvelStart",
       accent: "gold",
       priority: 40,
-      params: { name: state.stokvel.name },
+      params: { name: stokvel.name },
     });
   }
 

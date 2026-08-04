@@ -51,11 +51,15 @@ This is what upgrades the app from demo to real product. It takes ~5 minutes.
 - Click **New project**. Give it a name (`kasikash` works), pick a region close to your users (`Southeast Asia (Singapore)` or `Europe West` are the closest to Southern Africa — Supabase doesn't yet offer a JHB region), set a strong database password (you won't need it often, but save it).
 - Wait ~2 minutes for the project to provision.
 
-### 2. Run the migration
+### 2. Run the migrations (in order)
 
-Open the **SQL Editor** in your Supabase dashboard, click **New query**, and paste the contents of [`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql) from this repo. Click **Run**.
+Open the **SQL Editor** in your Supabase dashboard, click **New query**, and paste the contents of each migration file in order. Run one, wait for "Success", then paste the next.
 
-This creates the tables (`profiles`, `sales`, `tabs`, `stokvels`, `contributions`), the auto-profile trigger, and the Row Level Security policies so every owner can only see their own rows.
+1. **[`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql)** — the initial schema. Creates `profiles`, `sales`, `tabs`, `stokvels`, `contributions`, the auto-profile trigger, and Row Level Security policies.
+2. **[`supabase/migrations/002_profile_extras.sql`](supabase/migrations/002_profile_extras.sql)** — adds `business_type` on profiles and drops the demo-mode defaults on name fields so onboarding fills them properly.
+3. **[`supabase/migrations/003_multiuser_stokvel.sql`](supabase/migrations/003_multiuser_stokvel.sql)** — turns the stokvel from a single-user savings tracker into a real multi-user group. Adds `stokvel_memberships`, `stokvel_invites`, the `join_stokvel` RPC, updated RLS so members can read shared stokvel data, and backfills existing stokvels so their creators become admins.
+
+If you've already run 001 and 002 before, run only 003. All migrations are idempotent — running them twice is safe.
 
 ### 3. Enable anonymous sign-ins
 
