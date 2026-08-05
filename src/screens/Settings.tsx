@@ -11,6 +11,10 @@ import {
   Mail,
   LogOut,
   Inbox,
+  CreditCard,
+  Zap,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type { Screen } from "../App";
 import type { Lang, TKey } from "../i18n";
@@ -88,8 +92,10 @@ export function Settings({
     }
   };
 
-  // -- Stokvel --
+  // -- Stokvel (admin only) --
+  const canEditStokvel = state.stokvel?.role === "admin";
   const commitStokvelName = (v: string) => {
+    if (!canEditStokvel || !state.stokvel) return;
     const name = v.trim();
     if (name && name !== state.stokvel.name) {
       setStokvelMeta({ name });
@@ -97,12 +103,14 @@ export function Settings({
     }
   };
   const commitStokvelGoal = (n: number) => {
+    if (!canEditStokvel || !state.stokvel) return;
     if (n > 0 && n !== state.stokvel.goal) {
       setStokvelMeta({ goal: n });
       flashSaved("stkGoal");
     }
   };
   const commitStokvelMembers = (n: number) => {
+    if (!canEditStokvel || !state.stokvel) return;
     if (n > 0 && n !== state.stokvel.members) {
       setStokvelMeta({ members: n });
       flashSaved("stkMembers");
@@ -223,36 +231,97 @@ export function Settings({
           title={tr("sectionStokvel", lang)}
           accent="coral"
         >
-          <Field
-            label={tr("onbStokvelNameLabel", lang)}
-            value={state.stokvel.name}
-            onCommit={commitStokvelName}
-            saved={saved === "stkName"}
-            placeholder={tr("onbStokvelNamePlaceholder", lang)}
-          />
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <NumberField
-              label={tr("onbStokvelGoalLabel", lang)}
-              value={state.stokvel.goal}
-              onCommit={commitStokvelGoal}
-              saved={saved === "stkGoal"}
-            />
-            <NumberField
-              label={tr("onbStokvelMembersLabel", lang)}
-              value={state.stokvel.members}
-              onCommit={commitStokvelMembers}
-              saved={saved === "stkMembers"}
-              min={1}
-            />
-          </div>
-          {state.stokvel.name && (
-            <div className="mt-3 text-xs text-white/50">
-              Goal: <span className="text-kasi-gold font-semibold">
-                {formatRand(state.stokvel.goal)}
-              </span>
+          {!state.stokvel ? (
+            <div className="flex flex-col items-start gap-3">
+              <div className="text-white/70 text-sm">
+                {tr("settingsStokvelNone", lang)}
+              </div>
+              <button
+                onClick={() => onNavigate("stokvel")}
+                className="px-4 py-2 rounded-xl bg-kasi-gold text-bg font-semibold text-sm"
+              >
+                {tr("stokvelNav", lang)} →
+              </button>
+            </div>
+          ) : canEditStokvel ? (
+            <>
+              <Field
+                label={tr("onbStokvelNameLabel", lang)}
+                value={state.stokvel.name}
+                onCommit={commitStokvelName}
+                saved={saved === "stkName"}
+                placeholder={tr("onbStokvelNamePlaceholder", lang)}
+              />
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <NumberField
+                  label={tr("onbStokvelGoalLabel", lang)}
+                  value={state.stokvel.goal}
+                  onCommit={commitStokvelGoal}
+                  saved={saved === "stkGoal"}
+                />
+                <NumberField
+                  label={tr("onbStokvelMembersLabel", lang)}
+                  value={state.stokvel.members}
+                  onCommit={commitStokvelMembers}
+                  saved={saved === "stkMembers"}
+                  min={1}
+                />
+              </div>
+              <div className="mt-3 text-xs text-white/50">
+                Goal:{" "}
+                <span className="text-kasi-gold font-semibold">
+                  {formatRand(state.stokvel.goal)}
+                </span>{" "}
+                &middot; {state.stokvel.memberships.length}/{state.stokvel.members}{" "}
+                {tr("stokvelMembers", lang)}
+              </div>
+            </>
+          ) : (
+            // Non-admin (regular member): read-only view
+            <div className="flex flex-col gap-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-white/50">
+                  {tr("onbStokvelNameLabel", lang)}
+                </div>
+                <div className="text-base font-medium mt-1">
+                  {state.stokvel.name}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-white/50">
+                    {tr("onbStokvelGoalLabel", lang)}
+                  </div>
+                  <div className="text-base font-medium mt-1 text-kasi-gold">
+                    {formatRand(state.stokvel.goal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-white/50">
+                    {tr("stokvelMembers", lang)}
+                  </div>
+                  <div className="text-base font-medium mt-1">
+                    {state.stokvel.memberships.length} / {state.stokvel.members}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 text-xs text-white/50 italic">
+                {tr("settingsStokvelMemberOnly", lang)}
+              </div>
             </div>
           )}
         </Section>
+
+        {/* ---- Payments (admin only, only if stokvel exists) ---- */}
+        {state.stokvel && canEditStokvel && (
+          <Section
+            icon={CreditCard}
+            title={tr("sectionPayments", lang)}
+            accent="green"
+          >
+            <PaymentsBlock lang={lang} />
+          </Section>
+        )}
 
         {/* ---- Account ---- */}
         <Section
@@ -713,6 +782,219 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
           </button>
         </motion.div>
       </AnimatePresence>
+    </div>
+  );
+}
+
+
+
+// ---------------------------------------------------------------------------
+// PaymentsBlock
+//
+// Admin-only section that lets a stokvel admin plug in their Yoco
+// secret key so members can contribute via automated PayShap/card
+// payments instead of manual record-keeping.
+//
+// States:
+//   - Not configured   → form: paste Yoco secret + test/live toggle
+//   - Configured       → status pill (Live/Test) + option to update key
+//   - Submitting       → loading spinner on Save button
+//   - Success          → transient "Saved ✓" state
+//   - Error            → inline coral message with the specific reason
+// ---------------------------------------------------------------------------
+function PaymentsBlock({ lang }: { lang: Lang }) {
+  const { state, savePaymentConfig } = useStore();
+  const config = state.paymentConfig;
+
+  const [showForm, setShowForm] = useState(!config?.isActive);
+  const [secret, setSecret] = useState("");
+  const [reveal, setReveal] = useState(false);
+  const [isTest, setIsTest] = useState<boolean>(config?.isTest ?? true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    const clean = secret.trim();
+    if (clean.length < 10) {
+      setError(tr("paySecretInvalid", lang));
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    const result = await savePaymentConfig(clean, isTest);
+    setSaving(false);
+    if (result.ok) {
+      setSaved(true);
+      setSecret("");
+      setShowForm(false);
+      window.setTimeout(() => setSaved(false), 2400);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Header explanation */}
+      <p className="text-white/70 text-sm leading-relaxed">
+        {tr("payDescription", lang)}
+      </p>
+
+      {/* Current status */}
+      {config?.isActive && !showForm && (
+        <div className="rounded-2xl bg-kasi-green/[0.08] border border-kasi-green/25 p-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-kasi-green/20 border border-kasi-green/40 flex items-center justify-center shrink-0">
+            <Zap size={16} className="text-kasi-green" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-kasi-green">
+              {tr("payConfiguredTitle", lang)}
+            </div>
+            <div className="text-white/60 text-xs mt-0.5">
+              {config.isTest
+                ? tr("payConfiguredTest", lang)
+                : tr("payConfiguredLive", lang)}
+            </div>
+          </div>
+          <span
+            className={
+              "text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded-full border " +
+              (config.isTest
+                ? "text-kasi-gold border-kasi-gold/30 bg-kasi-gold/[0.08]"
+                : "text-kasi-green border-kasi-green/30 bg-kasi-green/[0.08]")
+            }
+          >
+            {tr(config.isTest ? "payBadgeTest" : "payBadgeLive", lang)}
+          </span>
+        </div>
+      )}
+
+      {config?.isActive && !showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="text-xs text-white/50 underline self-start"
+        >
+          {tr("payUpdateKey", lang)}
+        </button>
+      )}
+
+      {/* Not configured (or admin is updating) → form */}
+      {(showForm || !config?.isActive) && (
+        <>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("paySecretLabel", lang)}
+            </label>
+            <div className="mt-1 relative">
+              <input
+                type={reveal ? "text" : "password"}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                value={secret}
+                onChange={(e) => {
+                  setSecret(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={tr("paySecretPlaceholder", lang)}
+                className="w-full px-4 py-3 pr-11 rounded-xl bg-bg border border-white/10 text-white font-mono text-sm outline-none focus:border-kasi-green"
+              />
+              <button
+                type="button"
+                onClick={() => setReveal((v) => !v)}
+                aria-label={reveal ? "Hide" : "Show"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-white/50 hover:text-white/80"
+              >
+                {reveal ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <div className="mt-1 text-[11px] text-white/45">
+              {tr("paySecretHint", lang)}
+            </div>
+          </div>
+
+          {/* Test / Live toggle */}
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("payModeLabel", lang)}
+            </label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setIsTest(true)}
+                className={
+                  "py-2.5 rounded-xl text-sm font-medium " +
+                  (isTest
+                    ? "bg-kasi-gold text-bg"
+                    : "bg-bg-card border border-white/5 text-white/70")
+                }
+              >
+                {tr("payModeTest", lang)}
+              </button>
+              <button
+                onClick={() => setIsTest(false)}
+                className={
+                  "py-2.5 rounded-xl text-sm font-medium " +
+                  (!isTest
+                    ? "bg-kasi-green text-bg"
+                    : "bg-bg-card border border-white/5 text-white/70")
+                }
+              >
+                {tr("payModeLive", lang)}
+              </button>
+            </div>
+          </div>
+
+          {error && <div className="text-kasi-coral text-xs">{error}</div>}
+
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              onClick={submit}
+              disabled={saving || !secret.trim()}
+              className={
+                "w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 " +
+                (secret.trim() && !saving
+                  ? "bg-kasi-green text-bg shadow-glow"
+                  : "bg-white/5 text-white/30 cursor-not-allowed")
+              }
+            >
+              {saving ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Zap size={14} />
+              )}
+              {saving ? tr("paySaving", lang) : tr("paySaveCta", lang)}
+            </button>
+            {config?.isActive && showForm && (
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setSecret("");
+                  setError(null);
+                }}
+                className="text-xs text-white/50 underline text-center"
+              >
+                {tr("payCancel", lang)}
+              </button>
+            )}
+          </div>
+
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-kasi-green text-xs flex items-center gap-1"
+            >
+              <Check size={12} />
+              {tr("paySaved", lang)}
+            </motion.div>
+          )}
+        </>
+      )}
+
+      <p className="text-white/40 text-[11px] leading-relaxed mt-1">
+        {tr("payFeeNote", lang)}
+      </p>
     </div>
   );
 }

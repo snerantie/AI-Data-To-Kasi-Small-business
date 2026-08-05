@@ -7,6 +7,9 @@ import type {
   Stokvel,
   Profile,
   BusinessType,
+  StokvelMember,
+  MemberRole,
+  StokvelInvite,
 } from "../store";
 
 /**
@@ -18,10 +21,6 @@ import type {
 
 // ---- Session ----------------------------------------------------------------
 
-/**
- * Ensure the user has an auth session. If not, sign in anonymously.
- * Returns the user id, or null if Supabase is unavailable.
- */
 export async function ensureSession(): Promise<string | null> {
   if (!supabase) return null;
 
@@ -36,10 +35,6 @@ export async function ensureSession(): Promise<string | null> {
   return anonData.user.id;
 }
 
-/**
- * Sign the current user out and immediately create a fresh anonymous
- * session. Used by the Settings → "Reset account" flow.
- */
 export async function resetToFreshAnon(): Promise<string | null> {
   if (!supabase) return null;
   await supabase.auth.signOut();
@@ -58,17 +53,11 @@ export type CurrentAuth = {
   isAnonymous: boolean;
 };
 
-/**
- * Snapshot of the current auth state — used by the store on boot and
- * whenever an auth event fires.
- */
 export async function getCurrentAuth(): Promise<CurrentAuth> {
   if (!supabase) return { userId: null, email: null, isAnonymous: false };
   const { data } = await supabase.auth.getSession();
   const user = data.session?.user;
   if (!user) return { userId: null, email: null, isAnonymous: false };
-  // Supabase's TS types don't officially expose is_anonymous yet, but
-  // it's part of the user payload from the API.
   const isAnon = Boolean(
     (user as unknown as { is_anonymous?: boolean }).is_anonymous,
   );
@@ -82,11 +71,6 @@ export async function getCurrentAuth(): Promise<CurrentAuth> {
 const redirectOrigin = () =>
   typeof window !== "undefined" ? window.location.origin : undefined;
 
-/**
- * Attach an email to the current anonymous user. Sends a verification
- * email — after the user clicks, the anonymous account is upgraded to
- * a permanent email account. Same user_id, all data preserved.
- */
 export async function linkEmail(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, error: "Cloud not configured" };
   const { error } = await supabase.auth.updateUser(
@@ -97,14 +81,6 @@ export async function linkEmail(email: string): Promise<AuthResult> {
   return { ok: true, kind: "verification_sent" };
 }
 
-/**
- * Send a sign-in magic link to an existing account. Used when signing
- * in on a new device.
- *
- * We sign out of the anonymous session first so the click on the link
- * establishes a clean session for the existing user. If the user never
- * clicks, they'll be re-anonymised on next boot.
- */
 export async function sendSignInLink(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, error: "Cloud not configured" };
   await supabase.auth.signOut();
@@ -119,10 +95,6 @@ export async function sendSignInLink(email: string): Promise<AuthResult> {
   return { ok: true, kind: "signin_sent" };
 }
 
-/**
- * Sign the user out. Callers should immediately create a new anonymous
- * session (see ensureSession) so the app remains usable.
- */
 export async function signOut(): Promise<AuthResult> {
   if (!supabase) return { ok: false, error: "Cloud not configured" };
   const { error } = await supabase.auth.signOut();
@@ -130,14 +102,7 @@ export async function signOut(): Promise<AuthResult> {
   return { ok: true, kind: "signed_out" };
 }
 
-/**
- * Subscribe to auth state changes (sign-in, sign-out, user-updated on
- * email verification, token refresh, etc.).
- * Returns an unsubscribe function.
- */
-export function onAuthChange(
-  cb: (event: string) => void,
-): () => void {
+export function onAuthChange(cb: (event: string) => void): () => void {
   if (!supabase) return () => {};
   const { data } = supabase.auth.onAuthStateChange((event) => cb(event));
   return () => data.subscription.unsubscribe();
@@ -337,7 +302,7 @@ export async function updateTabPaid(id: string): Promise<void> {
   if (error) console.warn("[kasikash] updateTabPaid:", error.message);
 }
 
-// ---- Stokvel + contributions -----------------------------------------------
+// ---- Stokvel + memberships + contributions --------------------------------
 
 type StokvelRow = {
   id: string;
@@ -346,64 +311,122 @@ type StokvelRow = {
   members: number;
 };
 
+type MembershipRow = {
+  stokvel_id: string;
+  user_id: string;
+  role: MemberRole;
+  display_name: string;
+  joined_at: string;
+};
+
 type ContributionRow = {
   id: string;
   amount: number | string;
   note: string | null;
+  owner_id: string;
   created_at: string;
 };
 
-const rowToStokvel = (
-  r: StokvelRow,
-  contributions: Contribution[],
-): Stokvel => ({
-  name: r.name,
-  goal: typeof r.goal === "string" ? parseFloat(r.goal) : r.goal,
-  members: r.members,
-  contributions,
+type InviteRow = {
+  code: string;
+  created_at: string;
+  expires_at: string | null;
+};
+
+const rowToMembership = (r: MembershipRow): StokvelMember => ({
+  userId: r.user_id,
+  role: r.role,
+  displayName: r.display_name,
+  joinedAt: new Date(r.joined_at).getTime(),
 });
 
-const rowToContribution = (r: ContributionRow): Contribution => ({
+const rowToContribution = (
+  r: ContributionRow,
+  members: Map<string, string>,
+): Contribution => ({
   id: r.id,
   amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
   note: r.note ?? undefined,
   createdAt: new Date(r.created_at).getTime(),
+  memberName: members.get(r.owner_id),
+  ownerId: r.owner_id,
 });
 
 /**
- * Read-only stokvel fetch. Returns null if the user has no stokvel yet.
- * Onboarding is expected to create one via createStokvel().
+ * Fetch the user's primary stokvel (currently: the first membership they have),
+ * including all its members and contributions with attribution.
+ * Returns null if the user isn't in any stokvel yet.
  */
-export async function fetchStokvel(
+export async function fetchUserPrimaryStokvel(
   userId: string,
-): Promise<{ stokvel: Stokvel; stokvelId: string } | null> {
+): Promise<{ stokvel: Stokvel; stokvelId: string; role: MemberRole } | null> {
   if (!supabase) return null;
 
-  const { data: sk } = await supabase
-    .from("stokvels")
-    .select("id, name, goal, members")
-    .eq("owner_id", userId)
-    .maybeSingle();
+  const { data: myMemberships, error: mErr } = await supabase
+    .from("stokvel_memberships")
+    .select("stokvel_id, role, joined_at")
+    .eq("user_id", userId)
+    .order("joined_at", { ascending: true })
+    .limit(1);
 
-  if (!sk) return null;
-  const skRow = sk as StokvelRow;
+  if (mErr) {
+    console.warn("[kasikash] fetch memberships:", mErr.message);
+    return null;
+  }
+  if (!myMemberships || myMemberships.length === 0) return null;
 
-  const { data: contribs, error: cErr } = await supabase
-    .from("contributions")
-    .select("id, amount, note, created_at")
-    .eq("stokvel_id", skRow.id)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (cErr) console.warn("[kasikash] fetch contributions:", cErr.message);
+  const firstMembership = myMemberships[0] as {
+    stokvel_id: string;
+    role: MemberRole;
+  };
+  const stokvelId = firstMembership.stokvel_id;
+  const myRole = firstMembership.role;
 
-  const contributions = (contribs ?? []).map((row) =>
-    rowToContribution(row as ContributionRow),
+  const [{ data: stk }, { data: allMembers }, { data: contribs }] =
+    await Promise.all([
+      supabase
+        .from("stokvels")
+        .select("id, name, goal, members")
+        .eq("id", stokvelId)
+        .single(),
+      supabase
+        .from("stokvel_memberships")
+        .select("stokvel_id, user_id, role, display_name, joined_at")
+        .eq("stokvel_id", stokvelId),
+      supabase
+        .from("contributions")
+        .select("id, amount, note, owner_id, created_at")
+        .eq("stokvel_id", stokvelId)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    ]);
+
+  if (!stk) return null;
+  const skRow = stk as StokvelRow;
+
+  const memberships = (allMembers ?? []).map((r) =>
+    rowToMembership(r as MembershipRow),
+  );
+  const memberMap = new Map(
+    memberships.map((m) => [m.userId, m.displayName]),
   );
 
-  return {
-    stokvel: rowToStokvel(skRow, contributions),
-    stokvelId: skRow.id,
+  const contributions = (contribs ?? []).map((r) =>
+    rowToContribution(r as ContributionRow, memberMap),
+  );
+
+  const stokvel: Stokvel = {
+    id: skRow.id,
+    name: skRow.name,
+    goal:
+      typeof skRow.goal === "string" ? parseFloat(skRow.goal) : skRow.goal,
+    members: skRow.members,
+    memberships,
+    contributions,
+    role: myRole,
   };
+
+  return { stokvel, stokvelId, role: myRole };
 }
 
 export async function createStokvel(
@@ -425,6 +448,7 @@ export async function createStokvel(
     console.warn("[kasikash] createStokvel:", error.message);
     return null;
   }
+  // The DB trigger auto-adds the creator as an admin membership.
   return (data as { id: string }).id;
 }
 
@@ -455,4 +479,136 @@ export async function insertContribution(
     created_at: new Date(contribution.createdAt).toISOString(),
   });
   if (error) console.warn("[kasikash] insertContribution:", error.message);
+}
+
+// ---- Invites ---------------------------------------------------------------
+
+/** Generate a short human-readable code like "K7-M9P2-XR". */
+function generateInviteCode(): string {
+  // Base32-ish without ambiguous chars
+  const chars = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+  const pick = () => chars[Math.floor(Math.random() * chars.length)];
+  const seg = (n: number) => Array.from({ length: n }, pick).join("");
+  return `K-${seg(4)}-${seg(4)}`;
+}
+
+export async function createInvite(
+  userId: string,
+  stokvelId: string,
+  expiresInHours = 24 * 7,
+): Promise<StokvelInvite | null> {
+  if (!supabase) return null;
+  // Retry a few times in the astronomically-unlikely case of collision.
+  for (let i = 0; i < 3; i++) {
+    const code = generateInviteCode();
+    const expiresAt = new Date(
+      Date.now() + expiresInHours * 3600 * 1000,
+    ).toISOString();
+    const { data, error } = await supabase
+      .from("stokvel_invites")
+      .insert({
+        code,
+        stokvel_id: stokvelId,
+        created_by: userId,
+        expires_at: expiresAt,
+      })
+      .select("code, created_at, expires_at")
+      .single();
+    if (!error && data) {
+      const r = data as InviteRow;
+      return {
+        code: r.code,
+        createdAt: new Date(r.created_at).getTime(),
+        expiresAt: r.expires_at ? new Date(r.expires_at).getTime() : null,
+      };
+    }
+    // If code collision (unique violation), retry with a new code
+    if (error && !error.message.toLowerCase().includes("duplicate")) {
+      console.warn("[kasikash] createInvite:", error.message);
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function fetchLatestInvite(
+  stokvelId: string,
+): Promise<StokvelInvite | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("stokvel_invites")
+    .select("code, created_at, expires_at")
+    .eq("stokvel_id", stokvelId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn("[kasikash] fetchLatestInvite:", error.message);
+    return null;
+  }
+  if (!data) return null;
+  const r = data as InviteRow;
+  return {
+    code: r.code,
+    createdAt: new Date(r.created_at).getTime(),
+    expiresAt: r.expires_at ? new Date(r.expires_at).getTime() : null,
+  };
+}
+
+/**
+ * Attempt to join a stokvel using an invite code. Uses the SECURITY DEFINER
+ * RPC on the server so we don't need direct read access to the invite table.
+ */
+export async function joinStokvelByCode(
+  code: string,
+): Promise<{ ok: true; stokvelId: string } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { data, error } = await supabase.rpc("join_stokvel", {
+    invite_code: code.trim().toUpperCase(),
+  });
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("invalid_or_expired")) {
+      return { ok: false, error: "invalid_or_expired" };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (typeof data !== "string") {
+    return { ok: false, error: "unexpected_response" };
+  }
+  return { ok: true, stokvelId: data };
+}
+
+/**
+ * Leave a stokvel. Admins can leave only if another admin exists.
+ * Returns { ok: false, error: 'sole_admin' } when refused for that reason.
+ */
+export async function leaveStokvel(
+  userId: string,
+  stokvelId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+
+  // Guard: if the user is the only admin, refuse.
+  const { data: admins, error: aErr } = await supabase
+    .from("stokvel_memberships")
+    .select("user_id")
+    .eq("stokvel_id", stokvelId)
+    .eq("role", "admin");
+  if (aErr) return { ok: false, error: aErr.message };
+  const isSoleAdmin =
+    admins &&
+    admins.length === 1 &&
+    (admins[0] as { user_id: string }).user_id === userId;
+  if (isSoleAdmin) {
+    return { ok: false, error: "sole_admin" };
+  }
+
+  const { error } = await supabase
+    .from("stokvel_memberships")
+    .delete()
+    .eq("stokvel_id", stokvelId)
+    .eq("user_id", userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

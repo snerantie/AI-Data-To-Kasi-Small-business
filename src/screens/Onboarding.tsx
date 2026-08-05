@@ -1,6 +1,14 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Store } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Loader2,
+  Plus,
+  KeyRound,
+  SkipForward,
+} from "lucide-react";
 import type { BusinessType } from "../store";
 import { useStore } from "../store";
 import type { Lang } from "../i18n";
@@ -19,10 +27,15 @@ const BUSINESS_TYPES: { code: BusinessType; icon: string }[] = [
 ];
 
 export function Onboarding() {
-  const { state, setLang, setProfile, setStokvelMeta, finishOnboarding } =
-    useStore();
+  const {
+    state,
+    setLang,
+    setProfile,
+    createStokvelAsAdmin,
+    joinStokvelByCode,
+    finishOnboarding,
+  } = useStore();
 
-  // Resume from wherever the user left off if they closed the browser.
   const initialStep: Step = useMemo(() => {
     if (!state.lang) return 0;
     if (!state.profile.ownerName) return 1;
@@ -34,7 +47,7 @@ export function Onboarding() {
   const [step, setStep] = useState<Step>(initialStep);
   const lang: Lang = state.lang ?? "en";
 
-  // Step-local form state (mirrors the store so we can save on Next)
+  // Steps 0-2
   const [langPick, setLangPick] = useState<Lang>(state.lang ?? "en");
   const [ownerName, setOwnerName] = useState(state.profile.ownerName ?? "");
   const [businessName, setBusinessName] = useState(
@@ -43,11 +56,16 @@ export function Onboarding() {
   const [businessType, setBusinessType] = useState<BusinessType | null>(
     state.profile.businessType,
   );
-  const [stokvelName, setStokvelName] = useState(state.stokvel.name);
-  const [stokvelGoal, setStokvelGoal] = useState(state.stokvel.goal || 5000);
-  const [stokvelMembers, setStokvelMembers] = useState(
-    state.stokvel.members || 4,
-  );
+
+  // Step 3: stokvel choice
+  type StokvelMode = "choose" | "create" | "join" | "skip";
+  const [stokvelMode, setStokvelMode] = useState<StokvelMode>("choose");
+  const [stokvelName, setStokvelName] = useState("");
+  const [stokvelGoal, setStokvelGoal] = useState(5000);
+  const [stokvelMembers, setStokvelMembers] = useState(4);
+  const [joinCode, setJoinCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const total = 4;
 
@@ -56,12 +74,17 @@ export function Onboarding() {
     if (step === 1) return ownerName.trim().length >= 1;
     if (step === 2)
       return businessName.trim().length >= 1 && businessType !== null;
-    if (step === 3) return true; // stokvel is optional
+    if (step === 3) {
+      if (stokvelMode === "choose") return false;
+      if (stokvelMode === "skip") return true;
+      if (stokvelMode === "create") return stokvelName.trim().length >= 1;
+      if (stokvelMode === "join") return joinCode.trim().length >= 4;
+    }
     return false;
   };
 
-  const next = () => {
-    if (!canProceed()) return;
+  const next = async () => {
+    if (!canProceed() || submitting) return;
     if (step === 0) {
       setLang(langPick);
       setStep(1);
@@ -75,29 +98,51 @@ export function Onboarding() {
       });
       setStep(3);
     } else if (step === 3) {
-      if (stokvelName.trim().length > 0) {
-        setStokvelMeta({
-          name: stokvelName.trim(),
-          goal: Number(stokvelGoal) || 5000,
-          members: Number(stokvelMembers) || 1,
-        });
+      setError(null);
+      setSubmitting(true);
+      try {
+        if (stokvelMode === "create") {
+          const id = await createStokvelAsAdmin({
+            name: stokvelName.trim(),
+            goal: Number(stokvelGoal) || 5000,
+            members: Number(stokvelMembers) || 1,
+          });
+          if (!id) {
+            setError("Could not create stokvel — please try again.");
+            return;
+          }
+        } else if (stokvelMode === "join") {
+          const result = await joinStokvelByCode(joinCode.trim());
+          if (!result.ok) {
+            setError(
+              result.error === "invalid_or_expired"
+                ? tr("stokvelJoinInvalid", lang)
+                : result.error,
+            );
+            return;
+          }
+        }
+        // skip path: nothing to do
+        finishOnboarding();
+      } finally {
+        setSubmitting(false);
       }
-      finishOnboarding();
     }
   };
 
   const back = () => {
+    if (step === 3 && stokvelMode !== "choose") {
+      // On step 3, "Back" first returns to the choice screen
+      setStokvelMode("choose");
+      setError(null);
+      return;
+    }
     if (step > 0) setStep((step - 1) as Step);
-  };
-
-  const skipStokvel = () => {
-    // finishOnboarding without creating a stokvel; user can add later from Settings
-    finishOnboarding();
   };
 
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
-      {/* Ambient */}
+      {/* Ambient glow */}
       <motion.div
         className="pointer-events-none absolute top-10 -left-16 w-72 h-72 rounded-full bg-kasi-green/20 blur-3xl"
         animate={{ scale: [1, 1.15, 1] }}
@@ -109,7 +154,7 @@ export function Onboarding() {
         transition={{ duration: 9, repeat: Infinity, delay: 1 }}
       />
 
-      {/* Header: logo + step indicator */}
+      {/* Header */}
       <div className="relative flex items-center justify-between px-5 pt-6 pb-3">
         <Logo size={36} />
         <div className="text-[11px] text-white/50 tabular-nums">
@@ -126,11 +171,11 @@ export function Onboarding() {
         />
       </div>
 
-      {/* Step content */}
+      {/* Content */}
       <div className="relative flex-1 px-5 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
-            key={step}
+            key={`${step}-${step === 3 ? stokvelMode : ""}`}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
@@ -156,8 +201,16 @@ export function Onboarding() {
                 lang={lang}
               />
             )}
-            {step === 3 && (
-              <StokvelStep
+            {step === 3 && stokvelMode === "choose" && (
+              <StokvelChoiceStep
+                lang={lang}
+                onPickCreate={() => setStokvelMode("create")}
+                onPickJoin={() => setStokvelMode("join")}
+                onPickSkip={() => setStokvelMode("skip")}
+              />
+            )}
+            {step === 3 && stokvelMode === "create" && (
+              <StokvelCreateStep
                 name={stokvelName}
                 setName={setStokvelName}
                 goal={stokvelGoal}
@@ -167,42 +220,66 @@ export function Onboarding() {
                 lang={lang}
               />
             )}
+            {step === 3 && stokvelMode === "join" && (
+              <StokvelJoinStep
+                code={joinCode}
+                setCode={setJoinCode}
+                lang={lang}
+              />
+            )}
+            {step === 3 && stokvelMode === "skip" && (
+              <StokvelSkipStep lang={lang} />
+            )}
+            {error && (
+              <div className="text-kasi-coral text-sm">{error}</div>
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Footer buttons */}
+      {/* Footer */}
       <div className="relative px-5 pb-6 pt-2 flex items-center gap-3">
-        {step > 0 && (
+        {(step > 0 || (step === 3 && stokvelMode !== "choose")) && (
           <button
             onClick={back}
+            disabled={submitting}
             className="px-4 py-3 rounded-2xl bg-bg-card border border-white/5 text-white/70 flex items-center gap-1"
           >
             <ArrowLeft size={16} />
             {tr("onbBack", lang)}
           </button>
         )}
-        {step === 3 && (
+        {/* On the "choose" sub-step, the choice buttons ARE the primary action;
+            we don't show a Next button. Otherwise show Next/Finish. */}
+        {!(step === 3 && stokvelMode === "choose") && (
           <button
-            onClick={skipStokvel}
-            className="text-white/50 text-sm underline"
+            onClick={next}
+            disabled={!canProceed() || submitting}
+            className={
+              "flex-1 py-3 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 transition-all " +
+              (canProceed() && !submitting
+                ? "bg-kasi-green text-bg shadow-glow"
+                : "bg-white/5 text-white/30 cursor-not-allowed")
+            }
           >
-            {tr("onbStokvelSkip", lang)}
+            {submitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                {tr("stokvelCreatingProgress", lang)}
+              </>
+            ) : step === 3 ? (
+              <>
+                {tr("onbFinish", lang)}
+                <Check size={18} />
+              </>
+            ) : (
+              <>
+                {tr("onbNext", lang)}
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         )}
-        <button
-          onClick={next}
-          disabled={!canProceed()}
-          className={
-            "flex-1 py-3 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 transition-all " +
-            (canProceed()
-              ? "bg-kasi-green text-bg shadow-glow"
-              : "bg-white/5 text-white/30 cursor-not-allowed")
-          }
-        >
-          {step === 3 ? tr("onbFinish", lang) : tr("onbNext", lang)}
-          {step === 3 ? <Check size={18} /> : <ArrowRight size={18} />}
-        </button>
       </div>
     </div>
   );
@@ -382,7 +459,85 @@ function BusinessStep({
   );
 }
 
-function StokvelStep({
+function StokvelChoiceStep({
+  lang,
+  onPickCreate,
+  onPickJoin,
+  onPickSkip,
+}: {
+  lang: Lang;
+  onPickCreate: () => void;
+  onPickJoin: () => void;
+  onPickSkip: () => void;
+}) {
+  return (
+    <>
+      <div>
+        <h2 className="font-display text-2xl font-semibold">
+          {tr("onbStokvelTitle", lang)}
+        </h2>
+        <p className="text-white/60 text-sm mt-1">
+          {tr("onbStokvelSubtitle", lang)}
+        </p>
+      </div>
+
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={onPickCreate}
+        className="w-full flex items-center gap-4 px-5 py-4 rounded-3xl bg-gradient-to-br from-kasi-gold/25 via-kasi-gold/10 to-transparent border border-kasi-gold/40 min-h-[72px]"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-kasi-gold text-bg flex items-center justify-center shrink-0 shadow-gold">
+          <Plus size={22} />
+        </div>
+        <div className="text-left flex-1">
+          <div className="font-semibold">
+            {tr("onbStokvelChoiceCreate", lang)}
+          </div>
+          <div className="text-white/60 text-xs">
+            {tr("stokvelCreateCardDesc", lang)}
+          </div>
+        </div>
+        <span className="text-kasi-gold">→</span>
+      </motion.button>
+
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={onPickJoin}
+        className="w-full flex items-center gap-4 px-5 py-4 rounded-3xl bg-gradient-to-br from-kasi-green/25 via-kasi-green/10 to-transparent border border-kasi-green/40 min-h-[72px]"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-kasi-green text-bg flex items-center justify-center shrink-0 shadow-glow">
+          <KeyRound size={22} />
+        </div>
+        <div className="text-left flex-1">
+          <div className="font-semibold">
+            {tr("onbStokvelChoiceJoin", lang)}
+          </div>
+          <div className="text-white/60 text-xs">
+            {tr("stokvelJoinCardDesc", lang)}
+          </div>
+        </div>
+        <span className="text-kasi-green">→</span>
+      </motion.button>
+
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={onPickSkip}
+        className="w-full flex items-center gap-4 px-5 py-4 rounded-3xl bg-bg-card border border-white/10 min-h-[72px]"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 text-white/60 flex items-center justify-center shrink-0">
+          <SkipForward size={20} />
+        </div>
+        <div className="text-left flex-1">
+          <div className="font-semibold text-white/80">
+            {tr("onbStokvelChoiceSkip", lang)}
+          </div>
+        </div>
+      </motion.button>
+    </>
+  );
+}
+
+function StokvelCreateStep({
   name,
   setName,
   goal,
@@ -403,12 +558,9 @@ function StokvelStep({
     <>
       <div>
         <h2 className="font-display text-2xl font-semibold flex items-center gap-2">
-          <Store size={22} className="text-kasi-gold" />
-          {tr("onbStokvelTitle", lang)}
+          <Plus size={22} className="text-kasi-gold" />
+          {tr("stokvelCreateHeader", lang)}
         </h2>
-        <p className="text-white/60 text-sm mt-1">
-          {tr("onbStokvelSubtitle", lang)}
-        </p>
       </div>
 
       <div>
@@ -416,6 +568,7 @@ function StokvelStep({
           {tr("onbStokvelNameLabel", lang)}
         </label>
         <input
+          autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={tr("onbStokvelNamePlaceholder", lang)}
@@ -452,6 +605,61 @@ function StokvelStep({
             className="mt-1 w-full px-4 py-3 rounded-2xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
           />
         </div>
+      </div>
+    </>
+  );
+}
+
+function StokvelJoinStep({
+  code,
+  setCode,
+  lang,
+}: {
+  code: string;
+  setCode: (c: string) => void;
+  lang: Lang;
+}) {
+  return (
+    <>
+      <div>
+        <h2 className="font-display text-2xl font-semibold flex items-center gap-2">
+          <KeyRound size={22} className="text-kasi-green" />
+          {tr("stokvelJoinHeader", lang)}
+        </h2>
+        <p className="text-white/60 text-sm mt-1">
+          {tr("stokvelJoinCardDesc", lang)}
+        </p>
+      </div>
+
+      <div>
+        <label className="text-[11px] uppercase tracking-wider text-white/50">
+          {tr("stokvelJoinCodeLabel", lang)}
+        </label>
+        <input
+          autoFocus
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder={tr("stokvelJoinCodePlaceholder", lang)}
+          className="mt-1 w-full px-4 py-3.5 rounded-2xl bg-bg-card border border-white/10 text-white text-lg font-mono tracking-wider outline-none focus:border-kasi-green"
+        />
+      </div>
+    </>
+  );
+}
+
+function StokvelSkipStep({ lang }: { lang: Lang }) {
+  return (
+    <>
+      <div>
+        <h2 className="font-display text-2xl font-semibold">
+          {tr("onbStokvelChoiceSkip", lang)}
+        </h2>
+        <p className="text-white/60 text-sm mt-1">
+          {tr("stokvelEmptySub", lang)}
+        </p>
+      </div>
+      <div className="rounded-2xl bg-bg-card border border-white/5 p-4 text-white/60 text-sm">
+        You can create or join a stokvel any time from the Stokvel tab.
       </div>
     </>
   );

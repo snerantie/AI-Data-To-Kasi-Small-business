@@ -51,11 +51,57 @@ This is what upgrades the app from demo to real product. It takes ~5 minutes.
 - Click **New project**. Give it a name (`kasikash` works), pick a region close to your users (`Southeast Asia (Singapore)` or `Europe West` are the closest to Southern Africa — Supabase doesn't yet offer a JHB region), set a strong database password (you won't need it often, but save it).
 - Wait ~2 minutes for the project to provision.
 
-### 2. Run the migration
+### 2. Run the migrations (in order)
 
-Open the **SQL Editor** in your Supabase dashboard, click **New query**, and paste the contents of [`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql) from this repo. Click **Run**.
+Open the **SQL Editor** in your Supabase dashboard, click **New query**, and paste the contents of each migration file in order. Run one, wait for "Success", then paste the next.
 
-This creates the tables (`profiles`, `sales`, `tabs`, `stokvels`, `contributions`), the auto-profile trigger, and the Row Level Security policies so every owner can only see their own rows.
+1. **[`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql)** — the initial schema. Creates `profiles`, `sales`, `tabs`, `stokvels`, `contributions`, the auto-profile trigger, and Row Level Security policies.
+2. **[`supabase/migrations/002_profile_extras.sql`](supabase/migrations/002_profile_extras.sql)** — adds `business_type` on profiles and drops the demo-mode defaults on name fields so onboarding fills them properly.
+3. **[`supabase/migrations/003_multiuser_stokvel.sql`](supabase/migrations/003_multiuser_stokvel.sql)** — turns the stokvel from a single-user savings tracker into a real multi-user group. Adds `stokvel_memberships`, `stokvel_invites`, the `join_stokvel` RPC, updated RLS so members can read shared stokvel data, and backfills existing stokvels so their creators become admins.
+4. **[`supabase/migrations/004_yoco_payments.sql`](supabase/migrations/004_yoco_payments.sql)** — adds automated payment support via Yoco. Creates `stokvel_payment_config` (server-only), `stokvel_payments` (member-readable state), a `payment_id` column on `contributions`, and a DB trigger that auto-inserts the contribution when a payment succeeds. Also adds `stokvel_payments` to `supabase_realtime` so the client can watch payment status live.
+
+If you've already run earlier migrations, run only the new one. All migrations are idempotent — running them twice is safe.
+
+## Setting up Yoco automated payments (per stokvel)
+
+Once migration 004 has run and the Edge Functions are deployed (see below), each stokvel admin can turn on automated contributions:
+
+1. Admin signs up at **[yoco.co.za](https://yoco.co.za)** — free, ~5 minutes. Yoco needs the business's ID and bank details so payouts land in the right account.
+2. In the Yoco dashboard, navigate to **Developers → API keys** and generate a **Secret key**. Two types:
+   - `sk_test_...` — test-mode keys for sandbox payments (no real money moves).
+   - `sk_live_...` — live keys, real money flows.
+3. Open KasiKash → **Settings → Payments** (this section only appears if you're a stokvel admin).
+4. Paste the Yoco secret key into the field, pick **Test** or **Live** mode, and tap **Turn on payments**.
+5. KasiKash validates the key by registering our webhook against the admin's Yoco account. On success the section shows a green "Automated payments active" pill.
+6. Members can now tap the R50 / R100 / R250 / R500 buttons on the Stokvel screen — they'll be redirected to Yoco's checkout, pay via PayShap or card, and land back in KasiKash with the contribution automatically recorded.
+
+**KasiKash takes 0% platform fee.** Yoco charges its own standard rate (roughly 3% + R2 per transaction) direct to the admin's merchant account. All money flows admin → Yoco → admin's bank. KasiKash never touches the funds.
+
+## Deploying the Supabase Edge Functions
+
+The three payment-flow Edge Functions live in `supabase/functions/`. Deploying them requires the Supabase CLI:
+
+```bash
+# Install once (macOS / Linux):
+brew install supabase/tap/supabase   # macOS
+# or: npm install -g supabase        # npm
+
+# Link this repo to your Supabase project (one-time)
+supabase link --project-ref <your-project-ref>
+
+# Deploy all three payment functions
+supabase functions deploy save-payment-config
+supabase functions deploy create-checkout
+supabase functions deploy yoco-webhook --no-verify-jwt
+```
+
+The `--no-verify-jwt` flag on `yoco-webhook` is important — Yoco doesn't send a Supabase JWT when it POSTs webhook events. We verify authenticity via the per-stokvel HMAC signature inside the function itself.
+
+The other two functions (`save-payment-config` and `create-checkout`) MUST be JWT-protected — Supabase auto-verifies the caller's JWT so we can read `auth.uid()` inside the function. Deploy them without the flag.
+
+**Where does the webhook URL come from?** The `save-payment-config` function computes it as `${SUPABASE_URL}/functions/v1/yoco-webhook` and registers that with Yoco when an admin configures payments. If you deploy the webhook function under a different name, update the URL construction in `save-payment-config`.
+
+**Environment variables** — the Edge Functions automatically get `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_ANON_KEY` injected. No manual env setup needed.
 
 ### 3. Enable anonymous sign-ins
 

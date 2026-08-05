@@ -2,17 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import type { Lang } from "./i18n";
 import { isCloudConfigured } from "./lib/supabase";
 import {
+  createInvite as remoteCreateInvite,
   createStokvel as remoteCreateStokvel,
   ensureSession,
+  fetchLatestInvite,
   fetchProfile,
   fetchSales,
-  fetchStokvel,
   fetchTabs,
+  fetchUserPrimaryStokvel,
   getCurrentAuth,
   insertContribution as remoteInsertContribution,
   insertSale as remoteInsertSale,
   insertSales as remoteInsertSales,
   insertTab as remoteInsertTab,
+  joinStokvelByCode as remoteJoinStokvel,
+  leaveStokvel as remoteLeaveStokvel,
   linkEmail as remoteLinkEmail,
   onAuthChange,
   resetToFreshAnon,
@@ -23,6 +27,16 @@ import {
   upsertProfile as remoteUpsertProfile,
 } from "./lib/remote";
 import type { AuthResult, CurrentAuth } from "./lib/remote";
+import {
+  createCheckout as paymentCreateCheckout,
+  fetchPaymentConfigStatus,
+  savePaymentConfig as paymentSaveConfig,
+  subscribeToStokvelPayments,
+} from "./lib/payments";
+import type {
+  PaymentConfigStatus,
+  SavePaymentConfigResult,
+} from "./lib/payments";
 
 // ---- Types -----------------------------------------------------------------
 
@@ -58,18 +72,38 @@ export type Tab = {
   paid?: boolean;
 };
 
+export type MemberRole = "admin" | "member";
+
+export type StokvelMember = {
+  userId: string;
+  role: MemberRole;
+  displayName: string;
+  joinedAt: number;
+};
+
 export type Contribution = {
   id: string;
   amount: number;
   createdAt: number;
   note?: string;
+  memberName?: string; // For display: who contributed
+  ownerId?: string;
 };
 
 export type Stokvel = {
+  id: string;
   name: string;
   goal: number;
-  members: number;
+  members: number; // Target member count set on creation
+  memberships: StokvelMember[];
   contributions: Contribution[];
+  role: MemberRole; // Current user's role in this stokvel
+};
+
+export type StokvelInvite = {
+  code: string;
+  createdAt: number;
+  expiresAt: number | null;
 };
 
 export type AppState = {
@@ -77,9 +111,15 @@ export type AppState = {
   profile: Profile;
   sales: Sale[];
   tabs: Tab[];
-  stokvel: Stokvel;
+  stokvel: Stokvel | null;
+  paymentConfig: PaymentConfigStatus | null;
   onboarded: boolean;
 };
+
+export type ContributeAction =
+  | { kind: "logged"; amount: number }
+  | { kind: "redirect"; url: string; paymentId: string; isTest: boolean }
+  | { kind: "error"; error: string };
 
 export type SyncStatus = "local" | "connecting" | "synced" | "error";
 
@@ -95,18 +135,14 @@ const emptyState: AppState = {
   },
   sales: [],
   tabs: [],
-  stokvel: {
-    name: "",
-    goal: 5000,
-    members: 1,
-    contributions: [],
-  },
+  stokvel: null,
+  paymentConfig: null,
 };
 
 // ---- Persistence ----------------------------------------------------------
 
-const KEY = "kasikash-state-v3";
-const LEGACY_KEY = "kasikash-state-v2";
+const KEY = "kasikash-state-v4";
+const LEGACY_KEYS = ["kasikash-state-v3", "kasikash-state-v2"];
 
 function loadInitial(): AppState {
   try {
@@ -117,21 +153,26 @@ function loadInitial(): AppState {
         ...emptyState,
         ...parsed,
         profile: { ...emptyState.profile, ...(parsed.profile ?? {}) },
-        stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
       };
     }
-    // Migrate from v2 cache (single-time compatibility with older builds)
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) {
-      const parsed = JSON.parse(legacy) as Partial<AppState>;
-      return {
-        ...emptyState,
-        lang: parsed.lang ?? null,
-        onboarded: Boolean(parsed.onboarded),
-        sales: parsed.sales ?? [],
-        tabs: parsed.tabs ?? [],
-        stokvel: { ...emptyState.stokvel, ...(parsed.stokvel ?? {}) },
-      };
+    // Migrate from older cache versions
+    for (const legacyKey of LEGACY_KEYS) {
+      const legacy = localStorage.getItem(legacyKey);
+      if (legacy) {
+        const parsed = JSON.parse(legacy) as Partial<AppState> & {
+          stokvel?: { name?: string };
+        };
+        return {
+          ...emptyState,
+          lang: parsed.lang ?? null,
+          onboarded: Boolean(parsed.onboarded),
+          sales: parsed.sales ?? [],
+          tabs: parsed.tabs ?? [],
+          profile: { ...emptyState.profile, ...(parsed.profile ?? {}) },
+          // Legacy stokvel shape is discarded; will be re-hydrated from server
+          stokvel: null,
+        };
+      }
     }
   } catch {
     // ignore
@@ -162,6 +203,25 @@ export type PendingAuth = "verification" | "signin" | null;
 let pendingAuth: PendingAuth = null;
 const subs = new Set<() => void>();
 
+// Realtime subscription for the current stokvel's payments — teardown on
+// stokvel change so we don't leak channels.
+let paymentUnsub: (() => void) | null = null;
+
+function attachPaymentSubscription(newStokvelId: string | null) {
+  if (paymentUnsub) {
+    paymentUnsub();
+    paymentUnsub = null;
+  }
+  if (!newStokvelId || !isCloudConfigured) return;
+  paymentUnsub = subscribeToStokvelPayments(newStokvelId, () => {
+    // Any change to a stokvel_payments row for this stokvel → refetch.
+    // The DB trigger handles inserting the contribution row on succeed;
+    // re-hydrating pulls it into state alongside any other members'
+    // contributions that landed since the last fetch.
+    hydrateFromRemote();
+  });
+}
+
 function notify() {
   subs.forEach((fn) => fn());
 }
@@ -183,10 +243,9 @@ function setState(
       delta.profile !== undefined
         ? { ...state.profile, ...delta.profile }
         : state.profile,
+    // stokvel is either null or replaced wholesale
     stokvel:
-      delta.stokvel !== undefined
-        ? { ...state.stokvel, ...delta.stokvel }
-        : state.stokvel,
+      delta.stokvel !== undefined ? delta.stokvel : state.stokvel,
   };
   saveLocal(state);
   notify();
@@ -212,8 +271,17 @@ async function hydrateFromRemote(): Promise<void> {
       fetchProfile(uid),
       fetchSales(uid),
       fetchTabs(uid),
-      fetchStokvel(uid),
+      fetchUserPrimaryStokvel(uid),
     ]);
+
+    // Fetch payment config if a stokvel exists (needs to happen after
+    // we know the stokvel id — separate call, small overhead)
+    const paymentConfig = stokvelRes?.stokvelId
+      ? await fetchPaymentConfigStatus(stokvelRes.stokvelId)
+      : null;
+
+    const previousStokvelId = stokvelId;
+    const nextStokvelId = stokvelRes?.stokvelId ?? null;
 
     const merged: AppState = {
       ...state,
@@ -222,12 +290,19 @@ async function hydrateFromRemote(): Promise<void> {
       profile: profileFetch?.profile ?? state.profile,
       sales: sales ?? state.sales,
       tabs: tabs ?? state.tabs,
-      stokvel: stokvelRes?.stokvel ?? state.stokvel,
+      stokvel: stokvelRes?.stokvel ?? null,
+      paymentConfig,
     };
 
     state = merged;
-    stokvelId = stokvelRes?.stokvelId ?? null;
+    stokvelId = nextStokvelId;
     saveLocal(state);
+
+    // If the stokvel changed (or first load), re-attach realtime sub
+    if (previousStokvelId !== nextStokvelId) {
+      attachPaymentSubscription(nextStokvelId);
+    }
+
     setSync("synced");
     notify();
   } catch (err) {
@@ -310,29 +385,6 @@ export function useStore() {
     }
   }, []);
 
-  const setStokvelMeta = useCallback(
-    (patch: Partial<Pick<Stokvel, "name" | "goal" | "members">>) => {
-      setState((s) => ({
-        stokvel: { ...s.stokvel, ...patch },
-      }));
-      if (userId) {
-        if (stokvelId) {
-          sync(() => remoteUpdateStokvel(stokvelId!, patch));
-        } else {
-          sync(async () => {
-            const id = await remoteCreateStokvel(userId!, {
-              name: (patch.name ?? state.stokvel.name) || "My Stokvel",
-              goal: patch.goal ?? state.stokvel.goal,
-              members: patch.members ?? state.stokvel.members,
-            });
-            if (id) stokvelId = id;
-          });
-        }
-      }
-    },
-    [],
-  );
-
   const finishOnboarding = useCallback(() => {
     setState({ onboarded: true });
     if (userId) {
@@ -340,7 +392,97 @@ export function useStore() {
     }
   }, []);
 
-  // -- Mutations --
+  // -- Stokvel actions --
+
+  /**
+   * Create a new stokvel with the current user as admin. Returns the created
+   * stokvel's id on success.
+   */
+  const createStokvelAsAdmin = useCallback(
+    async (input: {
+      name: string;
+      goal: number;
+      members: number;
+    }): Promise<string | null> => {
+      if (!userId) return null;
+      const id = await remoteCreateStokvel(userId, input);
+      if (id) {
+        stokvelId = id;
+        // Re-hydrate to pick up the new membership + stokvel row
+        await hydrateFromRemote();
+      }
+      return id;
+    },
+    [],
+  );
+
+  /**
+   * Join an existing stokvel using an invite code.
+   */
+  const joinStokvelByCode = useCallback(async (code: string) => {
+    if (!isCloudConfigured) {
+      return { ok: false, error: "Cloud not configured" } as const;
+    }
+    const result = await remoteJoinStokvel(code);
+    if (result.ok) {
+      stokvelId = result.stokvelId;
+      await hydrateFromRemote();
+    }
+    return result;
+  }, []);
+
+  /**
+   * Generate a fresh invite code (admin only). Returns the code on success.
+   */
+  const generateInvite = useCallback(async (): Promise<
+    StokvelInvite | null
+  > => {
+    if (!userId || !stokvelId) return null;
+    return await remoteCreateInvite(userId, stokvelId);
+  }, []);
+
+  /**
+   * Fetch the most recent existing invite for the current stokvel (if any).
+   */
+  const getLatestInvite = useCallback(async (): Promise<
+    StokvelInvite | null
+  > => {
+    if (!stokvelId) return null;
+    return await fetchLatestInvite(stokvelId);
+  }, []);
+
+  /**
+   * Leave the current stokvel. Refuses if the user is the sole admin.
+   */
+  const leaveStokvel = useCallback(async () => {
+    if (!userId || !stokvelId) {
+      return { ok: false, error: "no_stokvel" } as const;
+    }
+    const result = await remoteLeaveStokvel(userId, stokvelId);
+    if (result.ok) {
+      stokvelId = null;
+      setState({ stokvel: null });
+      await hydrateFromRemote();
+    }
+    return result;
+  }, []);
+
+  const setStokvelMeta = useCallback(
+    (patch: Partial<Pick<Stokvel, "name" | "goal" | "members">>) => {
+      if (!state.stokvel) return;
+      // Optimistic local update (only admins should call this; UI enforces)
+      setState({
+        stokvel: {
+          ...state.stokvel,
+          ...patch,
+        },
+      });
+      if (stokvelId) sync(() => remoteUpdateStokvel(stokvelId!, patch));
+    },
+    [],
+  );
+
+  // -- Sales --
 
   const addSale = useCallback((sale: Omit<Sale, "id" | "createdAt">) => {
     const full: Sale = {
@@ -364,7 +506,6 @@ export function useStore() {
     if (userId) sync(() => remoteInsertSales(userId!, full));
   }, []);
 
-  /** Undo an insert-only sale: remove it from local state + Supabase. */
   const undoSale = useCallback((id: string) => {
     setState((s) => ({ sales: s.sales.filter((x) => x.id !== id) }));
     if (userId && isCloudConfigured) {
@@ -376,6 +517,8 @@ export function useStore() {
       });
     }
   }, []);
+
+  // -- Tabs --
 
   const addTab = useCallback((tab: Omit<Tab, "id" | "createdAt">) => {
     const full: Tab = {
@@ -395,21 +538,95 @@ export function useStore() {
   }, []);
 
   const addContribution = useCallback((amount: number, note?: string) => {
+    if (!state.stokvel) return;
     const c: Contribution = {
       id: crypto.randomUUID(),
       amount,
       note,
       createdAt: Date.now(),
+      memberName:
+        state.stokvel.memberships.find((m) => m.userId === userId)
+          ?.displayName ?? state.profile.ownerName ?? undefined,
+      ownerId: userId ?? undefined,
     };
     setState((s) => ({
-      stokvel: {
-        ...s.stokvel,
-        contributions: [c, ...s.stokvel.contributions],
-      },
+      stokvel: s.stokvel
+        ? {
+            ...s.stokvel,
+            contributions: [c, ...s.stokvel.contributions],
+          }
+        : null,
     }));
     if (userId && stokvelId) {
       sync(() => remoteInsertContribution(userId!, stokvelId!, c));
     }
+  }, []);
+
+  /**
+   * Smart contribute: routes through Yoco when the stokvel has an active
+   * payment config, otherwise falls back to the manual record-keeping
+   * path. Returns a typed result the caller acts on:
+   *   - "logged"   → contribution was recorded locally, show success UI
+   *   - "redirect" → navigate window.location to the checkout URL
+   *   - "error"    → surface error to the user
+   */
+  const startContribution = useCallback(
+    async (amount: number): Promise<ContributeAction> => {
+      if (!state.stokvel || !stokvelId) {
+        return { kind: "error", error: "no_stokvel" };
+      }
+      const cfg = state.paymentConfig;
+      if (cfg && cfg.isActive && isCloudConfigured) {
+        const result = await paymentCreateCheckout(stokvelId, amount);
+        if (result.ok) {
+          return {
+            kind: "redirect",
+            url: result.checkoutUrl,
+            paymentId: result.paymentId,
+            isTest: result.isTest,
+          };
+        }
+        return { kind: "error", error: result.error };
+      }
+      // Fallback: manual record-keeping
+      addContribution(amount);
+      return { kind: "logged", amount };
+    },
+    [addContribution],
+  );
+
+  /**
+   * Admin-only: save/update the Yoco payment config for the current
+   * stokvel. Client passes the Yoco secret key + test/live flag; the
+   * Edge Function registers a webhook against it and stores the secrets
+   * server-side. On success, refresh paymentConfig in state.
+   */
+  const savePaymentConfig = useCallback(
+    async (
+      yocoSecretKey: string,
+      isTest: boolean,
+    ): Promise<SavePaymentConfigResult> => {
+      if (!stokvelId) {
+        return { ok: false, error: "no_stokvel" };
+      }
+      const result = await paymentSaveConfig(stokvelId, yocoSecretKey, isTest);
+      if (result.ok) {
+        setState({
+          paymentConfig: { isActive: result.isActive, isTest: result.isTest },
+        });
+      }
+      return result;
+    },
+    [],
+  );
+
+  /**
+   * Force a full re-hydrate from the server. Used by the App payment
+   * return handler to make sure the newly-inserted contribution appears
+   * even if the Realtime channel missed it.
+   */
+  const refreshFromRemote = useCallback(async (): Promise<void> => {
+    await hydrateFromRemote();
   }, []);
 
   // -- Email auth --
@@ -449,7 +666,7 @@ export function useStore() {
     const result = await remoteSignOut();
     try {
       localStorage.removeItem(KEY);
-      localStorage.removeItem(LEGACY_KEY);
+      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
     } catch {
       // ignore
     }
@@ -463,12 +680,10 @@ export function useStore() {
     return result;
   }, []);
 
-  // -- Account / reset --
-
   const resetAccount = useCallback(async () => {
     try {
       localStorage.removeItem(KEY);
-      localStorage.removeItem(LEGACY_KEY);
+      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
     } catch {
       // ignore
     }
@@ -500,18 +715,27 @@ export function useStore() {
     // onboarding
     setLang,
     setProfile,
-    setStokvelMeta,
     finishOnboarding,
-    // mutations
+    // stokvel
+    createStokvelAsAdmin,
+    joinStokvelByCode,
+    generateInvite,
+    getLatestInvite,
+    leaveStokvel,
+    setStokvelMeta,
+    // sales/tabs/contributions
     addSale,
     addSales,
     undoSale,
     addTab,
     markTabPaid,
     addContribution,
+    startContribution,
+    // payments
+    savePaymentConfig,
+    refreshFromRemote,
     // account
     resetAccount,
-    // email auth
     linkEmailToAccount,
     signInWithEmail,
     signOut,
@@ -561,13 +785,21 @@ export function topSeller(sales: Sale[]) {
   return best;
 }
 
-export function stokvelTotal(stokvel: Stokvel) {
+export function stokvelTotal(stokvel: Stokvel | null) {
+  if (!stokvel) return 0;
   return stokvel.contributions.reduce((a, c) => a + c.amount, 0);
 }
 
-export function stokvelProgress(stokvel: Stokvel) {
-  if (!stokvel.goal || stokvel.goal <= 0) return 0;
+export function stokvelProgress(stokvel: Stokvel | null) {
+  if (!stokvel || !stokvel.goal || stokvel.goal <= 0) return 0;
   return Math.max(0, Math.min(1, stokvelTotal(stokvel) / stokvel.goal));
+}
+
+/** Sum of one member's contributions to a stokvel */
+export function memberContributed(stokvel: Stokvel, userId: string) {
+  return stokvel.contributions
+    .filter((c) => c.ownerId === userId)
+    .reduce((a, c) => a + c.amount, 0);
 }
 
 export function kasiScore(state: AppState): number {
@@ -593,7 +825,7 @@ export function needsOnboarding(state: AppState): boolean {
   if (!state.profile.ownerName) return true;
   if (!state.profile.businessName) return true;
   if (!state.profile.businessType) return true;
-  if (!state.stokvel.name) return true;
+  // Stokvel is no longer required — user can skip and add later
   return false;
 }
 
@@ -702,23 +934,24 @@ export function computeInsights(state: AppState): Insight[] {
     });
   }
 
-  const potPct = stokvelProgress(state.stokvel) * 100;
-  if (potPct >= 80 && potPct < 100 && state.stokvel.name) {
-    const remain = state.stokvel.goal - stokvelTotal(state.stokvel);
+  const stokvel = state.stokvel;
+  const potPct = stokvelProgress(stokvel) * 100;
+  if (stokvel && potPct >= 80 && potPct < 100) {
+    const remain = stokvel.goal - stokvelTotal(stokvel);
     insights.push({
       id: "stokvel-close",
       key: "insightStokvelClose",
       accent: "green",
       priority: 55,
-      params: { remain, name: state.stokvel.name },
+      params: { remain, name: stokvel.name },
     });
-  } else if (potPct < 30 && state.stokvel.name) {
+  } else if (stokvel && potPct < 30) {
     insights.push({
       id: "stokvel-start",
       key: "insightStokvelStart",
       accent: "gold",
       priority: 40,
-      params: { name: state.stokvel.name },
+      params: { name: stokvel.name },
     });
   }
 
