@@ -458,9 +458,19 @@ export const t = {
     st: "Re bolelle ka khoebo ea hao",
   },
   onbBusinessSubtitle: {
-    en: "So we can tailor your dashboard.",
-    zu: "Ukuze sikwazi ukuhlela idashibhodi yakho.",
-    st: "Hore re kgone ho lokisa letlapa la hao.",
+    en: "Optional — so we can tailor your dashboard.",
+    zu: "Ayidingekile — ukuze sikwazi ukuhlela idashibhodi yakho.",
+    st: "Ha ea hlokahale — hore re kgone ho lokisa letlapa la hao.",
+  },
+  onbBusinessOptionalHint: {
+    en: "Only using KasiKash for a stokvel? You can skip this.",
+    zu: "Usebenzisa i-KasiKash kuphela ngestokvel? Ungakweqa lokhu.",
+    st: "U sebelisa KasiKash bakeng sa stokvel feela? U ka tlōla sena.",
+  },
+  onbNoBusiness: {
+    en: "I don't have a business — skip",
+    zu: "Anginalo ibhizinisi — kweqa",
+    st: "Ha ke na khoebo — tlōla",
   },
   onbBusinessNameLabel: {
     en: "Business name",

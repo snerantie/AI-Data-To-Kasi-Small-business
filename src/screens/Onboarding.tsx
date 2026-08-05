@@ -72,8 +72,11 @@ export function Onboarding() {
   const canProceed = () => {
     if (step === 0) return true;
     if (step === 1) return ownerName.trim().length >= 1;
-    if (step === 2)
-      return businessName.trim().length >= 1 && businessType !== null;
+    // Step 2 (business) is fully optional: KasiKash is also used by
+    // people who only want a stokvel with friends and don't run a
+    // spaza/salon/etc. Users tap "I don't have a business" to skip,
+    // or leave fields blank and tap Next.
+    if (step === 2) return true;
     if (step === 3) {
       if (stokvelMode === "choose") return false;
       if (stokvelMode === "skip") return true;
@@ -81,6 +84,13 @@ export function Onboarding() {
       if (stokvelMode === "join") return joinCode.trim().length >= 4;
     }
     return false;
+  };
+
+  const skipBusiness = () => {
+    setBusinessName("");
+    setBusinessType(null);
+    setProfile({ businessName: null, businessType: null });
+    setStep(3);
   };
 
   const next = async () => {
@@ -92,9 +102,14 @@ export function Onboarding() {
       setProfile({ ownerName: ownerName.trim() });
       setStep(2);
     } else if (step === 2) {
+      // Only persist what the user actually filled in — either field
+      // may be empty for stokvel-only users. Storing null explicitly
+      // (rather than an empty string) keeps Home's `businessName &&`
+      // conditionals working correctly.
+      const bName = businessName.trim();
       setProfile({
-        businessName: businessName.trim(),
-        businessType: businessType!,
+        businessName: bName.length > 0 ? bName : null,
+        businessType: businessType ?? null,
       });
       setStep(3);
     } else if (step === 3) {
@@ -199,6 +214,7 @@ export function Onboarding() {
                 type={businessType}
                 setType={setBusinessType}
                 lang={lang}
+                onSkip={skipBusiness}
               />
             )}
             {step === 3 && stokvelMode === "choose" && (
@@ -385,12 +401,14 @@ function BusinessStep({
   type,
   setType,
   lang,
+  onSkip,
 }: {
   name: string;
   setName: (n: string) => void;
   type: BusinessType | null;
   setType: (t: BusinessType) => void;
   lang: Lang;
+  onSkip: () => void;
 }) {
   return (
     <>
@@ -400,6 +418,9 @@ function BusinessStep({
         </h2>
         <p className="text-white/60 text-sm mt-1">
           {tr("onbBusinessSubtitle", lang)}
+        </p>
+        <p className="text-white/40 text-xs mt-2">
+          {tr("onbBusinessOptionalHint", lang)}
         </p>
       </div>
 
@@ -455,6 +476,21 @@ function BusinessStep({
           })}
         </div>
       </div>
+
+      {/* Explicit skip affordance for people who only use KasiKash for a
+          stokvel and have no business. Placed after the fields so users
+          who intended to fill them in still see the form first. */}
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={onSkip}
+        className="mt-1 w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/[0.03] border border-white/10 text-white/70 hover:border-white/20 transition-colors"
+      >
+        <SkipForward size={18} className="text-white/50" />
+        <span className="text-sm text-left flex-1">
+          {tr("onbNoBusiness", lang)}
+        </span>
+        <span className="text-white/40">→</span>
+      </motion.button>
     </>
   );
 }
