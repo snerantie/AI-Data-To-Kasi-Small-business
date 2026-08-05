@@ -68,7 +68,10 @@ export type Sale = {
   price: number;
   createdAt: number;
   raw?: string;
-  source?: "voice" | "manual";
+  // "receipt" was reintroduced when we shipped real Tesseract.js OCR
+  // (PR #17). Sales imported from a scanned receipt land with this
+  // source so Home + Insights can badge them accurately.
+  source?: "voice" | "manual" | "receipt";
 };
 
 export type Tab = {

@@ -1583,6 +1583,115 @@ export const t = {
     st: "Pasa ena e ikhahlelloa ho tsoa likhomponeng tsa mong'a eona. Ba amohelang ba lokela ho netefatsa lintlha ka bomong ka kotloloho le mong'a akhaonto.",
     af: "Hierdie paspoort word deur die gebruiker self gegenereer uit sy eie rekords. Ontvangers moet individuele items direk met die rekeninghouer verifieer.",
   },
+
+  // ---------------------------------------------------------------------
+  // Receipt scanner (PR #17). Client-side Tesseract.js OCR.
+  // ---------------------------------------------------------------------
+  scanReceipt: {
+    en: "Scan receipt",
+    zu: "Skena irisidi",
+    st: "Skena risidi",
+    af: "Skandeer kwitansie",
+  },
+  scanReceiptDesc: {
+    en: "Photograph a supplier receipt to add items in bulk.",
+    zu: "Thwebula irisidi yomthengiseli ukuze ufake izinto ngokushesha.",
+    st: "Nka setšoantšo sa risidi ea moabi ho kenya lintho ka bongata.",
+    af: "Neem 'n foto van 'n verskaffer se kwitansie om items in grootmaat by te voeg.",
+  },
+  scanTitle: {
+    en: "Scan a receipt",
+    zu: "Skena irisidi",
+    st: "Skena risidi",
+    af: "Skandeer 'n kwitansie",
+  },
+  scanSubtitle: {
+    en: "Take a clear photo of your receipt — we'll pull out the items and prices automatically. Everything happens on your phone; no photo is uploaded.",
+    zu: "Thatha isithombe esicacile serisidi yakho — sizokhipha izinto namanani ngokuzenzakalelayo. Konke kwenzeka efonini yakho; asikho isithombe esilayishwayo.",
+    st: "Nka setšoantšo se hlakileng sa risidi ea hao — re tla ntša lintho le litheko ka boiketsetso. Tsohle li etsahala fonong ea hao; ha ho setšoantšo se latšuoang.",
+    af: "Neem 'n duidelike foto van jou kwitansie — ons trek die items en pryse outomaties uit. Alles gebeur op jou foon; geen foto word opgelaai nie.",
+  },
+  scanTakePhoto: {
+    en: "Take a photo",
+    zu: "Thatha isithombe",
+    st: "Nka setšoantšo",
+    af: "Neem 'n foto",
+  },
+  scanChooseFile: {
+    en: "Choose from gallery",
+    zu: "Khetha kwigalari",
+    st: "Khetha ho gallery",
+    af: "Kies uit galery",
+  },
+  scanProcessing: {
+    en: "Reading your receipt...",
+    zu: "Ifunda irisidi yakho...",
+    st: "E bala risidi ea hao...",
+    af: "Besig om jou kwitansie te lees...",
+  },
+  scanNoItemsFound: {
+    en: "No items detected. Try a clearer photo, with the whole receipt in the frame and no shadow.",
+    zu: "Akutholakalanga lutho. Zama isithombe esicacile ngaphakathi kwesikhungo esingenamthunzi.",
+    st: "Ha ho ntho e fumanoeng. Leka setšoantšo se hlakileng se se nang moriti.",
+    af: "Geen items opgespoor nie. Probeer 'n duideliker foto met die hele kwitansie in die raam en geen skaduwee nie.",
+  },
+  scanRetry: {
+    en: "Try again",
+    zu: "Zama futhi",
+    st: "Leka hape",
+    af: "Probeer weer",
+  },
+  scanFoundItems: {
+    en: "{count} items found",
+    zu: "Kutholakele izinto ezingu-{count}",
+    st: "Lintho tse {count} li fumanoe",
+    af: "{count} items gevind",
+  },
+  scanFooterHint: {
+    en: "Tap an item to edit the name, quantity, or price.",
+    zu: "Cindezela into ukuhlela igama, inani, noma intengo.",
+    st: "Tobetsa ntho ho lokisa lebitso, palo, kapa theko.",
+    af: "Tik 'n item om die naam, hoeveelheid of prys te wysig.",
+  },
+  scanConfirmAdd: {
+    en: "Add {count} items to sales",
+    zu: "Faka izinto ezingu-{count} ekudayisweni",
+    st: "Kenya lintho tse {count} thekisong",
+    af: "Voeg {count} items by verkope",
+  },
+  scanAdded: {
+    en: "{count} sales added ✓",
+    zu: "Kufakwe ukudayisa okungu-{count} ✓",
+    st: "Thekiso e {count} e kentsoe ✓",
+    af: "{count} verkope bygevoeg ✓",
+  },
+  scanItemName: { en: "Item", zu: "Into", st: "Ntho", af: "Item" },
+  scanItemQty: { en: "Qty", zu: "Inani", st: "Palo", af: "Aantal" },
+  scanItemPrice: { en: "Price", zu: "Intengo", st: "Theko", af: "Prys" },
+  scanLineTotal: {
+    en: "Line total",
+    zu: "Iyonke yomugqa",
+    st: "Kakaretso ea mola",
+    af: "Reël-totaal",
+  },
+  scanSelectedTotal: {
+    en: "Selected total",
+    zu: "Iyonke ekhethiwe",
+    st: "Kakaretso e khethiloeng",
+    af: "Gekose totaal",
+  },
+  scanRemoveItem: {
+    en: "Remove",
+    zu: "Susa",
+    st: "Tlosa",
+    af: "Verwyder",
+  },
+  scanBadge: {
+    en: "Scan",
+    zu: "Skena",
+    st: "Skena",
+    af: "Skandeer",
+  },
 } as const;
 
 export type TKey = keyof typeof t;
