@@ -810,6 +810,68 @@ export const t = {
     zu: "Kuvulwa inkokhelo ye-Yoco...",
     st: "Ho buloa tefello ea Yoco...",
   },
+
+  // Contribute sheet — used every time a member taps an amount.
+  // We deliberately never silently record a contribution: the sheet
+  // makes it explicit whether real money is moving (Yoco path) or the
+  // user is logging a payment they made outside the app (EFT / cash).
+  contribCustom: { en: "Custom", zu: "Enye inani", st: "Chelete e nngwe" },
+  contribSheetTitle: {
+    en: "Contribute to",
+    zu: "Nikela ku",
+    st: "Kenya ho",
+  },
+  contribAmountLabel: {
+    en: "Amount (R)",
+    zu: "Inani (R)",
+    st: "Chelete (R)",
+  },
+  contribNoteLabel: {
+    en: "Note (optional)",
+    zu: "Inothi (ayidingekile)",
+    st: "Noutu (ha e hlokahale)",
+  },
+  contribNotePlaceholder: {
+    en: "e.g. May 2026, EFT ref 45782",
+    zu: "isb. Meyi 2026, EFT ref 45782",
+    st: "mohlala Mots'eanong 2026, EFT ref 45782",
+  },
+  contribPayYocoBtn: {
+    en: "Pay with card",
+    zu: "Khokha ngekhadi",
+    st: "Lefa ka karete",
+  },
+  contribPayYocoHelp: {
+    en: "You'll be taken to a secure Yoco checkout. Money moves right away.",
+    zu: "Uzothathelwa ekhukhuthini eliphephile le-Yoco. Imali ihamba khona manje.",
+    st: "U tla isoa ho khekhaote e sirelelitsoeng ea Yoco. Chelete e tsamaea hang.",
+  },
+  contribLogEftBtn: {
+    en: "Log payment (EFT / cash)",
+    zu: "Bhalisa inkokhelo (i-EFT / imali)",
+    st: "Ngola tefello (EFT / chelete)",
+  },
+  contribManualExplain: {
+    en: "Automatic card payments aren't set up for this stokvel yet, so the app can't move money for you. Pay via EFT, bank transfer, or cash first, then tap below to record it. The admin will see it and can confirm it.",
+    zu: "Izinkokhelo ezizenzakalelayo zamakhadi azikasetheki kulesi stokvel, ngakho i-app ayikwazi ukukuhambisela imali. Qala ukhokhe nge-EFT, nge-bank transfer noma ngemali, bese uthepha ngezansi ukuze uyibhalise. Umphathi uzoyibona futhi uzoyiqinisekisa.",
+    st: "Litefello tsa likarete tse iketsang ha li so lokisetsoe stokvel ee, kahoo app e ke ke ea u tsamaisetsa chelete. Qala ka ho lefa ka EFT, phetisetso ea banka, kapa chelete e phahameng, ebe u tobetsa tlase ho e ngola. Molaodi o tla e bona a bile a ka e netefatsa.",
+  },
+  contribManualBadge: {
+    en: "Recorded — not yet paid via app",
+    zu: "Ibhalisiwe — ayikakhokhwa nge-app",
+    st: "E ngotsoe — ha e e-so lefeloe ka app",
+  },
+  contribInvalidAmount: {
+    en: "Enter an amount greater than R0",
+    zu: "Faka inani elingaphezu kuka-R0",
+    st: "Kenya chelete e fetang R0",
+  },
+  contribSetupYocoCTA: {
+    en: "Admin: set up Yoco in Settings for automatic card payments",
+    zu: "Umphathi: setha i-Yoco kuma-Settings ukuze uthole izinkokhelo ezizenzakalelayo zekhadi",
+    st: "Molaodi: lokisa Yoco ho Litlhophiso bakeng sa litefello tse iketsang tsa karete",
+  },
+  contribCancel: { en: "Cancel", zu: "Khansela", st: "Hlakola" },
   payReturnProcessing: {
     en: "Confirming your payment...",
     zu: "Kuqinisekiswa inkokhelo yakho...",
