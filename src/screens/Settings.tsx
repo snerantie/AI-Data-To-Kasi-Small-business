@@ -12,6 +12,7 @@ import {
   BellOff,
   Mail,
   MessageSquare,
+  MessageCircle,
   Phone,
   LogOut,
   Inbox,
@@ -357,6 +358,17 @@ export function Settings({
             accent="green"
           >
             <NotificationsBlock lang={lang} />
+          </Section>
+        )}
+
+        {/* ---- WhatsApp bot (admin-only, cloud-only) ---- */}
+        {isCloud && (
+          <Section
+            icon={MessageCircle}
+            title={tr("settingsWhatsApp", lang)}
+            accent="green"
+          >
+            <WhatsAppBotBlock lang={lang} />
           </Section>
         )}
 
@@ -1724,6 +1736,242 @@ function NotificationsBlock({ lang }: { lang: Lang }) {
             lang,
           )}
         </button>
+      )}
+    </div>
+  );
+}
+
+
+
+// ---------------------------------------------------------------------------
+// WhatsAppBotBlock
+//
+// Admin-only. Lets a user paste in their Meta Cloud API credentials so
+// members can text natural-language sales into their KasiKash account.
+//
+// Two states:
+//   * Not configured → form with 4 inputs + Generate-verify-token
+//     helper + Save button.
+//   * Configured     → active pill with sender phone + "Update
+//     credentials" to reveal the form again.
+//
+// Depends on migration 009 + two Edge Functions (save-whatsapp-config,
+// whatsapp-webhook) being deployed. If either is missing, the "save"
+// call fails cleanly and the error is surfaced inline.
+// ---------------------------------------------------------------------------
+function WhatsAppBotBlock({ lang }: { lang: Lang }) {
+  const [status, setStatus] = useState<{
+    isActive: boolean;
+    senderPhone: string | null;
+  } | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [phoneId, setPhoneId] = useState("");
+  const [token, setToken] = useState("");
+  const [verify, setVerify] = useState("");
+  const [sender, setSender] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Load current status on mount. Uses dynamic import so users who
+  // never open Settings never pay for this module's tiny cost.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const mod = await import("../lib/whatsapp");
+      const s = await mod.fetchWhatsAppStatus();
+      if (cancelled) return;
+      setStatus(s);
+      setShowForm(!s || !s.isActive);
+      setStatusLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const genVerify = async () => {
+    const mod = await import("../lib/whatsapp");
+    setVerify(mod.generateVerifyToken());
+  };
+
+  const submit = async () => {
+    if (!phoneId.trim() || !token.trim() || !verify.trim()) {
+      setError("Missing fields — every input is required.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      const mod = await import("../lib/whatsapp");
+      const result = await mod.saveWhatsAppConfig({
+        wabaPhoneId: phoneId.trim(),
+        wabaAccessToken: token.trim(),
+        verifyToken: verify.trim(),
+        senderPhone: sender.trim(),
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setSaved(true);
+      setShowForm(false);
+      setStatus({
+        isActive: true,
+        senderPhone: sender.trim() || null,
+      });
+      window.setTimeout(() => setSaved(false), 2400);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!statusLoaded) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 size={16} className="animate-spin text-white/40" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-white/70 text-sm leading-relaxed">
+        {tr("settingsWhatsAppDesc", lang)}
+      </p>
+
+      {/* Active pill */}
+      {status?.isActive && !showForm && (
+        <div className="rounded-2xl bg-kasi-green/[0.08] border border-kasi-green/25 p-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-kasi-green/20 border border-kasi-green/40 flex items-center justify-center shrink-0">
+            <MessageCircle size={16} className="text-kasi-green" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-kasi-green">
+              {tr("settingsWhatsAppActive", lang)}
+            </div>
+            {status.senderPhone && (
+              <div className="text-white/60 text-xs mt-0.5 font-mono">
+                {status.senderPhone}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {status?.isActive && !showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="text-xs text-white/50 underline self-start"
+        >
+          {tr("settingsWhatsAppUpdateCta", lang)}
+        </button>
+      )}
+
+      {/* Form */}
+      {showForm && (
+        <>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("settingsWhatsAppPhoneIdLabel", lang)}
+            </label>
+            <input
+              value={phoneId}
+              onChange={(e) => setPhoneId(e.target.value)}
+              placeholder="123456789012345"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white font-mono text-sm outline-none focus:border-kasi-green"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("settingsWhatsAppTokenLabel", lang)}
+            </label>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="EAAG..."
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white font-mono text-sm outline-none focus:border-kasi-green"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("settingsWhatsAppVerifyLabel", lang)}
+            </label>
+            <div className="mt-1 flex gap-2">
+              <input
+                value={verify}
+                onChange={(e) => setVerify(e.target.value)}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-bg border border-white/10 text-white font-mono text-sm outline-none focus:border-kasi-green"
+              />
+              <button
+                onClick={genVerify}
+                className="px-3 py-3 rounded-xl bg-bg-card border border-white/10 text-white/80 text-xs font-semibold"
+              >
+                {tr("settingsWhatsAppGenerateVerify", lang)}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("settingsWhatsAppSenderLabel", lang)}
+            </label>
+            <input
+              type="tel"
+              value={sender}
+              onChange={(e) => setSender(e.target.value)}
+              placeholder="+27831234567"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white font-mono text-sm outline-none focus:border-kasi-green"
+            />
+          </div>
+
+          {error && <div className="text-kasi-coral text-xs">{error}</div>}
+
+          <button
+            onClick={submit}
+            disabled={saving}
+            className={
+              "w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 " +
+              (saving
+                ? "bg-white/5 text-white/30 cursor-not-allowed"
+                : "bg-kasi-green text-bg shadow-glow")
+            }
+          >
+            {saving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <MessageCircle size={14} />
+            )}
+            {tr("settingsWhatsAppSaveCta", lang)}
+          </button>
+
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-kasi-green text-xs flex items-center gap-1"
+            >
+              <Check size={12} />
+              {tr("settingsBankingSaved", lang)}
+            </motion.div>
+          )}
+        </>
       )}
     </div>
   );
