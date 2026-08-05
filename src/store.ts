@@ -18,6 +18,8 @@ import {
   joinStokvelByCode as remoteJoinStokvel,
   leaveStokvel as remoteLeaveStokvel,
   linkEmail as remoteLinkEmail,
+  saveStokvelBanking as remoteSaveStokvelBanking,
+  setContributionStatus as remoteSetContributionStatus,
   onAuthChange,
   resetToFreshAnon,
   sendSignInLink as remoteSendSignInLink,
@@ -81,6 +83,24 @@ export type StokvelMember = {
   joinedAt: number;
 };
 
+// Verification lifecycle for a contribution. Introduced in migration
+// 007. Rows created before 007 land as "confirmed" (grandfathered).
+//   pending   — member says they paid, admin hasn't verified yet
+//   confirmed — verified by admin, or a Yoco card charge that landed
+//   rejected  — admin explicitly rejected (e.g. transfer never arrived)
+export type ContributionStatus = "pending" | "confirmed" | "rejected";
+
+// How the money moved (or is claimed to have moved). Used both to
+// present the right icon/copy in the UI and to feed KasiScore weights
+// later.
+export type ContributionMethod =
+  | "manual"
+  | "eft"
+  | "cash"
+  | "yoco"
+  | "payshap"
+  | "other";
+
 export type Contribution = {
   id: string;
   amount: number;
@@ -88,6 +108,25 @@ export type Contribution = {
   note?: string;
   memberName?: string; // For display: who contributed
   ownerId?: string;
+  // Migration 007 fields. All optional so the type still fits rows
+  // from older code paths (e.g. Yoco webhook contributions inserted
+  // before 007 was applied).
+  status?: ContributionStatus;
+  method?: ContributionMethod;
+  reference?: string;
+  confirmedAt?: number;
+  rejectedReason?: string;
+};
+
+// Bank account attached to the stokvel — where members must EFT
+// contributions. Every field is optional because a stokvel might have
+// no banking configured yet (fresh stokvel) or only some fields.
+export type StokvelBankAccount = {
+  bankName: string | null;
+  accountHolder: string | null;
+  accountNumber: string | null;
+  branchCode: string | null;
+  payshapPhone: string | null;
 };
 
 export type Stokvel = {
@@ -98,6 +137,7 @@ export type Stokvel = {
   memberships: StokvelMember[];
   contributions: Contribution[];
   role: MemberRole; // Current user's role in this stokvel
+  bankAccount: StokvelBankAccount | null;
 };
 
 export type StokvelInvite = {
@@ -537,30 +577,144 @@ export function useStore() {
     sync(() => remoteUpdateTabPaid(id));
   }, []);
 
-  const addContribution = useCallback((amount: number, note?: string) => {
-    if (!state.stokvel) return;
-    const c: Contribution = {
-      id: crypto.randomUUID(),
-      amount,
-      note,
-      createdAt: Date.now(),
-      memberName:
-        state.stokvel.memberships.find((m) => m.userId === userId)
-          ?.displayName ?? state.profile.ownerName ?? undefined,
-      ownerId: userId ?? undefined,
-    };
-    setState((s) => ({
-      stokvel: s.stokvel
-        ? {
-            ...s.stokvel,
-            contributions: [c, ...s.stokvel.contributions],
-          }
-        : null,
-    }));
-    if (userId && stokvelId) {
-      sync(() => remoteInsertContribution(userId!, stokvelId!, c));
+  const addContribution = useCallback(
+    (
+      amount: number,
+      note?: string,
+      opts?: { method?: ContributionMethod; reference?: string },
+    ) => {
+      if (!state.stokvel) return;
+      const c: Contribution = {
+        id: crypto.randomUUID(),
+        amount,
+        note,
+        createdAt: Date.now(),
+        memberName:
+          state.stokvel.memberships.find((m) => m.userId === userId)
+            ?.displayName ?? state.profile.ownerName ?? undefined,
+        ownerId: userId ?? undefined,
+        // Every client-initiated contribution starts life as pending —
+        // an admin has to verify that the EFT / cash actually arrived
+        // before it counts toward the pot. Yoco-originated rows are
+        // written by the server-side handle_payment_succeeded trigger
+        // (see migration 007) and land already-confirmed.
+        status: "pending",
+        method: opts?.method ?? "eft",
+        reference: opts?.reference,
+      };
+      setState((s) => ({
+        stokvel: s.stokvel
+          ? {
+              ...s.stokvel,
+              contributions: [c, ...s.stokvel.contributions],
+            }
+          : null,
+      }));
+      if (userId && stokvelId) {
+        sync(() => remoteInsertContribution(userId!, stokvelId!, c));
+      }
+    },
+    [],
+  );
+
+  /**
+   * Admin-only. Save the stokvel's bank account details (or clear
+   * them by passing empty strings). Server-side RPC enforces the
+   * admin check.
+   */
+  const saveStokvelBanking = useCallback(
+    async (bank: {
+      bankName: string;
+      accountHolder: string;
+      accountNumber: string;
+      branchCode: string;
+      payshapPhone?: string;
+    }) => {
+      if (!stokvelId) {
+        return { ok: false as const, error: "no_stokvel" };
+      }
+      const result = await remoteSaveStokvelBanking(stokvelId, bank);
+      if (result.ok) {
+        // Optimistically update local state so the ContributeSheet
+        // picks up the new bank details on its next open, without
+        // waiting for a full refetch.
+        setState((s) => ({
+          stokvel: s.stokvel
+            ? {
+                ...s.stokvel,
+                bankAccount: {
+                  bankName: bank.bankName || null,
+                  accountHolder: bank.accountHolder || null,
+                  accountNumber: bank.accountNumber || null,
+                  branchCode: bank.branchCode || null,
+                  payshapPhone: bank.payshapPhone || null,
+                },
+              }
+            : null,
+        }));
+      }
+      return result;
+    },
+    [],
+  );
+
+  /**
+   * Admin-only. Mark a pending contribution as verified — money
+   * arrived in the stokvel account — so it counts toward the pot.
+   */
+  const confirmContribution = useCallback(async (contributionId: string) => {
+    const result = await remoteSetContributionStatus(contributionId, "confirmed");
+    if (result.ok) {
+      setState((s) => ({
+        stokvel: s.stokvel
+          ? {
+              ...s.stokvel,
+              contributions: s.stokvel.contributions.map((c) =>
+                c.id === contributionId
+                  ? { ...c, status: "confirmed" as const, confirmedAt: Date.now() }
+                  : c,
+              ),
+            }
+          : null,
+      }));
     }
+    return result;
   }, []);
+
+  /**
+   * Admin-only. Mark a pending contribution as rejected (didn't
+   * arrive, wrong amount, etc.). Optional reason is displayed to the
+   * member on their pending badge.
+   */
+  const rejectContribution = useCallback(
+    async (contributionId: string, reason?: string) => {
+      const result = await remoteSetContributionStatus(
+        contributionId,
+        "rejected",
+        reason,
+      );
+      if (result.ok) {
+        setState((s) => ({
+          stokvel: s.stokvel
+            ? {
+                ...s.stokvel,
+                contributions: s.stokvel.contributions.map((c) =>
+                  c.id === contributionId
+                    ? {
+                        ...c,
+                        status: "rejected" as const,
+                        rejectedReason: reason,
+                      }
+                    : c,
+                ),
+              }
+            : null,
+        }));
+      }
+      return result;
+    },
+    [],
+  );
 
   /**
    * Smart contribute: routes through Yoco when the stokvel has an active
@@ -571,18 +725,27 @@ export function useStore() {
    *   - "error"    → surface error to the user
    */
   const startContribution = useCallback(
-    async (amount: number, note?: string): Promise<ContributeAction> => {
+    async (
+      amount: number,
+      note?: string,
+      opts?: { method?: ContributionMethod; reference?: string },
+    ): Promise<ContributeAction> => {
       if (!state.stokvel || !stokvelId) {
         return { kind: "error", error: "no_stokvel" };
       }
       const cfg = state.paymentConfig;
-      if (cfg && cfg.isActive && isCloudConfigured) {
+      // Yoco is only used when the caller explicitly wants a card
+      // payment. Everything else (bank transfer, cash, PayShap) goes
+      // through the manual-ledger path even if a Yoco config exists,
+      // so members can still contribute via their own banking app
+      // when they don't want to be charged a card fee.
+      const wantsCard = !opts?.method || opts.method === "yoco";
+      if (wantsCard && cfg && cfg.isActive && isCloudConfigured) {
         // Real payment path: create a Yoco checkout session. The
         // contribution row is created server-side by the payment
-        // webhook once Yoco confirms the charge succeeded — so
-        // nothing hits the UI until the money has actually moved.
-        // (Note is currently ignored on this path; plumbing it
-        // through requires an Edge Function change — future work.)
+        // webhook once Yoco confirms the charge — so nothing hits
+        // the UI until money has actually moved. Note isn't
+        // plumbed through this path yet (Edge Function change).
         const result = await paymentCreateCheckout(stokvelId, amount);
         if (result.ok) {
           return {
@@ -595,9 +758,11 @@ export function useStore() {
         return { kind: "error", error: result.error };
       }
       // Manual-ledger path: user is recording a payment they made
-      // outside the app (EFT / cash / bank transfer). The UI must
-      // make this explicit before calling us — no silent logging.
-      addContribution(amount, note);
+      // outside the app (EFT / cash / bank transfer / PayShap). The
+      // sheet UI has already told them their money doesn't move
+      // through the app — no silent logging. Row lands as pending
+      // until the admin verifies it.
+      addContribution(amount, note, opts);
       return { kind: "logged", amount };
     },
     [addContribution],
@@ -731,6 +896,9 @@ export function useStore() {
     getLatestInvite,
     leaveStokvel,
     setStokvelMeta,
+    saveStokvelBanking,
+    confirmContribution,
+    rejectContribution,
     // sales/tabs/contributions
     addSale,
     addSales,
@@ -793,9 +961,21 @@ export function topSeller(sales: Sale[]) {
   return best;
 }
 
+// A contribution counts toward the pot / member totals only when
+// verified — either by the stokvel admin (EFT / cash flow) or by
+// Yoco having actually charged the card. Rows without a status field
+// (pre-migration-007 data) are treated as confirmed so historical
+// totals don't suddenly drop.
+const isConfirmed = (c: Contribution) =>
+  (c.status ?? "confirmed") === "confirmed";
+
+const isPending = (c: Contribution) => c.status === "pending";
+
 export function stokvelTotal(stokvel: Stokvel | null) {
   if (!stokvel) return 0;
-  return stokvel.contributions.reduce((a, c) => a + c.amount, 0);
+  return stokvel.contributions
+    .filter(isConfirmed)
+    .reduce((a, c) => a + c.amount, 0);
 }
 
 export function stokvelProgress(stokvel: Stokvel | null) {
@@ -803,11 +983,54 @@ export function stokvelProgress(stokvel: Stokvel | null) {
   return Math.max(0, Math.min(1, stokvelTotal(stokvel) / stokvel.goal));
 }
 
-/** Sum of one member's contributions to a stokvel */
+/** Sum of one member's confirmed contributions to a stokvel. */
 export function memberContributed(stokvel: Stokvel, userId: string) {
   return stokvel.contributions
-    .filter((c) => c.ownerId === userId)
+    .filter((c) => c.ownerId === userId && isConfirmed(c))
     .reduce((a, c) => a + c.amount, 0);
+}
+
+/** Sum of contributions still awaiting admin verification (all members). */
+export function stokvelPendingTotal(stokvel: Stokvel | null) {
+  if (!stokvel) return 0;
+  return stokvel.contributions
+    .filter(isPending)
+    .reduce((a, c) => a + c.amount, 0);
+}
+
+/** Count of contributions still awaiting admin verification. */
+export function stokvelPendingCount(stokvel: Stokvel | null) {
+  if (!stokvel) return 0;
+  return stokvel.contributions.filter(isPending).length;
+}
+
+/** All pending contributions on this stokvel, newest first. */
+export function stokvelPendingContributions(
+  stokvel: Stokvel | null,
+): Contribution[] {
+  if (!stokvel) return [];
+  return stokvel.contributions
+    .filter(isPending)
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/**
+ * Generate a short human-friendly payment reference like "KASI-J8M7".
+ * Uses an unambiguous alphabet (no 0/O/1/I/L). Nine characters total
+ * so it fits comfortably in banking-app reference fields (SA banks
+ * usually allow 20–30 chars).
+ *
+ * Note: not guaranteed unique — collision odds are ~1-in-800k per
+ * stokvel and the reference is only ever used to help the admin
+ * match a bank statement line to a pending contribution, so the odd
+ * duplicate is fine.
+ */
+export function generateReference(): string {
+  const chars = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+  const pick = () => chars[Math.floor(Math.random() * chars.length)];
+  const seg = Array.from({ length: 4 }, pick).join("");
+  return `KASI-${seg}`;
 }
 
 export function kasiScore(state: AppState): number {

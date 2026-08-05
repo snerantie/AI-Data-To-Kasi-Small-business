@@ -15,23 +15,38 @@ import {
   CreditCard,
   Info,
   Zap,
+  Landmark,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang } from "../i18n";
 import { tr, trParams } from "../i18n";
 import {
   formatRand,
+  generateReference,
   memberContributed,
+  stokvelPendingContributions,
   stokvelProgress,
   stokvelTotal,
   useStore,
 } from "../store";
-import type { StokvelInvite } from "../store";
+import type {
+  Contribution,
+  ContributionMethod,
+  StokvelBankAccount,
+  StokvelInvite,
+} from "../store";
 import type { Screen } from "../App";
 
 const QUICK_AMOUNTS = [50, 100, 250, 500];
 
-type Sheet = null | "create" | "join" | "invite" | "leave" | "contribute";
+type Sheet =
+  | null
+  | "create"
+  | "join"
+  | "invite"
+  | "leave"
+  | "contribute"
+  | "reject";
 
 export function Stokvel({
   lang,
@@ -48,6 +63,8 @@ export function Stokvel({
     generateInvite,
     getLatestInvite,
     leaveStokvel,
+    confirmContribution,
+    rejectContribution,
   } = useStore();
   const stokvel = state.stokvel;
 
@@ -59,6 +76,15 @@ export function Stokvel({
   // pre-filled. `null` means the user tapped "Custom" and needs to
   // type an amount themselves.
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  // Which contribution is being rejected right now, if any. The reject
+  // flow opens a sheet asking for an optional reason.
+  const [rejectingContribution, setRejectingContribution] =
+    useState<Contribution | null>(null);
+  // Tracks which contributions are mid-flight to prevent double-taps
+  // on the Confirm/Reject buttons while the RPC round-trips.
+  const [busyContributionIds, setBusyContributionIds] = useState<
+    Set<string>
+  >(new Set());
 
   const targetProgress = stokvelProgress(stokvel);
   const total = stokvelTotal(stokvel);
@@ -90,14 +116,16 @@ export function Stokvel({
 
   // Actually record / initiate the contribution. Always called from
   // the ContributeSheet after the user has explicitly confirmed the
-  // amount and (implicitly) the payment method — never directly from
-  // a quick-amount tile.
+  // amount, chosen a method, and (for bank-transfer) actually done
+  // the transfer in their banking app — never directly from a
+  // quick-amount tile.
   const contribute = async (
     amount: number,
     note?: string,
+    opts?: { method?: ContributionMethod; reference?: string },
   ): Promise<boolean> => {
     setPayError(null);
-    const result = await startContribution(amount, note);
+    const result = await startContribution(amount, note, opts);
     if (result.kind === "logged") {
       setFlash(amount);
       setTimeout(() => setFlash(null), 1600);
@@ -121,6 +149,50 @@ export function Stokvel({
   const openContributeSheet = (amount: number | null) => {
     setPendingAmount(amount);
     setSheet("contribute");
+  };
+
+  // Admin: mark a pending contribution as verified. Guarded against
+  // double-taps by adding the contribution id to a "busy" set for
+  // the duration of the round-trip.
+  const onConfirmContribution = async (id: string) => {
+    if (busyContributionIds.has(id)) return;
+    setBusyContributionIds((prev) => new Set(prev).add(id));
+    try {
+      await confirmContribution(id);
+    } finally {
+      setBusyContributionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const openRejectSheet = (c: Contribution) => {
+    setRejectingContribution(c);
+    setSheet("reject");
+  };
+
+  const onRejectContribution = async (id: string, reason?: string) => {
+    if (busyContributionIds.has(id)) return;
+    setBusyContributionIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await rejectContribution(
+        id,
+        reason && reason.length > 0 ? reason : undefined,
+      );
+      if (result.ok) {
+        setSheet(null);
+        setRejectingContribution(null);
+      }
+      return result;
+    } finally {
+      setBusyContributionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   // ---------------------------------------------------------------- Empty state
@@ -448,59 +520,241 @@ export function Stokvel({
         </div>
       </div>
 
-      {/* Contribution history */}
-      {stokvel.contributions.length > 0 && (
-        <div className="mt-6">
-          <div className="text-white/50 text-xs uppercase tracking-wider mb-3">
-            {tr("recentContributions", lang)}
+      {/* Pending verification section.
+          Admins see every pending contribution on the stokvel plus
+          Confirm / Reject buttons. Non-admins see only their own
+          pending rows, read-only, so they know the admin has been
+          notified. Confirmed and rejected rows live in the Recent
+          Contributions section below. */}
+      {(() => {
+        const allPending = stokvelPendingContributions(stokvel);
+        const visiblePending = isAdmin
+          ? allPending
+          : allPending.filter((c) => c.ownerId === userId);
+        if (visiblePending.length === 0) return null;
+        return (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-white/50 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Info size={12} className="text-kasi-gold" />
+                  {tr("pendingSectionTitle", lang)}
+                </div>
+                <div className="text-[11px] text-white/50 mt-1 max-w-[260px]">
+                  {isAdmin
+                    ? tr("pendingAdminSubtitle", lang)
+                    : tr("pendingMemberSubtitle", lang)}
+                </div>
+              </div>
+              <div className="text-[11px] px-2 py-1 rounded-full bg-kasi-gold/15 border border-kasi-gold/30 text-kasi-gold font-semibold">
+                {visiblePending.length}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {visiblePending.map((c) => {
+                const isMine = c.ownerId === userId;
+                const isBusy = busyContributionIds.has(c.id);
+                return (
+                  <motion.div
+                    key={c.id}
+                    layout
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-2xl bg-kasi-gold/[0.05] border border-kasi-gold/25 px-4 py-3 flex flex-col gap-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">
+                          {c.memberName ? (
+                            <>
+                              <span className="text-white/50 text-xs">
+                                {tr("contribBy", lang)}{" "}
+                              </span>
+                              {c.memberName}
+                              {isMine && (
+                                <span className="text-white/40 text-xs">
+                                  {" "}
+                                  (you)
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </div>
+                        <div className="text-[11px] text-white/50 truncate">
+                          {daysAgo(c.createdAt) === 0
+                            ? "Today"
+                            : `${daysAgo(c.createdAt)} days ago`}
+                          {c.reference && (
+                            <>
+                              <span className="text-white/30 mx-1">·</span>
+                              <span className="font-mono text-white/70">
+                                {c.reference}
+                              </span>
+                            </>
+                          )}
+                          {c.note && (
+                            <>
+                              <span className="text-white/30 mx-1">·</span>
+                              <span className="text-white/60">{c.note}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-display font-semibold text-kasi-gold">
+                          +{formatRand(c.amount)}
+                        </div>
+                        <div className="text-[9px] uppercase tracking-wider text-kasi-gold/70">
+                          {tr("pendingBadge", lang)}
+                        </div>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          disabled={isBusy}
+                          onClick={() => onConfirmContribution(c.id)}
+                          className={
+                            "py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 " +
+                            (isBusy
+                              ? "bg-white/5 text-white/30 cursor-not-allowed"
+                              : "bg-kasi-green/15 border border-kasi-green/40 text-kasi-green")
+                          }
+                        >
+                          {isBusy ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Check size={14} />
+                          )}
+                          {tr("verifyConfirmBtn", lang)}
+                        </button>
+                        <button
+                          disabled={isBusy}
+                          onClick={() => openRejectSheet(c)}
+                          className={
+                            "py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 " +
+                            (isBusy
+                              ? "bg-white/5 text-white/30 cursor-not-allowed"
+                              : "bg-kasi-coral/10 border border-kasi-coral/30 text-kasi-coral")
+                          }
+                        >
+                          <X size={14} />
+                          {tr("verifyRejectBtn", lang)}
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            {stokvel.contributions.slice(0, 10).map((c) => (
-              <motion.div
-                key={c.id}
-                layout
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between rounded-2xl bg-bg-card border border-white/5 px-4 py-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 flex items-center justify-center shrink-0">
-                    <Plus size={16} className="text-kasi-gold" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">
-                      {c.memberName ? (
-                        <>
-                          <span className="text-white/50 text-xs">
-                            {tr("contribBy", lang)}{" "}
-                          </span>
-                          {c.memberName}
-                        </>
-                      ) : (
-                        "—"
+        );
+      })()}
+
+      {/* Recent contributions: confirmed + rejected only (pending
+          lives in the section above so admins have a clear queue). */}
+      {(() => {
+        const nonPending = stokvel.contributions.filter(
+          (c) => (c.status ?? "confirmed") !== "pending",
+        );
+        if (nonPending.length === 0) return null;
+        return (
+          <div className="mt-6">
+            <div className="text-white/50 text-xs uppercase tracking-wider mb-3">
+              {tr("recentContributions", lang)}
+            </div>
+            <div className="flex flex-col gap-2">
+              {nonPending.slice(0, 10).map((c) => {
+                const isRejected = c.status === "rejected";
+                return (
+                  <motion.div
+                    key={c.id}
+                    layout
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={
+                      "flex items-center justify-between rounded-2xl px-4 py-3 " +
+                      (isRejected
+                        ? "bg-kasi-coral/[0.05] border border-kasi-coral/25"
+                        : "bg-bg-card border border-white/5")
+                    }
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={
+                          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border " +
+                          (isRejected
+                            ? "bg-kasi-coral/15 border-kasi-coral/30"
+                            : "bg-kasi-gold/15 border-kasi-gold/30")
+                        }
+                      >
+                        {isRejected ? (
+                          <X size={16} className="text-kasi-coral" />
+                        ) : (
+                          <Plus size={16} className="text-kasi-gold" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {c.memberName ? (
+                            <>
+                              <span className="text-white/50 text-xs">
+                                {tr("contribBy", lang)}{" "}
+                              </span>
+                              {c.memberName}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </div>
+                        <div className="text-[11px] text-white/50 truncate">
+                          {daysAgo(c.createdAt) === 0
+                            ? "Today"
+                            : `${daysAgo(c.createdAt)} days ago`}
+                          {c.note && (
+                            <>
+                              <span className="text-white/30 mx-1">·</span>
+                              <span className="text-white/60">{c.note}</span>
+                            </>
+                          )}
+                          {isRejected && c.rejectedReason && (
+                            <>
+                              <span className="text-white/30 mx-1">·</span>
+                              <span className="text-kasi-coral">
+                                {c.rejectedReason}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div
+                        className={
+                          "font-display font-semibold " +
+                          (isRejected
+                            ? "text-kasi-coral line-through"
+                            : "text-kasi-green")
+                        }
+                      >
+                        {isRejected ? "" : "+"}
+                        {formatRand(c.amount)}
+                      </div>
+                      {isRejected && (
+                        <div className="text-[9px] uppercase tracking-wider text-kasi-coral/80">
+                          {tr("rejectedBadge", lang)}
+                        </div>
                       )}
                     </div>
-                    <div className="text-[11px] text-white/50 truncate">
-                      {daysAgo(c.createdAt) === 0
-                        ? "Today"
-                        : `${daysAgo(c.createdAt)} days ago`}
-                      {c.note && (
-                        <>
-                          <span className="text-white/30 mx-1">·</span>
-                          <span className="text-white/60">{c.note}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="font-display font-semibold text-kasi-green">
-                  +{formatRand(c.amount)}
-                </div>
-              </motion.div>
-            ))}
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Leave stokvel — subtle at the bottom */}
       <button
@@ -520,10 +774,11 @@ export function Stokvel({
             initialAmount={pendingAmount}
             paymentActive={Boolean(state.paymentConfig?.isActive)}
             paymentIsTest={Boolean(state.paymentConfig?.isTest)}
+            bankAccount={stokvel.bankAccount}
             isAdmin={isAdmin}
             onClose={() => setSheet(null)}
-            onSubmit={async (amt, note) => {
-              const ok = await contribute(amt, note);
+            onSubmit={async (amt, note, opts) => {
+              const ok = await contribute(amt, note, opts);
               if (ok) setSheet(null);
               return ok;
             }}
@@ -543,6 +798,20 @@ export function Stokvel({
             lang={lang}
             onClose={() => setSheet(null)}
             onConfirm={leaveStokvel}
+          />
+        )}
+        {sheet === "reject" && rejectingContribution && (
+          <RejectContributionSheet
+            lang={lang}
+            contribution={rejectingContribution}
+            busy={busyContributionIds.has(rejectingContribution.id)}
+            onClose={() => {
+              setSheet(null);
+              setRejectingContribution(null);
+            }}
+            onConfirm={(reason) =>
+              onRejectContribution(rejectingContribution.id, reason)
+            }
           />
         )}
       </AnimatePresence>
@@ -1006,12 +1275,24 @@ function LeaveConfirmSheet({
 //                                stokvel admin, we also nudge them to
 //                                set up Yoco in Settings.
 //
+// ContributeSheet payment-method priority:
+//
+//   1. Bank details on the stokvel  → primary flow (no external
+//      signup, everyone can use this today).
+//   2. Yoco config active           → offered as an alternative when
+//      bank details also exist; primary when bank details are missing.
+//   3. Neither configured           → legacy "log payment (EFT/cash)"
+//      flow with the honest banner from PR #13.
+//
+// A tab-style toggle appears only when BOTH bank details AND Yoco are
+// available, so ordinary flows stay uncluttered.
 function ContributeSheet({
   lang,
   stokvelName,
   initialAmount,
   paymentActive,
   paymentIsTest,
+  bankAccount,
   isAdmin,
   onClose,
   onSubmit,
@@ -1021,9 +1302,14 @@ function ContributeSheet({
   initialAmount: number | null;
   paymentActive: boolean;
   paymentIsTest: boolean;
+  bankAccount: StokvelBankAccount | null;
   isAdmin: boolean;
   onClose: () => void;
-  onSubmit: (amount: number, note?: string) => Promise<boolean>;
+  onSubmit: (
+    amount: number,
+    note?: string,
+    opts?: { method?: ContributionMethod; reference?: string },
+  ) => Promise<boolean>;
 }) {
   const [amountText, setAmountText] = useState(
     initialAmount !== null && initialAmount > 0 ? String(initialAmount) : "",
@@ -1031,9 +1317,68 @@ function ContributeSheet({
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Reference is generated once when the sheet mounts and stays put
+  // for the whole session — so the value the user pastes into their
+  // banking app matches the value we store server-side.
+  const [reference] = useState(() => generateReference());
+
+  // Which method is currently selected in the sheet. Defaults to
+  // whichever primary flow applies for this stokvel.
+  const hasBank = Boolean(
+    bankAccount &&
+      (bankAccount.accountNumber ||
+        bankAccount.payshapPhone ||
+        bankAccount.accountHolder),
+  );
+  const [method, setMethod] = useState<"bank" | "card" | "legacy">(
+    hasBank ? "bank" : paymentActive ? "card" : "legacy",
+  );
 
   const parsedAmount = Math.floor(Number(amountText.replace(/[^\d]/g, "")) || 0);
   const canSubmit = parsedAmount > 0 && !submitting;
+
+  // Copy-to-clipboard payload for the bank-transfer flow. Includes
+  // everything the payer needs in a single paste-friendly block.
+  const bankCopyBlock = () => {
+    const lines: string[] = [`KasiKash payment — ${stokvelName}`];
+    if (bankAccount?.bankName) lines.push(`Bank: ${bankAccount.bankName}`);
+    if (bankAccount?.accountHolder)
+      lines.push(`Account holder: ${bankAccount.accountHolder}`);
+    if (bankAccount?.accountNumber)
+      lines.push(`Account number: ${bankAccount.accountNumber}`);
+    if (bankAccount?.branchCode)
+      lines.push(`Branch code: ${bankAccount.branchCode}`);
+    if (bankAccount?.payshapPhone)
+      lines.push(`PayShap: ${bankAccount.payshapPhone}`);
+    lines.push(`Reference: ${reference}`);
+    if (parsedAmount > 0) lines.push(`Amount: R${parsedAmount}`);
+    return lines.join("\n");
+  };
+
+  const copyBank = async () => {
+    try {
+      await navigator.clipboard.writeText(bankCopyBlock());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard blocked (older browsers / iOS quirks) — no-op.
+    }
+  };
+
+  const shareViaWhatsApp = () => {
+    const msg = trParams("contribBankWhatsAppMessage", lang, {
+      stokvel: stokvelName,
+      amount: parsedAmount > 0 ? `R${parsedAmount}` : "",
+      reference,
+    });
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(msg)}`,
+      "_blank",
+      "noopener",
+    );
+  };
 
   const submit = async () => {
     if (!canSubmit) {
@@ -1043,15 +1388,70 @@ function ContributeSheet({
     setError(null);
     setSubmitting(true);
     const cleanNote = note.trim();
-    const ok = await onSubmit(parsedAmount, cleanNote.length > 0 ? cleanNote : undefined);
+    const noteOrUndef = cleanNote.length > 0 ? cleanNote : undefined;
+
+    let ok = false;
+    if (method === "bank") {
+      ok = await onSubmit(parsedAmount, noteOrUndef, {
+        method: "eft",
+        reference,
+      });
+    } else if (method === "card") {
+      // Yoco path — no reference; the checkout URL is the source of truth.
+      ok = await onSubmit(parsedAmount, noteOrUndef, { method: "yoco" });
+    } else {
+      // Legacy "no config" path: keep the honest manual-log behavior.
+      ok = await onSubmit(parsedAmount, noteOrUndef, { method: "eft" });
+    }
+
     setSubmitting(false);
-    // On failure, keep the sheet open so the user can retry / cancel.
     if (!ok) setError(tr("contribInvalidAmount", lang));
   };
 
+  const primaryLabel = () => {
+    if (submitting) return tr("stokvelCreatingProgress", lang);
+    const suffix = parsedAmount > 0 ? ` · R${parsedAmount}` : "";
+    if (method === "bank") return `${tr("contribBankIvePaid", lang)}${suffix}`;
+    if (method === "card") return `${tr("contribPayYocoBtn", lang)}${suffix}`;
+    return `${tr("contribLogEftBtn", lang)}${suffix}`;
+  };
+
   return (
-    <SheetShell title={`${tr("contribSheetTitle", lang)} ${stokvelName}`} onClose={onClose}>
+    <SheetShell
+      title={`${tr("contribSheetTitle", lang)} ${stokvelName}`}
+      onClose={onClose}
+    >
       <div className="flex flex-col gap-4">
+        {/* Method toggle — only when the stokvel supports both flows */}
+        {hasBank && paymentActive && (
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-bg-card border border-white/10">
+            <button
+              onClick={() => setMethod("bank")}
+              className={
+                "py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors " +
+                (method === "bank"
+                  ? "bg-kasi-gold text-bg"
+                  : "text-white/60")
+              }
+            >
+              <Landmark size={14} />
+              {tr("contribMethodBank", lang)}
+            </button>
+            <button
+              onClick={() => setMethod("card")}
+              className={
+                "py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors " +
+                (method === "card"
+                  ? "bg-kasi-green text-bg"
+                  : "text-white/60")
+              }
+            >
+              <CreditCard size={14} />
+              {tr("contribMethodCard", lang)}
+            </button>
+          </div>
+        )}
+
         {/* Amount */}
         <div>
           <label className="text-[11px] uppercase tracking-wider text-white/50">
@@ -1090,9 +1490,93 @@ function ContributeSheet({
           />
         </div>
 
-        {/* Payment method disclosure — the whole point of this sheet.
-            Different copy depending on whether Yoco is configured. */}
-        {paymentActive ? (
+        {/* Payment method disclosure. Each branch tells the user
+            exactly what will happen when they tap the primary
+            button — no silent side effects. */}
+        {method === "bank" && bankAccount && (
+          <div className="rounded-2xl border border-kasi-gold/30 bg-gradient-to-br from-kasi-gold/[0.08] to-transparent p-4 flex flex-col gap-3">
+            <div className="flex items-start gap-2">
+              <Landmark
+                size={18}
+                className="text-kasi-gold shrink-0 mt-0.5"
+              />
+              <div className="text-sm text-white/80 leading-relaxed">
+                {tr("contribBankExplain", lang)}
+              </div>
+            </div>
+
+            {/* Bank details grid */}
+            <div className="flex flex-col gap-2 mt-1 rounded-xl bg-black/25 border border-white/5 px-3 py-3">
+              {bankAccount.bankName && (
+                <DetailRow
+                  label={tr("bankName", lang)}
+                  value={bankAccount.bankName}
+                />
+              )}
+              {bankAccount.accountHolder && (
+                <DetailRow
+                  label={tr("bankAccountHolder", lang)}
+                  value={bankAccount.accountHolder}
+                />
+              )}
+              {bankAccount.accountNumber && (
+                <DetailRow
+                  label={tr("bankAccountNumber", lang)}
+                  value={bankAccount.accountNumber}
+                  mono
+                />
+              )}
+              {bankAccount.branchCode && (
+                <DetailRow
+                  label={tr("bankBranchCode", lang)}
+                  value={bankAccount.branchCode}
+                  mono
+                />
+              )}
+              {bankAccount.payshapPhone && (
+                <DetailRow
+                  label={tr("bankPayshapPhone", lang)}
+                  value={bankAccount.payshapPhone}
+                  mono
+                />
+              )}
+              <div className="h-px bg-white/5 my-1" />
+              <DetailRow
+                label={tr("bankReference", lang)}
+                value={reference}
+                mono
+                highlight
+              />
+            </div>
+
+            {/* Copy + WhatsApp actions */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={copyBank}
+                className={
+                  "py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 border " +
+                  (copied
+                    ? "bg-kasi-green/15 border-kasi-green/40 text-kasi-green"
+                    : "bg-bg-card border-white/10 text-white/80")
+                }
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied
+                  ? tr("bankCopied", lang)
+                  : tr("bankCopyDetails", lang)}
+              </button>
+              <button
+                onClick={shareViaWhatsApp}
+                className="py-2.5 rounded-xl bg-emerald-500 text-bg text-sm font-semibold flex items-center justify-center gap-1.5"
+              >
+                <MessageCircle size={14} />
+                WhatsApp
+              </button>
+            </div>
+          </div>
+        )}
+
+        {method === "card" && (
           <div className="rounded-2xl border border-kasi-green/30 bg-kasi-green/[0.06] p-3 flex gap-3">
             <Zap size={18} className="text-kasi-green shrink-0 mt-0.5" />
             <div className="text-sm text-white/80 leading-relaxed">
@@ -1104,7 +1588,9 @@ function ContributeSheet({
               )}
             </div>
           </div>
-        ) : (
+        )}
+
+        {method === "legacy" && (
           <div className="rounded-2xl border border-kasi-gold/30 bg-kasi-gold/[0.06] p-3 flex gap-3">
             <Info size={18} className="text-kasi-gold shrink-0 mt-0.5" />
             <div className="text-sm text-white/80 leading-relaxed">
@@ -1113,12 +1599,11 @@ function ContributeSheet({
           </div>
         )}
 
-        {/* Admin nudge: if payments aren't set up and this user is the
-            admin, they're the one who can fix it. Non-admins don't see
-            this because they can't act on it. */}
-        {!paymentActive && isAdmin && (
+        {/* Admin nudge: neither bank nor Yoco set up. Only the admin
+            can fix this, so only the admin sees the CTA. */}
+        {method === "legacy" && isAdmin && (
           <div className="text-white/50 text-xs">
-            {tr("contribSetupYocoCTA", lang)}
+            {tr("contribSetupBankingCTA", lang)}
           </div>
         )}
 
@@ -1132,7 +1617,7 @@ function ContributeSheet({
             className={
               "py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
               (canSubmit
-                ? paymentActive
+                ? method === "card"
                   ? "bg-kasi-green text-bg shadow-glow"
                   : "bg-kasi-gold text-bg shadow-gold"
                 : "bg-white/5 text-white/30 cursor-not-allowed")
@@ -1140,24 +1625,145 @@ function ContributeSheet({
           >
             {submitting ? (
               <Loader2 size={18} className="animate-spin" />
-            ) : paymentActive ? (
+            ) : method === "card" ? (
               <CreditCard size={18} />
+            ) : method === "bank" ? (
+              <Check size={18} />
             ) : (
               <Plus size={18} />
             )}
-            {submitting
-              ? tr("stokvelCreatingProgress", lang)
-              : paymentActive
-              ? `${tr("contribPayYocoBtn", lang)} · ${
-                  parsedAmount > 0 ? "R" + parsedAmount : ""
-                }`
-              : `${tr("contribLogEftBtn", lang)}${
-                  parsedAmount > 0 ? " · R" + parsedAmount : ""
-                }`}
+            {primaryLabel()}
           </button>
           <button
             onClick={onClose}
             disabled={submitting}
+            className="py-3 rounded-2xl bg-bg-card border border-white/10 text-white/70"
+          >
+            {tr("contribCancel", lang)}
+          </button>
+        </div>
+      </div>
+    </SheetShell>
+  );
+}
+
+// Compact label / value row used inside the bank-details card.
+// Extracted here (not in a shared components file yet) because it's
+// only used inside ContributeSheet today; will move when a second
+// screen needs the same look.
+function DetailRow({
+  label,
+  value,
+  mono,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-[10px] uppercase tracking-wider text-white/45 shrink-0">
+        {label}
+      </span>
+      <span
+        className={
+          "text-sm text-right break-all " +
+          (mono ? "font-mono tabular-nums " : "") +
+          (highlight ? "text-kasi-gold font-bold" : "text-white")
+        }
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// RejectContributionSheet — admin confirms + adds an optional reason before
+// rejecting a pending contribution. Reason is shown to the member on the
+// rejected row in Recent Contributions so they know why it wasn't accepted.
+// ============================================================================
+function RejectContributionSheet({
+  lang,
+  contribution,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  lang: Lang;
+  contribution: Contribution;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (
+    reason: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string } | undefined>;
+}) {
+  const [reason, setReason] = useState("");
+
+  return (
+    <SheetShell title={tr("verifyRejectPromptTitle", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-white/70 text-sm leading-relaxed">
+          {tr("verifyRejectPromptBody", lang)}
+        </p>
+
+        {/* Summary of the contribution being rejected. */}
+        <div className="rounded-2xl bg-bg-card border border-white/5 px-4 py-3 flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate">
+              {contribution.memberName ?? "—"}
+            </div>
+            {contribution.reference && (
+              <div className="text-[11px] text-white/50 font-mono">
+                {contribution.reference}
+              </div>
+            )}
+          </div>
+          <div className="font-display font-semibold text-kasi-gold">
+            {formatRand(contribution.amount)}
+          </div>
+        </div>
+
+        {/* Optional reason */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("contribNoteLabel", lang)}
+          </label>
+          <input
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={tr("verifyRejectReasonPlaceholder", lang)}
+            maxLength={120}
+            className="mt-1 w-full px-4 py-3 rounded-2xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-coral"
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2 mt-2">
+          <button
+            disabled={busy}
+            onClick={() => onConfirm(reason.trim())}
+            className={
+              "py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 " +
+              (busy
+                ? "bg-white/5 text-white/30 cursor-not-allowed"
+                : "bg-kasi-coral text-bg")
+            }
+          >
+            {busy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <X size={16} />
+            )}
+            {tr("verifyRejectBtn", lang)}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={busy}
             className="py-3 rounded-2xl bg-bg-card border border-white/10 text-white/70"
           >
             {tr("contribCancel", lang)}

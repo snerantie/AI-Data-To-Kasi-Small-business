@@ -15,6 +15,7 @@ import {
   Zap,
   Eye,
   EyeOff,
+  Landmark,
 } from "lucide-react";
 import type { Screen } from "../App";
 import type { Lang, TKey } from "../i18n";
@@ -311,6 +312,21 @@ export function Settings({
             </div>
           )}
         </Section>
+
+        {/* ---- Stokvel banking (admin only, only if stokvel exists) ----
+             This section is the new default way to accept
+             contributions — the admin's normal bank account. It
+             shows above the Yoco Payments section because it works
+             for everyone without any external signup. */}
+        {state.stokvel && canEditStokvel && (
+          <Section
+            icon={Landmark}
+            title={tr("settingsBankingHeader", lang)}
+            accent="gold"
+          >
+            <BankingBlock lang={lang} />
+          </Section>
+        )}
 
         {/* ---- Payments (admin only, only if stokvel exists) ---- */}
         {state.stokvel && canEditStokvel && (
@@ -995,6 +1011,328 @@ function PaymentsBlock({ lang }: { lang: Lang }) {
       <p className="text-white/40 text-[11px] leading-relaxed mt-1">
         {tr("payFeeNote", lang)}
       </p>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// BankingBlock
+//
+// Admin-only section that lets a stokvel admin enter (or update)
+// their bank account details. This is the primary way members
+// contribute — no external payment-provider signup required.
+//
+// UX shape mirrors PaymentsBlock:
+//   - Not configured (or "Change details" tapped) → the form
+//   - Configured                                  → summary card
+//                                                    + "Change details"
+//                                                    + "Clear all"
+//   - Saving                                      → spinner on Save
+//   - Success                                     → transient Saved badge
+//   - Error                                       → inline coral message
+// ---------------------------------------------------------------------------
+function BankingBlock({ lang }: { lang: Lang }) {
+  const { state, saveStokvelBanking } = useStore();
+  const existing = state.stokvel?.bankAccount;
+  const hasExisting = Boolean(
+    existing &&
+      (existing.bankName ||
+        existing.accountHolder ||
+        existing.accountNumber ||
+        existing.branchCode ||
+        existing.payshapPhone),
+  );
+
+  // Show the form immediately when there are no details yet — the
+  // admin's whole reason for opening this section is to enter them.
+  const [showForm, setShowForm] = useState(!hasExisting);
+  const [bankName, setBankName] = useState(existing?.bankName ?? "");
+  const [accountHolder, setAccountHolder] = useState(
+    existing?.accountHolder ?? "",
+  );
+  const [accountNumber, setAccountNumber] = useState(
+    existing?.accountNumber ?? "",
+  );
+  const [branchCode, setBranchCode] = useState(existing?.branchCode ?? "");
+  const [payshapPhone, setPayshapPhone] = useState(existing?.payshapPhone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Both fields must be filled for the account to be usable at all.
+  // Bank name + account number are the bare minimum.
+  const canSubmit =
+    bankName.trim().length > 0 &&
+    accountNumber.trim().length > 0 &&
+    !saving;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setError(null);
+    setSaving(true);
+    const result = await saveStokvelBanking({
+      bankName: bankName.trim(),
+      accountHolder: accountHolder.trim(),
+      accountNumber: accountNumber.trim(),
+      branchCode: branchCode.trim(),
+      payshapPhone: payshapPhone.trim(),
+    });
+    setSaving(false);
+    if (result.ok) {
+      setSaved(true);
+      setShowForm(false);
+      window.setTimeout(() => setSaved(false), 2400);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const clearAll = async () => {
+    setError(null);
+    setSaving(true);
+    const result = await saveStokvelBanking({
+      bankName: "",
+      accountHolder: "",
+      accountNumber: "",
+      branchCode: "",
+      payshapPhone: "",
+    });
+    setSaving(false);
+    if (result.ok) {
+      setBankName("");
+      setAccountHolder("");
+      setAccountNumber("");
+      setBranchCode("");
+      setPayshapPhone("");
+      setShowForm(true);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-white/70 text-sm leading-relaxed">
+        {tr("settingsBankingSub", lang)}
+      </p>
+
+      {/* Summary card when details are already saved and we're not
+          currently editing them. */}
+      {hasExisting && !showForm && (
+        <div className="rounded-2xl bg-kasi-gold/[0.06] border border-kasi-gold/25 p-3 flex flex-col gap-1.5">
+          {existing?.bankName && (
+            <BankingSummaryRow
+              label={tr("bankName", lang)}
+              value={existing.bankName}
+            />
+          )}
+          {existing?.accountHolder && (
+            <BankingSummaryRow
+              label={tr("bankAccountHolder", lang)}
+              value={existing.accountHolder}
+            />
+          )}
+          {existing?.accountNumber && (
+            <BankingSummaryRow
+              label={tr("bankAccountNumber", lang)}
+              value={existing.accountNumber}
+              mono
+            />
+          )}
+          {existing?.branchCode && (
+            <BankingSummaryRow
+              label={tr("bankBranchCode", lang)}
+              value={existing.branchCode}
+              mono
+            />
+          )}
+          {existing?.payshapPhone && (
+            <BankingSummaryRow
+              label={tr("bankPayshapPhone", lang)}
+              value={existing.payshapPhone}
+              mono
+            />
+          )}
+        </div>
+      )}
+
+      {hasExisting && !showForm && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowForm(true)}
+            className="text-xs text-kasi-gold underline"
+          >
+            {tr("payUpdateKey", lang)}
+          </button>
+          <button
+            onClick={clearAll}
+            disabled={saving}
+            className="text-xs text-kasi-coral underline"
+          >
+            {tr("settingsBankingClearAll", lang)}
+          </button>
+        </div>
+      )}
+
+      {/* Form: shown when no details exist, or admin tapped "Change". */}
+      {showForm && (
+        <>
+          <BankingField
+            label={tr("bankName", lang)}
+            value={bankName}
+            onChange={setBankName}
+            placeholder={tr("settingsBankingPlaceholderBank", lang)}
+          />
+          <BankingField
+            label={tr("bankAccountHolder", lang)}
+            value={accountHolder}
+            onChange={setAccountHolder}
+            placeholder={tr("settingsBankingPlaceholderHolder", lang)}
+          />
+          <BankingField
+            label={tr("bankAccountNumber", lang)}
+            value={accountNumber}
+            onChange={setAccountNumber}
+            placeholder={tr("settingsBankingPlaceholderAccount", lang)}
+            mono
+            inputMode="numeric"
+          />
+          <BankingField
+            label={tr("bankBranchCode", lang)}
+            value={branchCode}
+            onChange={setBranchCode}
+            placeholder={tr("settingsBankingPlaceholderBranch", lang)}
+            mono
+            inputMode="numeric"
+          />
+          <BankingField
+            label={tr("bankPayshapPhone", lang)}
+            value={payshapPhone}
+            onChange={setPayshapPhone}
+            placeholder={tr("settingsBankingPlaceholderPayshap", lang)}
+            mono
+            inputMode="tel"
+          />
+
+          {error && <div className="text-kasi-coral text-xs">{error}</div>}
+
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              onClick={submit}
+              disabled={!canSubmit}
+              className={
+                "w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 " +
+                (canSubmit
+                  ? "bg-kasi-gold text-bg shadow-gold"
+                  : "bg-white/5 text-white/30 cursor-not-allowed")
+              }
+            >
+              {saving ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Check size={14} />
+              )}
+              {saving
+                ? tr("paySaving", lang)
+                : tr("settingsBankingSave", lang)}
+            </button>
+            {hasExisting && (
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setBankName(existing?.bankName ?? "");
+                  setAccountHolder(existing?.accountHolder ?? "");
+                  setAccountNumber(existing?.accountNumber ?? "");
+                  setBranchCode(existing?.branchCode ?? "");
+                  setPayshapPhone(existing?.payshapPhone ?? "");
+                  setError(null);
+                }}
+                className="text-xs text-white/50 underline text-center"
+              >
+                {tr("payCancel", lang)}
+              </button>
+            )}
+          </div>
+
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-kasi-green text-xs flex items-center gap-1"
+            >
+              <Check size={12} />
+              {tr("settingsBankingSaved", lang)}
+            </motion.div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Small helper to keep each row in the form to a consistent shape.
+// Kept local because it's only ever used inside BankingBlock today.
+function BankingField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  mono,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  mono?: boolean;
+  inputMode?: "numeric" | "tel" | "text";
+}) {
+  return (
+    <div>
+      <label className="text-[11px] uppercase tracking-wider text-white/50">
+        {label}
+      </label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        autoCapitalize={mono ? "none" : "words"}
+        autoCorrect="off"
+        spellCheck={false}
+        className={
+          "mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-gold " +
+          (mono ? "font-mono text-sm tracking-wider" : "")
+        }
+      />
+    </div>
+  );
+}
+
+// Read-only label/value row used inside the saved-details summary card.
+function BankingSummaryRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-[10px] uppercase tracking-wider text-white/50 shrink-0">
+        {label}
+      </span>
+      <span
+        className={
+          "text-sm text-right break-all text-white " +
+          (mono ? "font-mono tabular-nums" : "")
+        }
+      >
+        {value}
+      </span>
     </div>
   );
 }
