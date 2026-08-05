@@ -4,7 +4,10 @@ import type {
   Sale,
   Tab,
   Contribution,
+  ContributionMethod,
+  ContributionStatus,
   Stokvel,
+  StokvelBankAccount,
   Profile,
   BusinessType,
   StokvelMember,
@@ -309,6 +312,14 @@ type StokvelRow = {
   name: string;
   goal: number | string;
   members: number;
+  // Bank account fields added by migration 007. All nullable — an
+  // older stokvel row (or one whose admin hasn't set up banking yet)
+  // simply has null everywhere.
+  bank_name: string | null;
+  bank_account_holder: string | null;
+  bank_account_number: string | null;
+  bank_branch_code: string | null;
+  payshap_phone: string | null;
 };
 
 type MembershipRow = {
@@ -325,6 +336,14 @@ type ContributionRow = {
   note: string | null;
   owner_id: string;
   created_at: string;
+  // Also added in migration 007. `status` / `method` may be null on
+  // rows created before the migration ran; the store's isConfirmed
+  // fallback covers that safely.
+  status: ContributionStatus | null;
+  method: ContributionMethod | null;
+  reference: string | null;
+  confirmed_at: string | null;
+  rejected_reason: string | null;
 };
 
 type InviteRow = {
@@ -350,7 +369,33 @@ const rowToContribution = (
   createdAt: new Date(r.created_at).getTime(),
   memberName: members.get(r.owner_id),
   ownerId: r.owner_id,
+  status: r.status ?? undefined,
+  method: r.method ?? undefined,
+  reference: r.reference ?? undefined,
+  confirmedAt: r.confirmed_at ? new Date(r.confirmed_at).getTime() : undefined,
+  rejectedReason: r.rejected_reason ?? undefined,
 });
+
+const rowToBankAccount = (r: StokvelRow): StokvelBankAccount | null => {
+  // If literally every bank field is null, treat the stokvel as
+  // having no banking configured (so the UI can show the setup CTA).
+  if (
+    !r.bank_name &&
+    !r.bank_account_holder &&
+    !r.bank_account_number &&
+    !r.bank_branch_code &&
+    !r.payshap_phone
+  ) {
+    return null;
+  }
+  return {
+    bankName: r.bank_name,
+    accountHolder: r.bank_account_holder,
+    accountNumber: r.bank_account_number,
+    branchCode: r.bank_branch_code,
+    payshapPhone: r.payshap_phone,
+  };
+};
 
 /**
  * Fetch the user's primary stokvel (currently: the first membership they have),
@@ -386,7 +431,9 @@ export async function fetchUserPrimaryStokvel(
     await Promise.all([
       supabase
         .from("stokvels")
-        .select("id, name, goal, members")
+        .select(
+          "id, name, goal, members, bank_name, bank_account_holder, bank_account_number, bank_branch_code, payshap_phone",
+        )
         .eq("id", stokvelId)
         .single(),
       supabase
@@ -395,7 +442,9 @@ export async function fetchUserPrimaryStokvel(
         .eq("stokvel_id", stokvelId),
       supabase
         .from("contributions")
-        .select("id, amount, note, owner_id, created_at")
+        .select(
+          "id, amount, note, owner_id, created_at, status, method, reference, confirmed_at, rejected_reason",
+        )
         .eq("stokvel_id", stokvelId)
         .order("created_at", { ascending: false })
         .limit(200),
@@ -424,6 +473,7 @@ export async function fetchUserPrimaryStokvel(
     memberships,
     contributions,
     role: myRole,
+    bankAccount: rowToBankAccount(skRow),
   };
 
   return { stokvel, stokvelId, role: myRole };
@@ -472,18 +522,77 @@ export async function insertContribution(
   contribution: Contribution,
 ): Promise<void> {
   if (!supabase) return;
-  // Same reasoning as createStokvel: use a SECURITY DEFINER RPC so the
-  // insert doesn't get blocked by the auth.uid()-in-RLS-WITH-CHECK bug.
-  // The RPC also verifies stokvel membership server-side (defense in
-  // depth) since it bypasses RLS. Note: the RPC generates the row id
-  // server-side, so the client-side optimistic `contribution.id` and
-  // the persisted id may differ briefly until Realtime rehydrates.
+  // SECURITY DEFINER RPC to bypass the auth.uid()-in-RLS-WITH-CHECK
+  // bug (see migration 006) and to enforce the pending/confirmed
+  // lifecycle server-side (migration 007). The 5-arg overload is
+  // safe to call even against a DB that only has the 3-arg version
+  // (defaults just get used) — but for the pending status to take
+  // effect the DB must have 007 applied.
   const { error } = await supabase.rpc("contribute_to_stokvel", {
     p_stokvel_id: stokvelId,
     p_amount: contribution.amount,
     p_note: contribution.note ?? null,
+    p_method: contribution.method ?? "eft",
+    p_reference: contribution.reference ?? null,
   });
   if (error) console.warn("[kasikash] insertContribution:", error.message);
+}
+
+// ---- Banking config + verification ----------------------------------------
+
+/**
+ * Save (or clear) the stokvel's bank account details. Admin-only —
+ * enforced server-side by set_stokvel_banking RPC.
+ *
+ * Pass empty strings to clear individual fields; the RPC treats
+ * empty / whitespace-only strings as null.
+ */
+export async function saveStokvelBanking(
+  stokvelId: string,
+  bank: {
+    bankName: string;
+    accountHolder: string;
+    accountNumber: string;
+    branchCode: string;
+    payshapPhone?: string;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase.rpc("set_stokvel_banking", {
+    p_stokvel_id: stokvelId,
+    p_bank_name: bank.bankName,
+    p_holder: bank.accountHolder,
+    p_account_number: bank.accountNumber,
+    p_branch_code: bank.branchCode,
+    p_payshap_phone: bank.payshapPhone ?? null,
+  });
+  if (error) {
+    console.warn("[kasikash] saveStokvelBanking:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+/**
+ * Admin-only. Move a contribution to confirmed / rejected. Server-side
+ * RPC verifies admin-ness on the contribution's stokvel.
+ */
+export async function setContributionStatus(
+  contributionId: string,
+  status: "confirmed" | "rejected",
+  reason?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase.rpc("set_contribution_status", {
+    p_contribution_id: contributionId,
+    p_status: status,
+    p_reason: reason ?? null,
+  });
+  if (error) {
+    console.warn("[kasikash] setContributionStatus:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 // ---- Invites ---------------------------------------------------------------

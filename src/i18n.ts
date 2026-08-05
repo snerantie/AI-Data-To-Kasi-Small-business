@@ -871,7 +871,172 @@ export const t = {
     zu: "Umphathi: setha i-Yoco kuma-Settings ukuze uthole izinkokhelo ezizenzakalelayo zekhadi",
     st: "Molaodi: lokisa Yoco ho Litlhophiso bakeng sa litefello tse iketsang tsa karete",
   },
+  contribSetupBankingCTA: {
+    en: "Admin: add your stokvel bank details in Settings so members can pay you in.",
+    zu: "Umphathi: engeza imininingwane yebhange lestokvel kuma-Settings ukuze amalungu akwazi ukukhokha.",
+    st: "Molaodi: kenya lintlha tsa banka tsa stokvel ho Litlhophiso hore litho li kgone ho u lefa.",
+  },
   contribCancel: { en: "Cancel", zu: "Khansela", st: "Hlakola" },
+
+  // Bank-transfer contribution flow (migration 007)
+  contribMethodBank: {
+    en: "Bank transfer",
+    zu: "Idlulisela lebhange",
+    st: "Phetisetso ea banka",
+  },
+  contribMethodCard: {
+    en: "Card",
+    zu: "Ikhadi",
+    st: "Karete",
+  },
+  contribBankExplain: {
+    en: "Transfer the amount from your banking app using these details. Use the reference below so the admin can match your payment. Once you've paid, tap the button at the bottom to record it — the admin will verify and confirm.",
+    zu: "Dlulisa imali kusuka ku-app yakho yebhange usebenzisa le mininingwane. Sebenzisa inkomba engezansi ukuze umphathi ahlanganise inkokhelo yakho. Uma usukhokhile, thepha inkinobho engezansi ukuze uyibhalise — umphathi uzoyihlola futhi ayiqinisekise.",
+    st: "Fetisetsa chelete ho tsoa ho app ea hao ea banka u sebelisa lintlha tsena. Sebelisa noutu e ka tlaase hore molaodi a kgone ho amanya tefello ea hao. Ha u qeta ho lefa, tobetsa konopo e ka tlaase ho e ngola — molaodi o tla e hlahloba a bile a e netefatse.",
+  },
+  contribBankIvePaid: {
+    en: "I've paid — record it",
+    zu: "Sengikhokhile — kubhalise",
+    st: "Ke lefile — e ngole",
+  },
+  contribBankWhatsAppMessage: {
+    en: "Hi — I've just paid {amount} to the {stokvel} stokvel account. Reference: {reference}. Please confirm in KasiKash when it arrives.",
+    zu: "Sawubona — Ngikhokhe {amount} ku-akhawunti ye-{stokvel} stokvel. Inkomba: {reference}. Sicela uqinisekise ku-KasiKash uma ifika.",
+    st: "Lumela — ke qeta ho lefa {amount} ho akhaonto ea {stokvel} stokvel. Noutu: {reference}. Ka kopo netefatsa ho KasiKash ha e fihla.",
+  },
+  bankName: { en: "Bank", zu: "Ibhange", st: "Banka" },
+  bankAccountHolder: {
+    en: "Account holder",
+    zu: "Umnini we-akhawunti",
+    st: "Mong'a akhaonto",
+  },
+  bankAccountNumber: {
+    en: "Account number",
+    zu: "Inombolo ye-akhawunti",
+    st: "Nomoro ea akhaonto",
+  },
+  bankBranchCode: {
+    en: "Branch code",
+    zu: "Ikhodi yegatsha",
+    st: "Khoutu ea lekala",
+  },
+  bankPayshapPhone: {
+    en: "PayShap number",
+    zu: "Inombolo ye-PayShap",
+    st: "Nomoro ea PayShap",
+  },
+  bankReference: {
+    en: "Reference",
+    zu: "Inkomba",
+    st: "Noutu",
+  },
+  bankCopyDetails: {
+    en: "Copy details",
+    zu: "Kopisha imininingwane",
+    st: "Kopa lintlha",
+  },
+  bankCopied: {
+    en: "Copied!",
+    zu: "Kukopishiwe!",
+    st: "Ho kopitsoe!",
+  },
+
+  // Pending verification section on the Stokvel screen (admin queue +
+  // members' read-only view of their own pending contributions).
+  pendingSectionTitle: {
+    en: "Awaiting verification",
+    zu: "Kulindelwe ukuqinisekiswa",
+    st: "E emetse netefatso",
+  },
+  pendingAdminSubtitle: {
+    en: "Confirm each payment once you see it in your bank account.",
+    zu: "Qinisekisa inkokhelo ngayinye lapho uyibona ku-akhawunti yakho yebhange.",
+    st: "Netefatsa tefello ka nngwe ha u e bona ho akhaonto ea hao ea banka.",
+  },
+  pendingMemberSubtitle: {
+    en: "The admin will confirm when your payment arrives.",
+    zu: "Umphathi uzokuqinisekisa uma inkokhelo yakho ifika.",
+    st: "Molaodi o tla netefatsa ha tefello ea hao e fihla.",
+  },
+  pendingBadge: {
+    en: "Pending",
+    zu: "Kulindiwe",
+    st: "E emetse",
+  },
+  rejectedBadge: {
+    en: "Rejected",
+    zu: "Yenqatshwe",
+    st: "E hanngoe",
+  },
+  verifyConfirmBtn: { en: "Confirm", zu: "Qinisekisa", st: "Netefatsa" },
+  verifyRejectBtn: { en: "Reject", zu: "Yenqabe", st: "Hana" },
+  verifyRejectPromptTitle: {
+    en: "Reject this payment?",
+    zu: "Yenqabe le nkokhelo?",
+    st: "Hana tefello ena?",
+  },
+  verifyRejectPromptBody: {
+    en: "This will mark the payment as not received. Add a short note (optional) so the member knows why.",
+    zu: "Lokhu kuzokwenza inkokhelo ibonakale ingatholakalanga. Faka inothi elifushane (ayikho phoqelelo) ukuze ilungu lazi ukuthi kungani.",
+    st: "Sena se tla tšoaea tefello e sa amoheloa. Kenya noutu e khutšoanyane (ha e hlokahale) hore setho se tsebe hore hobaneng.",
+  },
+  verifyRejectReasonPlaceholder: {
+    en: "e.g. no matching transfer found",
+    zu: "isb. akutholakali okuhambisanayo",
+    st: "mohlala ha ho phetisetso e tšoanang",
+  },
+
+  // Settings screen: banking section (admin-only)
+  settingsBankingHeader: {
+    en: "Stokvel banking",
+    zu: "Ibhange lestokvel",
+    st: "Banka ea stokvel",
+  },
+  settingsBankingSub: {
+    en: "Where members send their contributions. Only visible to stokvel members.",
+    zu: "Lapho amalungu athumelela khona iminikelo yawo. Ibonakala kumalungu estokvel kuphela.",
+    st: "Moo litho li romellang menehelo ea tsona. E bonoa ke litho tsa stokvel feela.",
+  },
+  settingsBankingPlaceholderBank: {
+    en: "e.g. Capitec, Standard Bank, FNB",
+    zu: "isb. Capitec, Standard Bank, FNB",
+    st: "mohlala Capitec, Standard Bank, FNB",
+  },
+  settingsBankingPlaceholderHolder: {
+    en: "Name as it appears on the account",
+    zu: "Igama njengoba livela ku-akhawunti",
+    st: "Lebitso jwalo ka ha le hlaha akhaontong",
+  },
+  settingsBankingPlaceholderAccount: {
+    en: "10-digit account number",
+    zu: "Inombolo ye-akhawunti yamanani angu-10",
+    st: "Nomoro ea akhaonto ea linomoro tse 10",
+  },
+  settingsBankingPlaceholderBranch: {
+    en: "e.g. 250655",
+    zu: "isb. 250655",
+    st: "mohlala 250655",
+  },
+  settingsBankingPlaceholderPayshap: {
+    en: "Cellphone number linked to PayShap (optional)",
+    zu: "Inombolo yefoni exhunywe ne-PayShap (ayidingekile)",
+    st: "Nomoro ea mohala e hokahaneng le PayShap (ha e hlokahale)",
+  },
+  settingsBankingSave: {
+    en: "Save banking details",
+    zu: "Gcina imininingwane yebhange",
+    st: "Boloka lintlha tsa banka",
+  },
+  settingsBankingSaved: {
+    en: "Saved ✓",
+    zu: "Kugciniwe ✓",
+    st: "Bolokoa ✓",
+  },
+  settingsBankingClearAll: {
+    en: "Clear all banking details",
+    zu: "Sula yonke imininingwane yebhange",
+    st: "Hlakola lintlha tsohle tsa banka",
+  },
   payReturnProcessing: {
     en: "Confirming your payment...",
     zu: "Kuqinisekiswa inkokhelo yakho...",
