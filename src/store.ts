@@ -292,10 +292,25 @@ function setState(
 }
 
 // ---- Cloud hydration ------------------------------------------------------
+//
+// Hydration is coalesced: if a hydrate is already in-flight when
+// another is requested, we don't start a second one. Instead we set a
+// `hydrateRequested` flag; when the current hydrate finishes, we
+// re-run once more if requested. This means:
+//   - No concurrent hydrations \u2192 no `userId` write-race
+//   - Auth events + explicit re-hydrates always converge to the
+//     latest session state within one extra pass
+//
+// `suppressAuthHydrate` is a separate switch used only during atomic
+// operations (reset / sign-out) where we're explicitly managing auth
+// and don't want the SIGNED_OUT/SIGNED_IN listener to interleave.
 
 let hydrating: Promise<void> | null = null;
+let currentHydrate: Promise<void> | null = null;
+let hydrateRequested = false;
+let suppressAuthHydrate = false;
 
-async function hydrateFromRemote(): Promise<void> {
+async function performHydrate(): Promise<void> {
   if (!isCloudConfigured) return;
   setSync("connecting");
   try {
@@ -346,8 +361,26 @@ async function hydrateFromRemote(): Promise<void> {
     setSync("synced");
     notify();
   } catch (err) {
-    console.warn("[kasikash] hydrateFromRemote failed:", err);
+    console.warn("[kasikash] performHydrate failed:", err);
     setSync("error");
+  }
+}
+
+async function hydrateFromRemote(): Promise<void> {
+  if (currentHydrate) {
+    hydrateRequested = true;
+    return currentHydrate;
+  }
+  currentHydrate = (async () => {
+    do {
+      hydrateRequested = false;
+      await performHydrate();
+    } while (hydrateRequested);
+  })();
+  try {
+    await currentHydrate;
+  } finally {
+    currentHydrate = null;
   }
 }
 
@@ -355,6 +388,11 @@ if (isCloudConfigured && typeof window !== "undefined") {
   hydrating = hydrateFromRemote();
 
   onAuthChange((event) => {
+    // While an atomic auth operation (reset / sign-out) is running,
+    // ignore the SIGNED_OUT/SIGNED_IN storm it produces \u2014 that caller
+    // is responsible for triggering the single reconciling hydrate.
+    if (suppressAuthHydrate) return;
+
     if (
       event === "SIGNED_IN" ||
       event === "USER_UPDATED" ||
@@ -836,43 +874,66 @@ export function useStore() {
   }, []);
 
   const signOut = useCallback(async (): Promise<AuthResult> => {
-    const result = await remoteSignOut();
+    // Silence the auth listener so its parallel SIGNED_OUT hydrate
+    // doesn't race with the one we trigger explicitly below.
+    suppressAuthHydrate = true;
     try {
-      localStorage.removeItem(KEY);
-      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
-    } catch {
-      // ignore
+      const result = await remoteSignOut();
+      try {
+        localStorage.removeItem(KEY);
+        for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+      } catch {
+        // ignore
+      }
+      state = { ...emptyState };
+      userId = null;
+      stokvelId = null;
+      authInfo = { userId: null, email: null, isAnonymous: false };
+      pendingAuth = null;
+      notify();
+      // Fresh anonymous session + full re-hydrate as one atomic step.
+      await hydrateFromRemote();
+      return result;
+    } finally {
+      suppressAuthHydrate = false;
     }
-    state = { ...emptyState };
-    userId = null;
-    stokvelId = null;
-    authInfo = { userId: null, email: null, isAnonymous: false };
-    pendingAuth = null;
-    notify();
-    await hydrateFromRemote();
-    return result;
   }, []);
 
   const resetAccount = useCallback(async () => {
+    // Silence the auth listener while we sign out + sign back in.
+    // Otherwise the SIGNED_OUT and SIGNED_IN events fire their own
+    // hydrations in parallel with ours, and end up with a stale
+    // userId that no longer matches auth.uid() on the server \u2014 which
+    // makes every subsequent INSERT fail with RLS 403.
+    suppressAuthHydrate = true;
     try {
-      localStorage.removeItem(KEY);
-      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
-    state = { ...emptyState };
-    stokvelId = null;
-    userId = null;
-    notify();
-
-    if (isCloudConfigured) {
-      const uid = await resetToFreshAnon();
-      if (uid) {
-        userId = uid;
-        setSync("synced");
-      } else {
-        setSync("error");
+      try {
+        localStorage.removeItem(KEY);
+        for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+      } catch {
+        // ignore
       }
+      state = { ...emptyState };
+      stokvelId = null;
+      userId = null;
+      authInfo = { userId: null, email: null, isAnonymous: false };
+      pendingAuth = null;
+      notify();
+
+      if (isCloudConfigured) {
+        const uid = await resetToFreshAnon();
+        if (!uid) {
+          setSync("error");
+          return;
+        }
+        userId = uid;
+        // One deterministic reconciling hydrate now that we know the
+        // real session id. Subsequent auth events are suppressed
+        // (see suppressAuthHydrate above) so they can't race.
+        await hydrateFromRemote();
+      }
+    } finally {
+      suppressAuthHydrate = false;
     }
   }, []);
 
@@ -1054,9 +1115,9 @@ export function needsOnboarding(state: AppState): boolean {
   if (!state.onboarded) return true;
   if (!state.lang) return true;
   if (!state.profile.ownerName) return true;
-  if (!state.profile.businessName) return true;
-  if (!state.profile.businessType) return true;
-  // Stokvel is no longer required — user can skip and add later
+  // Business info is optional — KasiKash is also used by people who
+  // only want a stokvel with friends and don't run a spaza/salon/etc.
+  // Stokvel is optional too — user can skip and add later.
   return false;
 }
 
