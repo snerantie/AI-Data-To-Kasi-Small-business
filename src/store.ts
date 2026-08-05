@@ -823,9 +823,9 @@ export function needsOnboarding(state: AppState): boolean {
   if (!state.onboarded) return true;
   if (!state.lang) return true;
   if (!state.profile.ownerName) return true;
-  if (!state.profile.businessName) return true;
-  if (!state.profile.businessType) return true;
-  // Stokvel is no longer required — user can skip and add later
+  // Business info is optional — KasiKash is also used by people who
+  // only want a stokvel with friends and don't run a spaza/salon/etc.
+  // Stokvel is optional too — user can skip and add later.
   return false;
 }
 
