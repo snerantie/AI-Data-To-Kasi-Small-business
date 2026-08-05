@@ -77,6 +77,61 @@ Once migration 004 has run and the Edge Functions are deployed (see below), each
 
 **KasiKash takes 0% platform fee.** Yoco charges its own standard rate (roughly 3% + R2 per transaction) direct to the admin's merchant account. All money flows admin → Yoco → admin's bank. KasiKash never touches the funds.
 
+## Setting up the WhatsApp bot (per admin, optional)
+
+The WhatsApp integration lets members text natural-language sales lines like `sold 3 bread R18` to the admin's WhatsApp Business number, and have them logged automatically to the sender's KasiKash account.
+
+This is **entirely optional** and only useful once the admin has completed Meta's approval. Skipping this section leaves the "WhatsApp bot" section in Settings inactive — the app still works for every other feature.
+
+### 1. Get Meta Cloud API access
+
+1. Sign up at [business.facebook.com](https://business.facebook.com) if you don't have a Business Manager account.
+2. Create a **WhatsApp Business Account** inside your Business Manager (Business Settings → Accounts → WhatsApp Accounts).
+3. Add a phone number to it. Meta's free tier lets you use a test number initially (great for development); for real customers you'll verify a real phone number.
+4. Go to **[developers.facebook.com](https://developers.facebook.com)** → your app → **WhatsApp → API Setup**. Note down:
+   - **Phone Number ID** (a numeric string, ~15 digits)
+   - **Temporary access token** (starts with `EAAG...`). For production, generate a **system-user permanent access token** — see [Meta's guide](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+5. Under **WhatsApp → Configuration**, add a webhook:
+   - **Callback URL:** `https://<your-supabase-project>.functions.supabase.co/whatsapp-webhook`
+   - **Verify token:** a random string of your choice (KasiKash's Settings will generate one for you)
+   - Subscribe to **messages** field only.
+
+### 2. Run migration 009 in the Supabase SQL editor
+
+`supabase/migrations/009_whatsapp_bot.sql` creates the `whatsapp_bot_configs` table and helper RPCs. Idempotent, safe to re-run.
+
+### 3. Deploy the two Edge Functions
+
+```bash
+supabase functions deploy save-whatsapp-config
+supabase functions deploy whatsapp-webhook --no-verify-jwt
+```
+
+`--no-verify-jwt` on `whatsapp-webhook` is critical — Meta doesn't send a Supabase JWT.
+
+### 4. Configure inside KasiKash
+
+1. Sign in to your account (Settings → Account → link email or phone).
+2. Go to **Settings → WhatsApp bot** and paste in:
+   - Phone Number ID (from step 1)
+   - Access token (from step 1)
+   - Verify token (tap **Generate** for a random one, then use the same value when configuring the webhook in Meta's dashboard)
+   - Your WhatsApp Business number in E.164 (e.g. `+27831234567`)
+3. Tap **Turn on WhatsApp bot**. If credentials are valid, the section flips to "active".
+
+### 5. Test
+
+From any WhatsApp number, text your business line something like `sold 3 bread R18`. Within a few seconds:
+
+- The webhook fires, the parser recognises 3 × Bread @ R18, and inserts a sale on the sender's KasiKash account (identified by their WhatsApp number matching `profiles.phone`).
+- The sender gets an auto-reply: `✅ KasiKash: Logged 3 × Bread @ R18. Total R54.`
+
+Members must first link their phone number in KasiKash (Settings → Account → Phone tab) so the webhook can match their WhatsApp sender to their account. Unlinked numbers get a friendly "sign in and link your phone first" auto-reply.
+
+### 6. Costs
+
+Meta's WhatsApp Cloud API is **free** for the first 1,000 conversations per month, then ~R0.30 per conversation to SA numbers. A "conversation" is a 24-hour window with a specific user, so 1,000/month covers hundreds of active users at typical usage.
+
 ## Deploying the Supabase Edge Functions
 
 The three payment-flow Edge Functions live in `supabase/functions/`. Deploying them requires the Supabase CLI:

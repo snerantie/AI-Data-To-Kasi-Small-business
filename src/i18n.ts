@@ -1872,6 +1872,84 @@ export const t = {
     st: "Braosara ena ha e tšehetse litsebiso.",
     af: "Hierdie blaaier ondersteun nie kennisgewings nie.",
   },
+
+  // ---------------------------------------------------------------------
+  // WhatsApp bot (PR #20). Admin plugs in their own Meta Cloud API
+  // credentials; the webhook Edge Function then logs sales from
+  // incoming WhatsApp messages sent to their business number.
+  // ---------------------------------------------------------------------
+  settingsWhatsApp: {
+    en: "WhatsApp bot",
+    zu: "I-bot ye-WhatsApp",
+    st: "Bot ea WhatsApp",
+    af: "WhatsApp-bot",
+  },
+  settingsWhatsAppDesc: {
+    en: "Log sales by texting your WhatsApp Business number. Requires Meta Business API approval — see the setup guide in DEPLOY.md.",
+    zu: "Bhalisa ukudayisa ngokuthumela umlayezo enombolweni yakho ye-WhatsApp Business. Kudinga imvume ye-Meta Business API — buka umhlahlandlela wokusetha ku-DEPLOY.md.",
+    st: "Ngola thekiso ka ho ngolla nomorong ea hao ea WhatsApp Business. Ho hloka tumello ea Meta Business API — sheba tataiso ea ho lokisa ho DEPLOY.md.",
+    af: "Teken verkope aan deur na jou WhatsApp Business-nommer te SMS. Vereis Meta Business API-goedkeuring — sien die opstellingsgids in DEPLOY.md.",
+  },
+  settingsWhatsAppActive: {
+    en: "WhatsApp bot is active",
+    zu: "I-bot ye-WhatsApp isebenza",
+    st: "Bot ea WhatsApp ea sebetsa",
+    af: "WhatsApp-bot is aktief",
+  },
+  settingsWhatsAppInactive: {
+    en: "Not configured yet",
+    zu: "Ayikahlelwa okwamanje",
+    st: "Ha e e-so lokisoe",
+    af: "Nog nie opgestel nie",
+  },
+  settingsWhatsAppPhoneIdLabel: {
+    en: "Phone Number ID (from Meta dashboard)",
+    zu: "I-ID Yenombolo Yefoni (kudashibhodi ye-Meta)",
+    st: "ID ea Nomoro ea Fono (ho tsoa dashboard ea Meta)",
+    af: "Foonnommer-ID (van Meta-dashboard)",
+  },
+  settingsWhatsAppTokenLabel: {
+    en: "Access token",
+    zu: "Ithokheni yokufinyelela",
+    st: "Tokene ea phumaneho",
+    af: "Toegangs-token",
+  },
+  settingsWhatsAppVerifyLabel: {
+    en: "Verify token",
+    zu: "Ithokheni yokuqinisekisa",
+    st: "Tokene ea netefatso",
+    af: "Verifikasie-token",
+  },
+  settingsWhatsAppSenderLabel: {
+    en: "Your WhatsApp Business number (E.164)",
+    zu: "Inombolo yakho ye-WhatsApp Business (E.164)",
+    st: "Nomoro ea hao ea WhatsApp Business (E.164)",
+    af: "Jou WhatsApp Business-nommer (E.164)",
+  },
+  settingsWhatsAppSaveCta: {
+    en: "Turn on WhatsApp bot",
+    zu: "Vula i-bot ye-WhatsApp",
+    st: "Bulella bot ea WhatsApp",
+    af: "Aktiveer WhatsApp-bot",
+  },
+  settingsWhatsAppGenerateVerify: {
+    en: "Generate",
+    zu: "Khiqiza",
+    st: "Etsa",
+    af: "Genereer",
+  },
+  settingsWhatsAppUpdateCta: {
+    en: "Update credentials",
+    zu: "Buyekeza imininingwane",
+    st: "Ntlafatsa lintlha",
+    af: "Werk geloofsbriewe op",
+  },
+  settingsWhatsAppReadDocs: {
+    en: "Read the setup guide",
+    zu: "Funda umhlahlandlela wokusetha",
+    st: "Bala tataiso ea ho lokisa",
+    af: "Lees die opstellingsgids",
+  },
 } as const;
 
 export type TKey = keyof typeof t;
