@@ -571,12 +571,18 @@ export function useStore() {
    *   - "error"    → surface error to the user
    */
   const startContribution = useCallback(
-    async (amount: number): Promise<ContributeAction> => {
+    async (amount: number, note?: string): Promise<ContributeAction> => {
       if (!state.stokvel || !stokvelId) {
         return { kind: "error", error: "no_stokvel" };
       }
       const cfg = state.paymentConfig;
       if (cfg && cfg.isActive && isCloudConfigured) {
+        // Real payment path: create a Yoco checkout session. The
+        // contribution row is created server-side by the payment
+        // webhook once Yoco confirms the charge succeeded — so
+        // nothing hits the UI until the money has actually moved.
+        // (Note is currently ignored on this path; plumbing it
+        // through requires an Edge Function change — future work.)
         const result = await paymentCreateCheckout(stokvelId, amount);
         if (result.ok) {
           return {
@@ -588,8 +594,10 @@ export function useStore() {
         }
         return { kind: "error", error: result.error };
       }
-      // Fallback: manual record-keeping
-      addContribution(amount);
+      // Manual-ledger path: user is recording a payment they made
+      // outside the app (EFT / cash / bank transfer). The UI must
+      // make this explicit before calling us — no silent logging.
+      addContribution(amount, note);
       return { kind: "logged", amount };
     },
     [addContribution],

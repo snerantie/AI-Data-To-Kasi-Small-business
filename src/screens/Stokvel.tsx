@@ -12,6 +12,9 @@ import {
   Loader2,
   Check,
   KeyRound,
+  CreditCard,
+  Info,
+  Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang } from "../i18n";
@@ -28,7 +31,7 @@ import type { Screen } from "../App";
 
 const QUICK_AMOUNTS = [50, 100, 250, 500];
 
-type Sheet = null | "create" | "join" | "invite" | "leave";
+type Sheet = null | "create" | "join" | "invite" | "leave" | "contribute";
 
 export function Stokvel({
   lang,
@@ -51,6 +54,11 @@ export function Stokvel({
   const [sheet, setSheet] = useState<Sheet>(null);
   const [flash, setFlash] = useState<number | null>(null);
   const [displayed, setDisplayed] = useState(0);
+  // When the user taps a quick-amount tile we don't contribute
+  // immediately — we open a confirmation sheet with this amount
+  // pre-filled. `null` means the user tapped "Custom" and needs to
+  // type an amount themselves.
+  const [pendingAmount, setPendingAmount] = useState<number | null>(null);
 
   const targetProgress = stokvelProgress(stokvel);
   const total = stokvelTotal(stokvel);
@@ -80,23 +88,39 @@ export function Stokvel({
   const [redirecting, setRedirecting] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
-  const contribute = async (amount: number) => {
+  // Actually record / initiate the contribution. Always called from
+  // the ContributeSheet after the user has explicitly confirmed the
+  // amount and (implicitly) the payment method — never directly from
+  // a quick-amount tile.
+  const contribute = async (
+    amount: number,
+    note?: string,
+  ): Promise<boolean> => {
     setPayError(null);
-    const result = await startContribution(amount);
+    const result = await startContribution(amount, note);
     if (result.kind === "logged") {
       setFlash(amount);
       setTimeout(() => setFlash(null), 1600);
+      return true;
     } else if (result.kind === "redirect") {
       setRedirecting(true);
-      // Give the UI a moment to show the "Opening Yoco..." state before
-      // navigation, so the user knows something's happening.
+      // Give the UI a moment to show the "Opening Yoco..." state
+      // before navigation, so the user knows something's happening.
       window.setTimeout(() => {
         window.location.href = result.url;
       }, 200);
+      return true;
     } else if (result.kind === "error") {
       setPayError(result.error);
       window.setTimeout(() => setPayError(null), 4000);
+      return false;
     }
+    return false;
+  };
+
+  const openContributeSheet = (amount: number | null) => {
+    setPendingAmount(amount);
+    setSheet("contribute");
   };
 
   // ---------------------------------------------------------------- Empty state
@@ -314,7 +338,7 @@ export function Stokvel({
               key={amt}
               whileTap={{ scale: 0.95 }}
               disabled={redirecting}
-              onClick={() => contribute(amt)}
+              onClick={() => openContributeSheet(amt)}
               className={
                 "py-3.5 rounded-2xl bg-bg-card border border-white/5 flex flex-col items-center gap-0.5 transition-colors " +
                 (redirecting
@@ -331,6 +355,25 @@ export function Stokvel({
             </motion.button>
           ))}
         </div>
+        {/* Custom amount tile — full-width so it doesn't get lost in
+            the preset row. Opens the same sheet as the presets but
+            with no amount pre-filled. */}
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          disabled={redirecting}
+          onClick={() => openContributeSheet(null)}
+          className={
+            "mt-2 w-full py-3 rounded-2xl bg-bg-card border border-white/10 flex items-center justify-center gap-2 transition-colors " +
+            (redirecting
+              ? "opacity-40 cursor-not-allowed"
+              : "hover:border-kasi-gold/50 active:border-kasi-gold")
+          }
+        >
+          <Plus size={16} className="text-kasi-gold" />
+          <span className="font-semibold text-sm text-white/80">
+            {tr("contribCustom", lang)}
+          </span>
+        </motion.button>
         {payError && (
           <div className="mt-2 text-kasi-coral text-xs">{payError}</div>
         )}
@@ -437,10 +480,16 @@ export function Stokvel({
                         "—"
                       )}
                     </div>
-                    <div className="text-[11px] text-white/50">
+                    <div className="text-[11px] text-white/50 truncate">
                       {daysAgo(c.createdAt) === 0
                         ? "Today"
                         : `${daysAgo(c.createdAt)} days ago`}
+                      {c.note && (
+                        <>
+                          <span className="text-white/30 mx-1">·</span>
+                          <span className="text-white/60">{c.note}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -464,6 +513,22 @@ export function Stokvel({
 
       {/* Sheets */}
       <AnimatePresence>
+        {sheet === "contribute" && (
+          <ContributeSheet
+            lang={lang}
+            stokvelName={stokvel.name}
+            initialAmount={pendingAmount}
+            paymentActive={Boolean(state.paymentConfig?.isActive)}
+            paymentIsTest={Boolean(state.paymentConfig?.isTest)}
+            isAdmin={isAdmin}
+            onClose={() => setSheet(null)}
+            onSubmit={async (amt, note) => {
+              const ok = await contribute(amt, note);
+              if (ok) setSheet(null);
+              return ok;
+            }}
+          />
+        )}
         {sheet === "invite" && (
           <InviteSheet
             lang={lang}
@@ -913,6 +978,189 @@ function LeaveConfirmSheet({
             className="py-3 rounded-2xl bg-bg-card border border-white/10 text-white/80"
           >
             {tr("stokvelLeaveCancel", lang)}
+          </button>
+        </div>
+      </div>
+    </SheetShell>
+  );
+}
+
+
+// ============================================================================
+// ContributeSheet
+// ============================================================================
+//
+// The single entry point for logging or making a contribution. Its job is to
+// never let a member silently record a payment: it makes the amount
+// explicit, adds an optional note, and — critically — tells the user
+// honestly what will happen when they tap the primary button.
+//
+//   • paymentActive === true  → real money moves via Yoco checkout.
+//                                Primary button: "Pay with card".
+//   • paymentActive === false → the app is being used as a ledger for a
+//                                payment made outside it (EFT / cash).
+//                                Primary button: "Log payment (EFT / cash)".
+//                                We show an explainer so the user knows
+//                                money is NOT moving and an admin can
+//                                verify. If the current user is the
+//                                stokvel admin, we also nudge them to
+//                                set up Yoco in Settings.
+//
+function ContributeSheet({
+  lang,
+  stokvelName,
+  initialAmount,
+  paymentActive,
+  paymentIsTest,
+  isAdmin,
+  onClose,
+  onSubmit,
+}: {
+  lang: Lang;
+  stokvelName: string;
+  initialAmount: number | null;
+  paymentActive: boolean;
+  paymentIsTest: boolean;
+  isAdmin: boolean;
+  onClose: () => void;
+  onSubmit: (amount: number, note?: string) => Promise<boolean>;
+}) {
+  const [amountText, setAmountText] = useState(
+    initialAmount !== null && initialAmount > 0 ? String(initialAmount) : "",
+  );
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const parsedAmount = Math.floor(Number(amountText.replace(/[^\d]/g, "")) || 0);
+  const canSubmit = parsedAmount > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) {
+      setError(tr("contribInvalidAmount", lang));
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    const cleanNote = note.trim();
+    const ok = await onSubmit(parsedAmount, cleanNote.length > 0 ? cleanNote : undefined);
+    setSubmitting(false);
+    // On failure, keep the sheet open so the user can retry / cancel.
+    if (!ok) setError(tr("contribInvalidAmount", lang));
+  };
+
+  return (
+    <SheetShell title={`${tr("contribSheetTitle", lang)} ${stokvelName}`} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        {/* Amount */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("contribAmountLabel", lang)}
+          </label>
+          <div className="mt-1 relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 font-display text-lg pointer-events-none">
+              R
+            </span>
+            <input
+              autoFocus
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={amountText}
+              onChange={(e) => {
+                setAmountText(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="0"
+              className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-bg-card border border-white/10 text-white font-display text-2xl font-bold tabular-nums outline-none focus:border-kasi-green"
+            />
+          </div>
+        </div>
+
+        {/* Note (optional) */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("contribNoteLabel", lang)}
+          </label>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={tr("contribNotePlaceholder", lang)}
+            maxLength={80}
+            className="mt-1 w-full px-4 py-3 rounded-2xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
+          />
+        </div>
+
+        {/* Payment method disclosure — the whole point of this sheet.
+            Different copy depending on whether Yoco is configured. */}
+        {paymentActive ? (
+          <div className="rounded-2xl border border-kasi-green/30 bg-kasi-green/[0.06] p-3 flex gap-3">
+            <Zap size={18} className="text-kasi-green shrink-0 mt-0.5" />
+            <div className="text-sm text-white/80 leading-relaxed">
+              {tr("contribPayYocoHelp", lang)}
+              {paymentIsTest && (
+                <span className="ml-1 text-kasi-gold text-xs">
+                  ({tr("payTestBadge", lang)})
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-kasi-gold/30 bg-kasi-gold/[0.06] p-3 flex gap-3">
+            <Info size={18} className="text-kasi-gold shrink-0 mt-0.5" />
+            <div className="text-sm text-white/80 leading-relaxed">
+              {tr("contribManualExplain", lang)}
+            </div>
+          </div>
+        )}
+
+        {/* Admin nudge: if payments aren't set up and this user is the
+            admin, they're the one who can fix it. Non-admins don't see
+            this because they can't act on it. */}
+        {!paymentActive && isAdmin && (
+          <div className="text-white/50 text-xs">
+            {tr("contribSetupYocoCTA", lang)}
+          </div>
+        )}
+
+        {error && <div className="text-kasi-coral text-sm">{error}</div>}
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2 mt-2">
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className={
+              "py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
+              (canSubmit
+                ? paymentActive
+                  ? "bg-kasi-green text-bg shadow-glow"
+                  : "bg-kasi-gold text-bg shadow-gold"
+                : "bg-white/5 text-white/30 cursor-not-allowed")
+            }
+          >
+            {submitting ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : paymentActive ? (
+              <CreditCard size={18} />
+            ) : (
+              <Plus size={18} />
+            )}
+            {submitting
+              ? tr("stokvelCreatingProgress", lang)
+              : paymentActive
+              ? `${tr("contribPayYocoBtn", lang)} · ${
+                  parsedAmount > 0 ? "R" + parsedAmount : ""
+                }`
+              : `${tr("contribLogEftBtn", lang)}${
+                  parsedAmount > 0 ? " · R" + parsedAmount : ""
+                }`}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="py-3 rounded-2xl bg-bg-card border border-white/10 text-white/70"
+          >
+            {tr("contribCancel", lang)}
           </button>
         </div>
       </div>
