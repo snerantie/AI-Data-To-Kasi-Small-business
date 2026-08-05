@@ -18,6 +18,9 @@ import {
   joinStokvelByCode as remoteJoinStokvel,
   leaveStokvel as remoteLeaveStokvel,
   linkEmail as remoteLinkEmail,
+  linkPhone as remoteLinkPhone,
+  sendPhoneSignInOtp as remoteSendPhoneSignInOtp,
+  verifyPhoneOtp as remoteVerifyPhoneOtp,
   saveStokvelBanking as remoteSaveStokvelBanking,
   setContributionStatus as remoteSetContributionStatus,
   onAuthChange,
@@ -245,10 +248,20 @@ let syncStatus: SyncStatus = isCloudConfigured ? "connecting" : "local";
 let authInfo: CurrentAuth = {
   userId: null,
   email: null,
+  phone: null,
   isAnonymous: false,
 };
-export type PendingAuth = "verification" | "signin" | null;
+export type PendingAuth =
+  | "verification"
+  | "signin"
+  | "phone_link"
+  | "phone_signin"
+  | null;
 let pendingAuth: PendingAuth = null;
+// The phone number the user is currently trying to link / sign in with,
+// remembered across the "send OTP" → "verify OTP" step so the second
+// form doesn't ask for it again.
+let pendingPhone: string | null = null;
 const subs = new Set<() => void>();
 
 // Realtime subscription for the current stokvel's payments — teardown on
@@ -876,10 +889,70 @@ export function useStore() {
   );
 
   const clearPendingAuth = useCallback(() => {
-    if (pendingAuth === null) return;
+    if (pendingAuth === null && pendingPhone === null) return;
     pendingAuth = null;
+    pendingPhone = null;
     notify();
   }, []);
+
+  // -- Phone OTP auth --
+  //
+  // Two flows mirror the email side:
+  //   linkPhoneToAccount(phone)  → attaches phone to the current
+  //     anonymous account. Supabase sends an SMS with a 6-digit code.
+  //   signInWithPhone(phone)     → for switching to a returning-user's
+  //     account on a new device. Signs out first, then requests an SMS
+  //     that only succeeds if the phone is already on file.
+  //
+  // Both return { ok: true, kind: 'otp_sent' } and set pendingAuth so
+  // the UI can render the "enter code" step. Then verifyPhoneCode
+  // completes the flow.
+  //
+  // Requires phone auth + an SMS provider configured in Supabase —
+  // see DEPLOY.md.
+
+  const linkPhoneToAccount = useCallback(
+    async (phone: string): Promise<AuthResult> => {
+      const result = await remoteLinkPhone(phone);
+      if (result.ok) {
+        pendingAuth = "phone_link";
+        pendingPhone = phone;
+        notify();
+      }
+      return result;
+    },
+    [],
+  );
+
+  const signInWithPhone = useCallback(
+    async (phone: string): Promise<AuthResult> => {
+      const result = await remoteSendPhoneSignInOtp(phone);
+      if (result.ok) {
+        pendingAuth = "phone_signin";
+        pendingPhone = phone;
+        notify();
+        hydrateFromRemote();
+      }
+      return result;
+    },
+    [],
+  );
+
+  const verifyPhoneCode = useCallback(
+    async (code: string): Promise<AuthResult> => {
+      if (!pendingPhone) return { ok: false, error: "no_pending_phone" };
+      const flow = pendingAuth === "phone_link" ? "link" : "signin";
+      const result = await remoteVerifyPhoneOtp(pendingPhone, code, flow);
+      if (result.ok) {
+        pendingAuth = null;
+        pendingPhone = null;
+        notify();
+        hydrateFromRemote();
+      }
+      return result;
+    },
+    [],
+  );
 
   const signOut = useCallback(async (): Promise<AuthResult> => {
     // Silence the auth listener so its parallel SIGNED_OUT hydrate
@@ -896,8 +969,9 @@ export function useStore() {
       state = { ...emptyState };
       userId = null;
       stokvelId = null;
-      authInfo = { userId: null, email: null, isAnonymous: false };
+      authInfo = { userId: null, email: null, phone: null, isAnonymous: false };
       pendingAuth = null;
+      pendingPhone = null;
       notify();
       // Fresh anonymous session + full re-hydrate as one atomic step.
       await hydrateFromRemote();
@@ -924,7 +998,7 @@ export function useStore() {
       state = { ...emptyState };
       stokvelId = null;
       userId = null;
-      authInfo = { userId: null, email: null, isAnonymous: false };
+      authInfo = { userId: null, email: null, phone: null, isAnonymous: false };
       pendingAuth = null;
       notify();
 
@@ -951,9 +1025,14 @@ export function useStore() {
     isCloud: isCloudConfigured,
     userId,
     email: authInfo.email,
-    isSignedIn: Boolean(authInfo.email) && !authInfo.isAnonymous,
+    phone: authInfo.phone,
+    // Signed-in: has either an email or a phone attached, and isn't
+    // the anonymous session. Either channel counts.
+    isSignedIn:
+      Boolean(authInfo.email || authInfo.phone) && !authInfo.isAnonymous,
     isAnonymous: authInfo.isAnonymous,
     pendingAuth,
+    pendingPhone,
     // onboarding
     setLang,
     setProfile,
@@ -983,6 +1062,9 @@ export function useStore() {
     resetAccount,
     linkEmailToAccount,
     signInWithEmail,
+    linkPhoneToAccount,
+    signInWithPhone,
+    verifyPhoneCode,
     signOut,
     clearPendingAuth,
   };

@@ -9,6 +9,8 @@ import {
   Check,
   Loader2,
   Mail,
+  MessageSquare,
+  Phone,
   LogOut,
   Inbox,
   CreditCard,
@@ -548,15 +550,26 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
     isCloud,
     isSignedIn,
     email,
+    phone,
     pendingAuth,
+    pendingPhone,
     linkEmailToAccount,
     signInWithEmail,
+    linkPhoneToAccount,
+    signInWithPhone,
+    verifyPhoneCode,
     signOut,
     clearPendingAuth,
   } = useStore();
 
   const [mode, setMode] = useState<"save" | "signin">("save");
+  // Which channel the user is currently using in the anonymous form.
+  // Email stays the default for backwards compat; SA township users
+  // who prefer phone can switch with one tap.
+  const [channel, setChannel] = useState<"email" | "phone">("email");
   const [emailInput, setEmailInput] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [otpInput, setOtpInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
@@ -583,38 +596,93 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
   const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
   const submit = async () => {
-    const clean = emailInput.trim();
-    if (!isValidEmail(clean)) {
-      setError(tr("authInvalidEmail", lang));
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const result =
-      mode === "save"
-        ? await linkEmailToAccount(clean)
-        : await signInWithEmail(clean);
-    setSubmitting(false);
-    if (result.ok) {
-      setPendingEmail(clean);
-      setEmailInput("");
+    if (channel === "email") {
+      const clean = emailInput.trim();
+      if (!isValidEmail(clean)) {
+        setError(tr("authInvalidEmail", lang));
+        return;
+      }
+      setError(null);
+      setSubmitting(true);
+      const result =
+        mode === "save"
+          ? await linkEmailToAccount(clean)
+          : await signInWithEmail(clean);
+      setSubmitting(false);
+      if (result.ok) {
+        setPendingEmail(clean);
+        setEmailInput("");
+      } else {
+        const msg = result.error.toLowerCase();
+        if (
+          mode === "save" &&
+          (msg.includes("already") ||
+            msg.includes("registered") ||
+            msg.includes("exists") ||
+            msg.includes("taken"))
+        ) {
+          setError(null);
+          setMode("signin");
+          setEmailInput(clean);
+        } else {
+          setError(result.error);
+        }
+      }
     } else {
-      // If linkEmail fails because the email exists, nudge user to sign in
-      const msg = result.error.toLowerCase();
-      if (
-        mode === "save" &&
-        (msg.includes("already") ||
-          msg.includes("registered") ||
-          msg.includes("exists") ||
-          msg.includes("taken"))
-      ) {
-        setError(null);
-        setMode("signin");
-        setEmailInput(clean);
+      // Phone flow. Validation happens both here (fast client feedback)
+      // and inside the store call (canonical, uses normaliseSAPhone).
+      const clean = phoneInput.trim();
+      if (!/^(?:\+?27|0)\s*\d(?:[\s\d]){8,}\d$/.test(clean)) {
+        setError(tr("authInvalidPhone", lang));
+        return;
+      }
+      setError(null);
+      setSubmitting(true);
+      const result =
+        mode === "save"
+          ? await linkPhoneToAccount(clean)
+          : await signInWithPhone(clean);
+      setSubmitting(false);
+      if (result.ok) {
+        setPhoneInput("");
+        setOtpInput("");
+      } else if (result.error === "invalid_phone") {
+        setError(tr("authInvalidPhone", lang));
       } else {
         setError(result.error);
       }
     }
+  };
+
+  const submitOtp = async () => {
+    const clean = otpInput.replace(/\D/g, "");
+    if (clean.length < 4) {
+      setError(tr("authInvalidCode", lang));
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    const result = await verifyPhoneCode(clean);
+    setSubmitting(false);
+    if (result.ok) {
+      setOtpInput("");
+    } else if (result.error === "invalid_code") {
+      setError(tr("authInvalidCode", lang));
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const resendOtp = async () => {
+    if (!pendingPhone) return;
+    setError(null);
+    setSubmitting(true);
+    const result =
+      pendingAuth === "phone_link"
+        ? await linkPhoneToAccount(pendingPhone)
+        : await signInWithPhone(pendingPhone);
+    setSubmitting(false);
+    if (!result.ok) setError(result.error);
   };
 
   const dismiss = () => {
@@ -629,9 +697,98 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
     setSigningOut(false);
   };
 
-  // -- Pending state (verification or sign-in email sent) ------------------
+  // -- Pending state: either email magic-link OR phone-OTP -----------------
+  //
+  // Email paths show a "check your inbox" panel. Phone paths show an
+  // OTP entry form because the user needs to type the code from the
+  // SMS back into the app — they don't just click a link.
   if (pendingAuth) {
-    const isVerification = pendingAuth === "verification";
+    const isEmailVerification = pendingAuth === "verification";
+    const isEmailSignin = pendingAuth === "signin";
+    const isPhoneFlow =
+      pendingAuth === "phone_link" || pendingAuth === "phone_signin";
+
+    if (isPhoneFlow) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-3"
+        >
+          <div className="flex items-center gap-2 text-kasi-green">
+            <MessageSquare size={18} />
+            <span className="font-semibold text-sm">
+              {tr("authOtpSentTitle", lang)}
+            </span>
+          </div>
+          <div className="text-white/75 text-sm leading-relaxed">
+            {trParams("authOtpSentBody", lang, {
+              phone: pendingPhone ?? "…",
+            })}
+          </div>
+
+          <label className="text-[11px] uppercase tracking-wider text-white/50 mt-1">
+            {tr("authOtpLabel", lang)}
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={8}
+            value={otpInput}
+            onChange={(e) => {
+              setOtpInput(e.target.value);
+              if (error) setError(null);
+            }}
+            placeholder={tr("authOtpPlaceholder", lang)}
+            className="w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white font-mono text-lg tracking-widest text-center outline-none focus:border-kasi-green"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !submitting) submitOtp();
+            }}
+          />
+
+          {error && <div className="text-xs text-kasi-coral">{error}</div>}
+
+          <button
+            onClick={submitOtp}
+            disabled={submitting || otpInput.trim().length < 4}
+            className={
+              "w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 " +
+              (otpInput.trim().length >= 4 && !submitting
+                ? "bg-kasi-green text-bg shadow-glow"
+                : "bg-white/5 text-white/30 cursor-not-allowed")
+            }
+          >
+            {submitting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Check size={14} />
+            )}
+            {submitting
+              ? tr("authVerifying", lang)
+              : tr("authVerifyCta", lang)}
+          </button>
+
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={dismiss}
+              className="px-3 py-2 rounded-lg bg-bg border border-white/10 text-white/70 text-xs"
+            >
+              {tr("authDismiss", lang)}
+            </button>
+            <button
+              onClick={resendOtp}
+              disabled={submitting || !pendingPhone}
+              className="px-3 py-2 rounded-lg text-kasi-gold text-xs"
+            >
+              {tr("authResendCta", lang)}
+            </button>
+          </div>
+        </motion.div>
+      );
+    }
+
+    // Email pending (unchanged from PR #5).
     return (
       <motion.div
         initial={{ opacity: 0, y: 6 }}
@@ -642,7 +799,7 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
           <Inbox size={18} />
           <span className="font-semibold text-sm">
             {tr(
-              isVerification
+              isEmailVerification
                 ? "authPendingVerificationTitle"
                 : "authPendingSigninTitle",
               lang,
@@ -651,13 +808,16 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
         </div>
         <div className="text-white/75 text-sm leading-relaxed">
           {trParams(
-            isVerification ? "authPendingVerification" : "authPendingSignin",
+            isEmailVerification
+              ? "authPendingVerification"
+              : "authPendingSignin",
             lang,
             { email: pendingEmail ?? "…" },
           )}
         </div>
         <div className="text-white/40 text-xs">
           {tr("authPendingExpires", lang)}
+          {isEmailSignin ? "" : ""}
         </div>
         <div className="flex gap-2">
           <button
@@ -680,19 +840,34 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
     );
   }
 
-  // -- Signed in with email ------------------------------------------------
-  if (isSignedIn && email) {
+  // -- Signed in via email OR phone ----------------------------------------
+  //
+  // The two channels share a signed-in view. Icon + displayed identity
+  // (email address vs phone number) change based on which one is on
+  // record. When a user has both (e.g. linked email and later linked
+  // phone), we prefer email — a small display choice; either identity
+  // is a valid way to sign back in later.
+  if (isSignedIn && (email || phone)) {
+    const displayEmail = email;
+    const displayPhone = phone;
+    const usingPhone = !displayEmail && displayPhone;
     return (
       <div>
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center shrink-0">
-            <Mail size={16} className="text-kasi-green" />
+            {usingPhone ? (
+              <Phone size={16} className="text-kasi-green" />
+            ) : (
+              <Mail size={16} className="text-kasi-green" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[11px] uppercase tracking-wider text-white/50">
               {tr("authSignedInAs", lang)}
             </div>
-            <div className="font-medium truncate">{email}</div>
+            <div className="font-medium truncate">
+              {displayEmail ?? displayPhone}
+            </div>
             <div className="text-white/60 text-xs mt-1">
               {tr("authSignedInDesc", lang)}
             </div>
@@ -716,12 +891,54 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
 
   // -- Anonymous: save data / sign in form ---------------------------------
   const isSaveMode = mode === "save";
+  const inputHasValue =
+    channel === "email" ? emailInput.trim().length > 0 : phoneInput.trim().length > 0;
+  const primaryButtonKey =
+    channel === "email"
+      ? isSaveMode
+        ? "authSaveDataCta"
+        : "authSignInCta"
+      : isSaveMode
+        ? "authPhoneSaveCta"
+        : "authPhoneSignInCta";
 
   return (
     <div>
+      {/* Channel toggle — pick Email vs Phone. Kept at the top so the
+          fields below always reflect the current channel and don't
+          confuse users switching mid-flow. */}
+      <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-bg-card border border-white/10 mb-3">
+        <button
+          onClick={() => {
+            setChannel("email");
+            setError(null);
+          }}
+          className={
+            "py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors " +
+            (channel === "email" ? "bg-kasi-green text-bg" : "text-white/60")
+          }
+        >
+          <Mail size={14} />
+          {tr("authChannelEmail", lang)}
+        </button>
+        <button
+          onClick={() => {
+            setChannel("phone");
+            setError(null);
+          }}
+          className={
+            "py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors " +
+            (channel === "phone" ? "bg-kasi-green text-bg" : "text-white/60")
+          }
+        >
+          <Phone size={14} />
+          {tr("authChannelPhone", lang)}
+        </button>
+      </div>
+
       <AnimatePresence mode="wait">
         <motion.div
-          key={mode}
+          key={`${channel}-${mode}`}
           initial={{ opacity: 0, x: 6 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -6 }}
@@ -729,7 +946,11 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
         >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/25 flex items-center justify-center shrink-0">
-              <Mail size={16} className="text-kasi-gold" />
+              {channel === "email" ? (
+                <Mail size={16} className="text-kasi-gold" />
+              ) : (
+                <Phone size={16} className="text-kasi-gold" />
+              )}
             </div>
             <div>
               <div className="font-medium">
@@ -747,35 +968,64 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
             </div>
           </div>
 
-          <label className="text-[11px] uppercase tracking-wider text-white/50">
-            {tr("authEmailLabel", lang)}
-          </label>
-          <input
-            type="email"
-            inputMode="email"
-            autoCapitalize="off"
-            autoCorrect="off"
-            value={emailInput}
-            onChange={(e) => {
-              setEmailInput(e.target.value);
-              if (error) setError(null);
-            }}
-            placeholder={tr("authEmailPlaceholder", lang)}
-            className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-green"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !submitting) submit();
-            }}
-          />
+          {channel === "email" ? (
+            <>
+              <label className="text-[11px] uppercase tracking-wider text-white/50">
+                {tr("authEmailLabel", lang)}
+              </label>
+              <input
+                type="email"
+                inputMode="email"
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={tr("authEmailPlaceholder", lang)}
+                className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white outline-none focus:border-kasi-green"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !submitting) submit();
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <label className="text-[11px] uppercase tracking-wider text-white/50">
+                {tr("authPhoneLabel", lang)}
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phoneInput}
+                onChange={(e) => {
+                  setPhoneInput(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={tr("authPhonePlaceholder", lang)}
+                className="mt-1 w-full px-4 py-3 rounded-xl bg-bg border border-white/10 text-white font-mono outline-none focus:border-kasi-green"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !submitting) submit();
+                }}
+              />
+              <div className="mt-1 text-[11px] text-white/45">
+                {tr("authPhoneHint", lang)}
+              </div>
+            </>
+          )}
+
           {error && (
             <div className="mt-2 text-xs text-kasi-coral">{error}</div>
           )}
 
           <button
             onClick={submit}
-            disabled={submitting || !emailInput.trim()}
+            disabled={submitting || !inputHasValue}
             className={
               "mt-3 w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all " +
-              (emailInput.trim() && !submitting
+              (inputHasValue && !submitting
                 ? isSaveMode
                   ? "bg-kasi-green text-bg shadow-glow"
                   : "bg-kasi-gold text-bg shadow-gold"
@@ -784,12 +1034,12 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
           >
             {submitting ? (
               <Loader2 size={14} className="animate-spin" />
-            ) : (
+            ) : channel === "email" ? (
               <Mail size={14} />
+            ) : (
+              <MessageSquare size={14} />
             )}
-            {submitting
-              ? tr("authSending", lang)
-              : tr(isSaveMode ? "authSaveDataCta" : "authSignInCta", lang)}
+            {submitting ? tr("authSending", lang) : tr(primaryButtonKey, lang)}
           </button>
 
           <button

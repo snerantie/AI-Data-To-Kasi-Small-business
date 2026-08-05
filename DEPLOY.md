@@ -134,6 +134,34 @@ When a user clicks a magic link, Supabase redirects them back to your app. It on
   Use whatever your actual deploy URLs are. The `/**` on the end covers all paths.
 - Click **Save**.
 
+### 3e. Enable phone (SMS) sign-in — optional but recommended
+
+Many SA township users have a phone number but not an active email address. KasiKash supports phone-OTP sign-in as an alternative to the email magic-link. It uses the same underlying Supabase Auth mechanism, so once configured, users see a **Phone** tab alongside **Email** in Settings → Account.
+
+**In your Supabase dashboard:**
+
+1. Go to **Authentication → Sign In / Providers**.
+2. Enable **Phone**.
+3. Under "SMS provider", pick one of the supported providers. Common choices:
+   - **Twilio** — reliable, worldwide. Free trial gives you a small monthly SMS budget, then pay-as-you-go (roughly R1.50 per SMS to SA numbers as of 2026).
+   - **MessageBird** — European alternative, similar pricing.
+   - **Vonage** (formerly Nexmo) — similar pricing.
+4. Follow the provider's signup + KYC. For Twilio:
+   - Sign up at [twilio.com](https://www.twilio.com).
+   - Verify a phone number for the trial account.
+   - Buy a Twilio phone number (free trial credit covers this).
+   - In Supabase's Phone Auth setup, paste:
+     - **Twilio Account SID** — from your Twilio console dashboard.
+     - **Twilio Auth Token** — from your Twilio console dashboard.
+     - **Twilio Phone Number** — the number you bought (in E.164 format, e.g. `+27871234567` or a US test number).
+5. Save.
+6. (Optional but recommended) Customise the SMS template. Default is `Your code is {{ .Code }}` which works fine, but you can brand it: `KasiKash code: {{ .Code }}. Valid 60 seconds.`
+7. Test by trying the Phone tab in the app's Settings → Account section.
+
+**Note:** SA numbers must be sent from an international phone number (Twilio trial accounts sometimes restrict this). For production, budget ~R2 per user activation. Total cost for 100 activations: ~R200 one-time.
+
+If you'd rather ship without phone auth, just don't enable Phone in the provider list. The app auto-hides the Phone tab if the request fails, so users still see and use the email path.
+
 ### 3d. About the free email service (optional but useful to know)
 
 Supabase's default email sender is fine for testing but limited to **2 emails / hour / user** on the free tier. For production traffic you should point Supabase at your own SMTP provider (Resend, SendGrid, Postmark, etc.) — [official guide here](https://supabase.com/docs/guides/auth/auth-smtp). Not needed to get started.
