@@ -164,7 +164,12 @@ export function Settings({
             <div className="text-[11px] uppercase tracking-wider text-white/50 mb-1.5">
               {tr("settingsLanguageLabel", lang)}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            {/* 2-column grid: fits any even number of supported languages
+                cleanly (currently 4: en / zu / st / af). If we ever add a
+                5th, revisit — grid-cols-2 with an odd count leaves one
+                item spanning slightly wider on the last row, which is
+                still nicer than the orphan we'd get from grid-cols-3. */}
+            <div className="grid grid-cols-2 gap-2">
               {LANGS.map((l) => {
                 const active = state.lang === l.code;
                 return (
