@@ -22,6 +22,7 @@ const LANG_TAGS: Record<Lang, string> = {
   en: "en-ZA",
   zu: "zu-ZA",
   st: "st-ZA",
+  af: "af-ZA",
 };
 
 export function isSpeechSupported(): boolean {
