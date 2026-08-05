@@ -10,6 +10,7 @@ import { Stokvel } from "./screens/Stokvel";
 import { Splash } from "./screens/Splash";
 import { Settings } from "./screens/Settings";
 import { PassportPreview } from "./screens/PassportPreview";
+import { ScanReceipt } from "./screens/ScanReceipt";
 import {
   PaymentReturn,
   clearPaymentReturnUrl,
@@ -30,7 +31,8 @@ export type Screen =
   | "stokvel"
   | "insights"
   | "settings"
-  | "passport";
+  | "passport"
+  | "scan";
 
 const SCREENS_WITH_NAV: Screen[] = [
   "home",
@@ -120,6 +122,9 @@ export default function App() {
                   )}
                   {screen === "passport" && (
                     <PassportPreview lang={lang} onNavigate={setScreen} />
+                  )}
+                  {screen === "scan" && (
+                    <ScanReceipt lang={lang} onNavigate={setScreen} />
                   )}
                 </motion.div>
               </AnimatePresence>

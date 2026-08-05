@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import {
   Mic,
+  ScanLine,
   UserPlus,
   TrendingUp,
   Settings as SettingsIcon,
@@ -147,6 +148,27 @@ export function Home({
           accent="gold"
         />
       </div>
+
+      {/* ----- Receipt scanner (PR #17) ----- */}
+      {/* Full-width so it doesn't compete with the two-up cards above.
+          Gold outline matches the passport CTA on Insights so the two
+          "power features" have a consistent visual language. */}
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onNavigate("scan")}
+        className="mt-3 w-full flex items-center gap-4 px-5 py-4 rounded-3xl bg-gradient-to-br from-kasi-gold/20 via-kasi-gold/5 to-transparent border border-kasi-gold/30"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-kasi-gold/15 border border-kasi-gold/40 text-kasi-gold flex items-center justify-center shrink-0">
+          <ScanLine size={22} />
+        </div>
+        <div className="text-left flex-1 min-w-0">
+          <div className="font-semibold">{tr("scanReceipt", lang)}</div>
+          <div className="text-white/60 text-xs mt-0.5">
+            {tr("scanReceiptDesc", lang)}
+          </div>
+        </div>
+        <span className="text-kasi-gold">→</span>
+      </motion.button>
 
       {/* ----- Recent sales ----- */}
       <div className="mt-6">
