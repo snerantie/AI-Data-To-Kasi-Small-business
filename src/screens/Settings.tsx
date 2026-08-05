@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   User,
@@ -8,6 +8,8 @@ import {
   ShieldAlert,
   Check,
   Loader2,
+  Bell,
+  BellOff,
   Mail,
   MessageSquare,
   Phone,
@@ -343,6 +345,18 @@ export function Settings({
             accent="green"
           >
             <PaymentsBlock lang={lang} />
+          </Section>
+        )}
+
+        {/* ---- Notifications (visible for cloud users only, since
+             it only fires on Realtime events from Supabase) ---- */}
+        {isCloud && (
+          <Section
+            icon={Bell}
+            title={tr("settingsNotifications", lang)}
+            accent="green"
+          >
+            <NotificationsBlock lang={lang} />
           </Section>
         )}
 
@@ -1588,6 +1602,129 @@ function BankingSummaryRow({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// NotificationsBlock
+//
+// Handles the browser Notification API opt-in. In-app toast
+// notifications work regardless (they use the notify pub/sub bus and
+// don't need any permission); this toggle only controls the
+// system-level notifications that fire when the app is backgrounded.
+//
+// States (in order of preference):
+//   * "unsupported"        → no Notification API on this browser.
+//                            Show a note, no toggle.
+//   * "denied"             → user (or an extension / MDM policy)
+//                            blocked notifications at the browser
+//                            level. Show instructions.
+//   * "granted" + optedIn  → showing "Disable" button.
+//   * "granted" + !optedIn → showing "Enable" button (fires
+//                            immediately since permission is already
+//                            granted).
+//   * "default"            → showing "Enable" button that triggers
+//                            the browser prompt.
+// ---------------------------------------------------------------------------
+function NotificationsBlock({ lang }: { lang: Lang }) {
+  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(
+    () => {
+      // Compute the initial state synchronously so we don't flash a
+      // wrong-looking button on first render. Deferred imports would
+      // fire under React's strict-mode double-render and confuse users.
+      if (typeof window === "undefined" || typeof Notification === "undefined") {
+        return "unsupported";
+      }
+      return Notification.permission;
+    },
+  );
+  const [optedIn, setOptedIn] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Read the persisted opt-in flag on mount. Kept in a small module
+  // helper so tests / preview builds don't need to fake localStorage.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const notify = await import("../lib/notify");
+      if (!cancelled) setOptedIn(notify.isSystemNotificationsOptedIn());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const enable = async () => {
+    setBusy(true);
+    try {
+      const notify = await import("../lib/notify");
+      const result = await notify.requestSystemNotifications();
+      setPerm(result);
+      setOptedIn(result === "granted");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    try {
+      const notify = await import("../lib/notify");
+      notify.disableSystemNotifications();
+      setOptedIn(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-white/70 text-sm leading-relaxed">
+        {tr("settingsNotificationsDesc", lang)}
+      </p>
+
+      {perm === "unsupported" && (
+        <div className="text-white/50 text-xs italic">
+          {tr("settingsNotificationsUnsupported", lang)}
+        </div>
+      )}
+
+      {perm === "denied" && (
+        <div className="rounded-xl border border-kasi-coral/30 bg-kasi-coral/[0.06] p-3 text-kasi-coral text-xs">
+          {tr("settingsNotificationsBlocked", lang)}
+        </div>
+      )}
+
+      {perm !== "unsupported" && perm !== "denied" && (
+        <button
+          onClick={optedIn ? disable : enable}
+          disabled={busy}
+          className={
+            "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 " +
+            (busy
+              ? "bg-white/5 text-white/30 cursor-not-allowed"
+              : optedIn
+                ? "bg-bg border border-white/10 text-white/80"
+                : "bg-kasi-green text-bg shadow-glow")
+          }
+        >
+          {busy ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : optedIn ? (
+            <BellOff size={14} />
+          ) : (
+            <Bell size={14} />
+          )}
+          {tr(
+            optedIn
+              ? "settingsNotificationsDisable"
+              : "settingsNotificationsEnable",
+            lang,
+          )}
+        </button>
+      )}
     </div>
   );
 }
