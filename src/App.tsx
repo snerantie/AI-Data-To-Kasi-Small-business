@@ -11,6 +11,7 @@ import { Splash } from "./screens/Splash";
 import { Settings } from "./screens/Settings";
 import { PassportPreview } from "./screens/PassportPreview";
 import { ScanReceipt } from "./screens/ScanReceipt";
+import { NotifyProvider } from "./components/NotifyProvider";
 import {
   PaymentReturn,
   clearPaymentReturnUrl,
@@ -71,6 +72,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-6">
+      {/* Global toast layer — rendered outside the phone-frame so
+          notifications sit above every screen and every sheet, no
+          matter which one is currently active. */}
+      <NotifyProvider />
       <div className="phone-frame relative">
         <AnimatePresence mode="wait">
           {!splashDone ? (

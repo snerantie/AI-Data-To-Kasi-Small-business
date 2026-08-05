@@ -42,6 +42,12 @@ import type {
   PaymentConfigStatus,
   SavePaymentConfigResult,
 } from "./lib/payments";
+import {
+  subscribeToStokvelContributions,
+  type ContribRealtimeEvent,
+} from "./lib/contributions";
+import { emitNotification } from "./lib/notify";
+import { tr, trParams } from "./i18n";
 import { computeKasiScore } from "./lib/score";
 import type { ScoreDetail, ScoreTier, ScoreFactorKey, ScoreFactor } from "./lib/score";
 
@@ -264,16 +270,22 @@ let pendingAuth: PendingAuth = null;
 let pendingPhone: string | null = null;
 const subs = new Set<() => void>();
 
-// Realtime subscription for the current stokvel's payments — teardown on
+// Realtime subscriptions for the current stokvel — teardown on
 // stokvel change so we don't leak channels.
 let paymentUnsub: (() => void) | null = null;
+let contribUnsub: (() => void) | null = null;
 
-function attachPaymentSubscription(newStokvelId: string | null) {
+function attachStokvelSubscriptions(newStokvelId: string | null) {
   if (paymentUnsub) {
     paymentUnsub();
     paymentUnsub = null;
   }
+  if (contribUnsub) {
+    contribUnsub();
+    contribUnsub = null;
+  }
   if (!newStokvelId || !isCloudConfigured) return;
+
   paymentUnsub = subscribeToStokvelPayments(newStokvelId, () => {
     // Any change to a stokvel_payments row for this stokvel → refetch.
     // The DB trigger handles inserting the contribution row on succeed;
@@ -281,6 +293,93 @@ function attachPaymentSubscription(newStokvelId: string | null) {
     // contributions that landed since the last fetch.
     hydrateFromRemote();
   });
+
+  contribUnsub = subscribeToStokvelContributions(newStokvelId, (event) => {
+    // Notify + rehydrate. Notification decisions live in
+    // handleContributionEvent so store.ts's core state-management
+    // path stays clean of UX concerns.
+    handleContributionEvent(event);
+    hydrateFromRemote();
+  });
+}
+
+/**
+ * Emit user-visible notifications for interesting contribution events.
+ * Called from the Realtime subscription above with each raw event.
+ *
+ * Rules (deliberately conservative — we don't want to spam):
+ *
+ *   INSERT   (new pending row)     → if I'm admin and it wasn't me
+ *                                    that logged it, ping "Payment
+ *                                    from {member} to verify".
+ *
+ *   UPDATE   (status changed)      → if the affected row is MINE and
+ *                                    the new status is 'confirmed' or
+ *                                    'rejected', ping accordingly.
+ *                                    Also ping the admin on any status
+ *                                    flip so the verify queue stays
+ *                                    in sync visually.
+ */
+function handleContributionEvent(event: ContribRealtimeEvent) {
+  const stk = state.stokvel;
+  if (!stk) return;
+  const currentUserId = userId;
+  const currentLang: Lang = state.lang ?? "en";
+
+  const row = event.new ?? event.old;
+  if (!row) return;
+
+  const isMine = row.owner_id === currentUserId;
+  const iAmAdmin = stk.role === "admin";
+
+  const memberName =
+    stk.memberships.find((m) => m.userId === row.owner_id)?.displayName ??
+    "Someone";
+  const amount =
+    typeof row.amount === "string" ? parseFloat(row.amount) : row.amount;
+  const amountLabel = formatRand(amount);
+
+  if (event.kind === "insert") {
+    if (iAmAdmin && !isMine && row.status === "pending") {
+      emitNotification({
+        title: tr("notifyNewPendingTitle", currentLang),
+        body: trParams("notifyNewPendingBody", currentLang, {
+          member: memberName,
+          amount: amountLabel,
+        }),
+        tone: "info",
+      });
+    }
+    return;
+  }
+
+  if (event.kind === "update") {
+    const prevStatus = event.old?.status ?? null;
+    const newStatus = event.new?.status ?? null;
+    if (prevStatus === newStatus) return;
+
+    if (isMine && newStatus === "confirmed") {
+      emitNotification({
+        title: tr("notifyConfirmedTitle", currentLang),
+        body: trParams("notifyConfirmedBody", currentLang, {
+          amount: amountLabel,
+        }),
+        tone: "success",
+      });
+      return;
+    }
+
+    if (isMine && newStatus === "rejected") {
+      emitNotification({
+        title: tr("notifyRejectedTitle", currentLang),
+        body: trParams("notifyRejectedBody", currentLang, {
+          amount: amountLabel,
+        }),
+        tone: "warning",
+      });
+      return;
+    }
+  }
 }
 
 function notify() {
@@ -376,7 +475,7 @@ async function performHydrate(): Promise<void> {
 
     // If the stokvel changed (or first load), re-attach realtime sub
     if (previousStokvelId !== nextStokvelId) {
-      attachPaymentSubscription(nextStokvelId);
+      attachStokvelSubscriptions(nextStokvelId);
     }
 
     setSync("synced");

@@ -1793,6 +1793,85 @@ export const t = {
     st: "Romela khoutu hape",
     af: "Stuur kode weer",
   },
+
+  // ---------------------------------------------------------------------
+  // Notifications (PR #19). Both in-app toasts and, opt-in, browser
+  // system notifications when the app is backgrounded.
+  // ---------------------------------------------------------------------
+  notifyNewPendingTitle: {
+    en: "Payment to verify",
+    zu: "Inkokhelo yokuqinisekisa",
+    st: "Tefello ea ho netefatsoa",
+    af: "Betaling om te bevestig",
+  },
+  notifyNewPendingBody: {
+    en: "{member} logged a {amount} contribution. Confirm it in the stokvel screen.",
+    zu: "U-{member} ubhalise umnikelo we-{amount}. Uqinisekise esikrinini sestokvel.",
+    st: "{member} o ngotse monehelo oa {amount}. E netefatse ho screen sa stokvel.",
+    af: "{member} het 'n {amount}-bydrae aangeteken. Bevestig dit op die stokvel-skerm.",
+  },
+  notifyConfirmedTitle: {
+    en: "Payment confirmed ✅",
+    zu: "Inkokhelo iqinisekisiwe ✅",
+    st: "Tefello e netefalitsoe ✅",
+    af: "Betaling bevestig ✅",
+  },
+  notifyConfirmedBody: {
+    en: "Your {amount} contribution has been verified by the admin.",
+    zu: "Umnikelo wakho we-{amount} uqinisekiswe umphathi.",
+    st: "Monehelo oa hao oa {amount} o netefalitsoe ke molaodi.",
+    af: "Jou bydrae van {amount} is deur die admin bevestig.",
+  },
+  notifyRejectedTitle: {
+    en: "Payment rejected",
+    zu: "Inkokhelo yenqatshiwe",
+    st: "Tefello e hantsoe",
+    af: "Betaling verwerp",
+  },
+  notifyRejectedBody: {
+    en: "Your {amount} contribution wasn't accepted. Check the reason in the stokvel screen.",
+    zu: "Umnikelo wakho we-{amount} awumukelwanga. Hlola isizathu esikrinini sestokvel.",
+    st: "Monehelo oa hao oa {amount} ha oa amoheloa. Sheba lebaka ho screen sa stokvel.",
+    af: "Jou bydrae van {amount} is nie aanvaar nie. Kyk die rede op die stokvel-skerm.",
+  },
+
+  // Settings toggle for system-level notifications
+  settingsNotifications: {
+    en: "Notifications",
+    zu: "Izaziso",
+    st: "Litsebiso",
+    af: "Kennisgewings",
+  },
+  settingsNotificationsDesc: {
+    en: "Get pinged when payments come in or need verifying — even when the app is backgrounded.",
+    zu: "Uthole izaziso lapho izinkokhelo zifika noma zidinga ukuqinisekiswa — ngisho no-app engaphandle.",
+    st: "U tsebisoe ha litefello li fihla kapa li hloka ho netefatsoa — le hoja app e le morao.",
+    af: "Kry kennisgewings wanneer betalings inkom of bevestig moet word — selfs wanneer die app op die agtergrond is.",
+  },
+  settingsNotificationsEnable: {
+    en: "Enable notifications",
+    zu: "Vumela izaziso",
+    st: "Bulella litsebiso",
+    af: "Aktiveer kennisgewings",
+  },
+  settingsNotificationsDisable: {
+    en: "Disable notifications",
+    zu: "Vala izaziso",
+    st: "Koala litsebiso",
+    af: "Skakel kennisgewings af",
+  },
+  settingsNotificationsBlocked: {
+    en: "Your browser has blocked notifications. Enable them in your browser settings, then come back here.",
+    zu: "Ibhrawuza yakho ivimbile izaziso. Zivumele emasethingini ebhrawuza, bese ubuya lapha.",
+    st: "Braosara ea hao e thibetse litsebiso. Li bulele litlhophisong tsa braosara, ebe u khutlela mona.",
+    af: "Jou blaaier het kennisgewings geblokkeer. Aktiveer hulle in jou blaaier-instellings en kom dan terug.",
+  },
+  settingsNotificationsUnsupported: {
+    en: "This browser doesn't support notifications.",
+    zu: "Le bhrawuza ayizisekeli izaziso.",
+    st: "Braosara ena ha e tšehetse litsebiso.",
+    af: "Hierdie blaaier ondersteun nie kennisgewings nie.",
+  },
 } as const;
 
 export type TKey = keyof typeof t;
