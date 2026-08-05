@@ -39,6 +39,11 @@ import type {
   PaymentConfigStatus,
   SavePaymentConfigResult,
 } from "./lib/payments";
+import { computeKasiScore } from "./lib/score";
+import type { ScoreDetail, ScoreTier, ScoreFactorKey, ScoreFactor } from "./lib/score";
+
+// Re-export score types so screens can import from a single place.
+export type { ScoreDetail, ScoreTier, ScoreFactorKey, ScoreFactor };
 
 // ---- Types -----------------------------------------------------------------
 
@@ -1094,17 +1099,27 @@ export function generateReference(): string {
   return `KASI-${seg}`;
 }
 
+/**
+ * KasiScore v2 lives in `./lib/score`. This wrapper preserves the
+ * legacy `kasiScore(state) → number` signature so existing callers
+ * (Insights screen, computeInsights, etc.) keep working, while
+ * routing through the new multi-factor engine.
+ *
+ * The engine needs a userId to attribute contributions correctly.
+ * We use the module-level userId that hydrateFromRemote maintains —
+ * for anonymous cloud users it's the anon uid, for demo mode it's
+ * null (which the engine handles gracefully with neutral defaults).
+ */
 export function kasiScore(state: AppState): number {
-  const activity = Math.min(state.sales.length * 6, 180);
-  const paidTabs = state.tabs.filter((t) => t.paid).length;
-  const unpaid = state.tabs.filter((t) => !t.paid).length;
-  const discipline = paidTabs * 25 - unpaid * 10;
-  const savings = Math.min(stokvelTotal(state.stokvel) / 25, 80);
-  const base = 460;
-  return Math.max(
-    300,
-    Math.min(850, Math.round(base + activity + discipline + savings)),
-  );
+  return computeKasiScore(state, userId).score;
+}
+
+/**
+ * Full breakdown for the Insights screen + PDF passport. Includes
+ * per-factor scores + weights + human-readable raw values.
+ */
+export function kasiScoreDetail(state: AppState): ScoreDetail {
+  return computeKasiScore(state, userId);
 }
 
 export function formatRand(n: number) {

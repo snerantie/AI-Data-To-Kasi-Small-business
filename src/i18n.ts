@@ -1245,6 +1245,344 @@ export const t = {
   payReturnClose: { en: "Close", zu: "Vala", st: "Koala", af: "Maak toe" },
 
   appVersion: { en: "KasiKash", zu: "KasiKash", st: "KasiKash", af: "KasiKash" },
+
+  // ---------------------------------------------------------------------
+  // KasiScore v2: tiers, factor names + explanations, PDF passport copy.
+  // Full multilingual coverage (en / zu / st / af) so a user reading in
+  // their home language sees the score breakdown and the generated
+  // financial passport in that language.
+  // ---------------------------------------------------------------------
+
+  scoreTierBuilding: {
+    en: "Building",
+    zu: "Kuyakhiwa",
+    st: "Ho ntse ho hahoa",
+    af: "Besig om te bou",
+  },
+
+  scoreBreakdownTitle: {
+    en: "What drives your score",
+    zu: "Okwenza iskoro sakho",
+    st: "Se etsang skoro ea hao",
+    af: "Wat jou telling dryf",
+  },
+  scoreBreakdownSubtitle: {
+    en: "Tap a factor to learn more.",
+    zu: "Cindezela isici ukuze ufunde okwengeziwe.",
+    st: "Tobetsa ntlha ho ithuta haholoanyane.",
+    af: "Tik 'n faktor om meer te leer.",
+  },
+  scoreFactorContribToScore: {
+    en: "+{pts} pts to your score",
+    zu: "+{pts} amaphuzu esikorwini sakho",
+    st: "+{pts} lintlha skoreng ea hao",
+    af: "+{pts} punte tot jou telling",
+  },
+
+  // Factor names
+  factorContribConsistency: {
+    en: "Contribution consistency",
+    zu: "Ukungayeki ukunikela",
+    st: "Ho tsitsa ha menehelo",
+    af: "Konsekwentheid van bydraes",
+  },
+  factorContribVolume: {
+    en: "Contribution amount",
+    zu: "Inani lokunikela",
+    st: "Chelete e kentsoeng",
+    af: "Bydrae-bedrag",
+  },
+  factorTabRepayment: {
+    en: "Tab repayment",
+    zu: "Ukukhokha izikweletu",
+    st: "Ho lefa likoloto",
+    af: "Skuldrekening-terugbetaling",
+  },
+  factorSalesActivity: {
+    en: "Business activity",
+    zu: "Umsebenzi webhizinisi",
+    st: "Mosebetsi oa khoebo",
+    af: "Besigheidsaktiwiteit",
+  },
+  factorTimeOnPlatform: {
+    en: "Time with KasiKash",
+    zu: "Isikhathi ne-KasiKash",
+    st: "Nako le KasiKash",
+    af: "Tyd saam met KasiKash",
+  },
+  factorProfileMaturity: {
+    en: "Profile completeness",
+    zu: "Ukugcwala kwephrofayela",
+    st: "Ho phethahala ha profaele",
+    af: "Profielvoltooiing",
+  },
+  factorRecentMomentum: {
+    en: "Recent activity",
+    zu: "Umsebenzi wakamuva",
+    st: "Mosebetsi oa morao tjena",
+    af: "Onlangse aktiwiteit",
+  },
+
+  // Factor explanations (shown when a factor row is expanded).
+  factorContribConsistencyExplain: {
+    en: "How often you make stokvel contributions. Regular weekly contributions boost this.",
+    zu: "Ukuthi unikela kangaki kwistokvel. Ukunikela njalo ngeviki kukukhulisa.",
+    st: "Kamoo u kenyang menehelo stokveleng hangata. Ho kenya beke le beke ho e phahamisa.",
+    af: "Hoe gereeld jy stokvel-bydraes maak. Gereelde weeklikse bydraes stoot dit op.",
+  },
+  factorContribVolumeExplain: {
+    en: "How much you've contributed compared to your stokvel's savings goal.",
+    zu: "Ukuthi unikele kangakanani uma kuqhathaniswa nomgomo wokonga wistokvel yakho.",
+    st: "Chelete eo u e kentseng ha e bapisoa le sepheo sa polokelo sa stokvel ea hao.",
+    af: "Hoeveel jy bygedra het teenoor jou stokvel se spaardoel.",
+  },
+  factorTabRepaymentExplain: {
+    en: "The share of customer tabs that have been paid off.",
+    zu: "Isabelo sezikweletu zamakhasimende ezikhokhwe.",
+    st: "Karolo ea likoloto tsa bareki tse lefiloeng.",
+    af: "Die deel van kliëntskulde wat afbetaal is.",
+  },
+  factorSalesActivityExplain: {
+    en: "How many sales you've logged in the last 30 days.",
+    zu: "Ukuthi ubhalise ukudayisa okungakanani ezinsukwini ezingu-30 ezidlule.",
+    st: "Thekiso e kae eo u e ngotseng matsatsing a 30 a fetileng.",
+    af: "Hoeveel verkope jy in die laaste 30 dae aangeteken het.",
+  },
+  factorTimeOnPlatformExplain: {
+    en: "How long you've been building your track record with KasiKash.",
+    zu: "Ukuthi sekunesikhathi esingakanani wakha umlando wakho ne-KasiKash.",
+    st: "Nako eo u seng u qetile u aha rekoto ea hao le KasiKash.",
+    af: "Hoe lank jy al jou rekord met KasiKash bou.",
+  },
+  factorProfileMaturityExplain: {
+    en: "Whether you've completed your profile, joined a stokvel, added banking, and made verified contributions.",
+    zu: "Ukuthi ngabe usiqedile isiphrofayela sakho, wajoyina istokvel, wafaka ibhange, futhi wenza iminikelo eqinisekisiwe.",
+    st: "Hore na u qetile profaele ea hao, u kene stokvel, u kenya banka, 'me u entse menehelo e netefalitsoeng.",
+    af: "Of jy jou profiel voltooi het, by 'n stokvel aangesluit het, bankbesonderhede bygevoeg het en bevestigde bydraes gemaak het.",
+  },
+  factorRecentMomentumExplain: {
+    en: "Whether you've been actively using KasiKash in the last two weeks.",
+    zu: "Ukuthi ngabe uyisebenzisa ngempela i-KasiKash emavikini amabili adlule.",
+    st: "Hore na u ntse u sebelisa KasiKash libekeng tse peli tse fetileng.",
+    af: "Of jy KasiKash aktief in die afgelope twee weke gebruik het.",
+  },
+
+  // Passport (PDF) + PassportPreview screen
+  passportTitle: {
+    en: "Your financial passport",
+    zu: "Ipasi yakho yezimali",
+    st: "Pasa ea hao ea lichelete",
+    af: "Jou finansiële paspoort",
+  },
+  passportSubtitle: {
+    en: "A one-page PDF that summarises your KasiKash record. Share it with lenders, funders, or suppliers to prove your credit-worthiness.",
+    zu: "Ipheji eyodwa ye-PDF efingqa umlando wakho we-KasiKash. Yabelane nababoleki, ababoni, noma abahlinzeki ukufakazela ukukwazi kwakho ukuthola isikweletu.",
+    st: "Leqephe le le leng la PDF le akaretsang rekoto ea hao ea KasiKash. E arolelane le baemeli ba mokitlane, batšehetsi, kapa baabi ho paka bokhoni ba hao ba mokitlane.",
+    af: "'n Een-bladsy-PDF wat jou KasiKash-rekord opsom. Deel dit met lenings, befondsers of verskaffers om jou kredietwaardigheid te bewys.",
+  },
+  passportPreviewNote: {
+    en: "This PDF reflects your data at this moment. Re-download any time to get an updated version.",
+    zu: "Le PDF ikhombisa idatha yakho okwamanje. Landa futhi noma nini ukuze uthole inguqulo eyisitshalo.",
+    st: "PDF ena e bontša data ea hao hona joale. E khoase hape neng kapa neng ho fumana mofuta o mocha.",
+    af: "Hierdie PDF weerspieël jou data op hierdie oomblik. Laai dit enige tyd weer af vir 'n opgedateerde weergawe.",
+  },
+  passportDownloadBtn: {
+    en: "Download PDF",
+    zu: "Landa i-PDF",
+    st: "Khoasa PDF",
+    af: "Laai PDF af",
+  },
+  passportShareBtn: { en: "Share", zu: "Yabelana", st: "Arolelana", af: "Deel" },
+  passportShareUnavailable: {
+    en: "Sharing isn't available on this browser. Use Download instead.",
+    zu: "Ukwabelana akutholakali kule ibhrawuza. Sebenzisa i-Download esikhundleni salokho.",
+    st: "Ho arolelana ha ho fumanehe ho braosara ena. Sebelisa Khoasa ho e-na le hoo.",
+    af: "Deel is nie op hierdie blaaier beskikbaar nie. Gebruik eerder Laai af.",
+  },
+  passportGeneratedOn: {
+    en: "Generated {date}",
+    zu: "Ikhiqizwe {date}",
+    st: "E hlahisitsoe {date}",
+    af: "Gegenereer op {date}",
+  },
+  passportGenerating: {
+    en: "Building your passport...",
+    zu: "Kwakhiwa ipasi yakho...",
+    st: "Ho hahoa pasa ea hao...",
+    af: "Besig om jou paspoort te bou...",
+  },
+  passportBack: { en: "Back", zu: "Emuva", st: "Morao", af: "Terug" },
+
+  // In-app entry point to the passport preview (button on Insights).
+  insightsDownloadCTA: {
+    en: "Download financial passport",
+    zu: "Landa ipasi yezimali",
+    st: "Khoasa pasa ea lichelete",
+    af: "Laai finansiële paspoort af",
+  },
+  insightsDownloadDesc: {
+    en: "One-page PDF summary for lenders and suppliers.",
+    zu: "Isifinyezo se-PDF sephepha elilodwa lababoleki nabahlinzeki.",
+    st: "Kakaretso ea PDF ea leqephe le le leng bakeng sa baemeli ba mokitlane le baabi.",
+    af: "Een-bladsy-PDF-opsomming vir lenings en verskaffers.",
+  },
+
+  // ---------------------------------------------------------------------
+  // Copy embedded inside the generated PDF. Kept in i18n so a user
+  // reading in isiZulu / Sesotho / Afrikaans gets a passport in their
+  // own language — useful when the recipient is a family member or
+  // local business partner rather than a formal lender.
+  // ---------------------------------------------------------------------
+  pdfDocTitle: {
+    en: "Financial Passport",
+    zu: "Ipasi Yezimali",
+    st: "Pasa ea Lichelete",
+    af: "Finansiële Paspoort",
+  },
+  pdfIssuedBy: {
+    en: "Issued by KasiKash",
+    zu: "Ikhishwe yi-KasiKash",
+    st: "E fanoe ke KasiKash",
+    af: "Uitgereik deur KasiKash",
+  },
+  pdfSectionOwner: {
+    en: "Owner",
+    zu: "Umnini",
+    st: "Mong'a",
+    af: "Eienaar",
+  },
+  pdfSectionBusiness: {
+    en: "Business",
+    zu: "Ibhizinisi",
+    st: "Khoebo",
+    af: "Besigheid",
+  },
+  pdfSectionScore: {
+    en: "KasiScore",
+    zu: "i-KasiScore",
+    st: "KasiScore",
+    af: "KasiScore",
+  },
+  pdfSectionSalesActivity: {
+    en: "Business activity (last 30 days)",
+    zu: "Umsebenzi webhizinisi (izinsuku ezingu-30 ezedlule)",
+    st: "Mosebetsi oa khoebo (matsatsi a 30 a fetileng)",
+    af: "Besigheidsaktiwiteit (laaste 30 dae)",
+  },
+  pdfSectionTabDiscipline: {
+    en: "Customer tab discipline",
+    zu: "Ukuqondisa izikweletu zamakhasimende",
+    st: "Boitšoaro ba likoloto tsa bareki",
+    af: "Kliëntskulddissipline",
+  },
+  pdfSectionStokvelSavings: {
+    en: "Stokvel savings",
+    zu: "Ukonga kwistokvel",
+    st: "Polokelo ea stokvel",
+    af: "Stokvel-besparings",
+  },
+  pdfSectionFactors: {
+    en: "Score breakdown",
+    zu: "Ukuhlukaniswa kwesikoro",
+    st: "Karolelano ea skoro",
+    af: "Telling-uiteensetting",
+  },
+  pdfLabelSalesLogged: {
+    en: "Sales logged",
+    zu: "Ukudayisa okulotshiwe",
+    st: "Thekiso e ngoliloe",
+    af: "Verkope aangeteken",
+  },
+  pdfLabelActiveDays: {
+    en: "Active days",
+    zu: "Izinsuku zomsebenzi",
+    st: "Matsatsi a mosebetsi",
+    af: "Aktiewe dae",
+  },
+  pdfLabelTopSeller: {
+    en: "Top seller",
+    zu: "Okuthengiswa kakhulu",
+    st: "Se rekisoang haholo",
+    af: "Beste verkoper",
+  },
+  pdfLabelRevenue30d: {
+    en: "Revenue (30 days)",
+    zu: "Imali engenile (izinsuku ezingu-30)",
+    st: "Chelete e kenneng (matsatsi a 30)",
+    af: "Inkomste (30 dae)",
+  },
+  pdfLabelTabsPaid: {
+    en: "Tabs paid",
+    zu: "Izikweletu ezikhokhiwe",
+    st: "Likoloto tse lefiloeng",
+    af: "Skuldrekeninge betaal",
+  },
+  pdfLabelTabsOpen: {
+    en: "Tabs open",
+    zu: "Izikweletu ezivuliwe",
+    st: "Likoloto tse butsoeng",
+    af: "Skuldrekeninge oop",
+  },
+  pdfLabelRepaymentRate: {
+    en: "Repayment rate",
+    zu: "Izinga lokukhokha",
+    st: "Sekhahla sa ho lefa",
+    af: "Terugbetalingskoers",
+  },
+  pdfLabelStokvel: {
+    en: "Stokvel",
+    zu: "Istokvel",
+    st: "Stokvel",
+    af: "Stokvel",
+  },
+  pdfLabelRole: {
+    en: "Role",
+    zu: "Indima",
+    st: "Karolo",
+    af: "Rol",
+  },
+  pdfLabelYourContribution: {
+    en: "Your confirmed contributions",
+    zu: "Iminikelo yakho eqinisekisiwe",
+    st: "Menehelo ea hao e netefalitsoeng",
+    af: "Jou bevestigde bydraes",
+  },
+  pdfLabelStokvelGoal: {
+    en: "Stokvel savings goal",
+    zu: "Umgomo wokonga wistokvel",
+    st: "Sepheo sa polokelo sa stokvel",
+    af: "Stokvel se spaardoel",
+  },
+  pdfLabelStokvelSaved: {
+    en: "Total saved in stokvel",
+    zu: "Iyonke egciniwe kwistokvel",
+    st: "Kakaretso e bolokiloeng stokveleng",
+    af: "Totaal gespaar in stokvel",
+  },
+  pdfNoData: {
+    en: "No data on record",
+    zu: "Ayikho idatha",
+    st: "Ha ho data e ngotsoeng",
+    af: "Geen data op rekord nie",
+  },
+  pdfNoStokvel: {
+    en: "Not currently in a stokvel",
+    zu: "Awukho kwistokvel njengamanje",
+    st: "Ha o ea kena stokveleng hona joale",
+    af: "Nie tans in 'n stokvel nie",
+  },
+  pdfFooter: {
+    en: "Generated by KasiKash — voice-first finance for South African townships.",
+    zu: "Ikhiqizwe yi-KasiKash — ezezimali ezisebenzisa izwi kokasi zaseNingizimu Afrika.",
+    st: "E hlahisitsoe ke KasiKash — lichelete tse qalang ka lentsoe bakeng sa likasi tsa Afrika Boroa.",
+    af: "Gegenereer deur KasiKash — stem-eerste finansies vir Suid-Afrikaanse townships.",
+  },
+  pdfDisclaimer: {
+    en: "This passport is self-generated from the user's own records. Recipients should verify individual line items directly with the account holder.",
+    zu: "Le pasi ikhiqizwe ngokwakho kusukela emirekhodini yakho. Abamukelayo kufanele baqinisekise izinto ngazinye ngqo nomnini we-akhawunti.",
+    st: "Pasa ena e ikhahlelloa ho tsoa likhomponeng tsa mong'a eona. Ba amohelang ba lokela ho netefatsa lintlha ka bomong ka kotloloho le mong'a akhaonto.",
+    af: "Hierdie paspoort word deur die gebruiker self gegenereer uit sy eie rekords. Ontvangers moet individuele items direk met die rekeninghouer verifieer.",
+  },
 } as const;
 
 export type TKey = keyof typeof t;
