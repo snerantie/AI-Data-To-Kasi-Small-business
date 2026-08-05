@@ -44,29 +44,62 @@ export async function resetToFreshAnon(): Promise<string | null> {
   return ensureSession();
 }
 
-// ---- Auth (email magic link) -----------------------------------------------
+// ---- Auth (email magic link + phone OTP) -----------------------------------
 
 export type AuthResult =
-  | { ok: true; kind: "verification_sent" | "signin_sent" | "signed_out" }
+  | {
+      ok: true;
+      kind:
+        | "verification_sent"
+        | "signin_sent"
+        | "signed_out"
+        | "otp_sent"
+        | "otp_verified";
+    }
   | { ok: false; error: string };
 
 export type CurrentAuth = {
   userId: string | null;
   email: string | null;
+  phone: string | null;
   isAnonymous: boolean;
 };
 
+/**
+ * Normalise a South African phone number to E.164 (+27...). Accepts:
+ *   0831234567       -> +27831234567
+ *   0 83 123 4567    -> +27831234567 (spaces stripped)
+ *   +27 83 123 4567  -> +27831234567 (spaces stripped)
+ *   27831234567      -> +27831234567 (prefix added)
+ *   +27831234567     -> +27831234567 (passed through)
+ * Returns null if the number doesn't plausibly look like a SA cell
+ * (10 digits starting with 0, or 11 digits starting with 27).
+ */
+export function normaliseSAPhone(input: string): string | null {
+  const digits = input.replace(/[^\d+]/g, "");
+  // Already in +27... form.
+  if (/^\+27\d{9}$/.test(digits)) return digits;
+  // 27... without plus.
+  if (/^27\d{9}$/.test(digits)) return "+" + digits;
+  // 0XX XXX XXXX local form → drop leading 0, prepend +27.
+  if (/^0\d{9}$/.test(digits)) return "+27" + digits.slice(1);
+  return null;
+}
+
 export async function getCurrentAuth(): Promise<CurrentAuth> {
-  if (!supabase) return { userId: null, email: null, isAnonymous: false };
+  if (!supabase)
+    return { userId: null, email: null, phone: null, isAnonymous: false };
   const { data } = await supabase.auth.getSession();
   const user = data.session?.user;
-  if (!user) return { userId: null, email: null, isAnonymous: false };
+  if (!user)
+    return { userId: null, email: null, phone: null, isAnonymous: false };
   const isAnon = Boolean(
     (user as unknown as { is_anonymous?: boolean }).is_anonymous,
   );
   return {
     userId: user.id,
     email: user.email ?? null,
+    phone: user.phone ?? null,
     isAnonymous: isAnon,
   };
 }
@@ -109,6 +142,77 @@ export function onAuthChange(cb: (event: string) => void): () => void {
   if (!supabase) return () => {};
   const { data } = supabase.auth.onAuthStateChange((event) => cb(event));
   return () => data.subscription.unsubscribe();
+}
+
+// ---- Phone OTP -------------------------------------------------------------
+
+/**
+ * Attach a phone number to the currently signed-in anonymous account.
+ * Supabase sends a 6-digit SMS OTP; the user then submits that code
+ * via `verifyPhoneOtp(...)` to complete the link. Preserves the same
+ * user_id so all of the anonymous session's data carries over.
+ *
+ * Requires phone auth + an SMS provider (Twilio / MessageBird / etc.)
+ * to be configured in the Supabase dashboard. See DEPLOY.md.
+ */
+export async function linkPhone(phone: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const normalised = normaliseSAPhone(phone);
+  if (!normalised) {
+    return { ok: false, error: "invalid_phone" };
+  }
+  const { error } = await supabase.auth.updateUser({ phone: normalised });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, kind: "otp_sent" };
+}
+
+/**
+ * Sign in an existing user by phone. Used to move to a new device
+ * after the account was linked with `linkPhone`. Signs out of any
+ * current session (usually the fresh anonymous one) first, so
+ * verifying the OTP replaces it with the returning-user's session.
+ *
+ * Passing `shouldCreateUser: false` means an unknown phone number
+ * fails cleanly instead of silently creating a brand new account —
+ * that's what we want for a "sign in on new device" flow.
+ */
+export async function sendPhoneSignInOtp(phone: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const normalised = normaliseSAPhone(phone);
+  if (!normalised) return { ok: false, error: "invalid_phone" };
+  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signInWithOtp({
+    phone: normalised,
+    options: { shouldCreateUser: false },
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, kind: "otp_sent" };
+}
+
+/**
+ * Verify a phone OTP. Handles both flows:
+ *   - After `linkPhone`, verify with `type: 'phone_change'`.
+ *   - After `sendPhoneSignInOtp`, verify with `type: 'sms'`.
+ * The caller passes the flow it started via the `flow` argument.
+ */
+export async function verifyPhoneOtp(
+  phone: string,
+  token: string,
+  flow: "link" | "signin",
+): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const normalised = normaliseSAPhone(phone);
+  if (!normalised) return { ok: false, error: "invalid_phone" };
+  const cleanToken = token.replace(/\D/g, "");
+  if (cleanToken.length < 4) return { ok: false, error: "invalid_code" };
+
+  const { error } = await supabase.auth.verifyOtp({
+    phone: normalised,
+    token: cleanToken,
+    type: flow === "link" ? "phone_change" : "sms",
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, kind: "otp_verified" };
 }
 
 // ---- Profile ---------------------------------------------------------------

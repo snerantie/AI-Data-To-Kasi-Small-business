@@ -1692,6 +1692,107 @@ export const t = {
     st: "Skena",
     af: "Skandeer",
   },
+
+  // ---------------------------------------------------------------------
+  // Phone OTP sign-in (PR #18). Runs alongside the existing email
+  // magic-link flow. Requires SMS provider in Supabase dashboard.
+  // ---------------------------------------------------------------------
+  authChannelEmail: {
+    en: "Email",
+    zu: "I-imeyili",
+    st: "Email",
+    af: "E-pos",
+  },
+  authChannelPhone: {
+    en: "Phone",
+    zu: "Ifoni",
+    st: "Fono",
+    af: "Foon",
+  },
+  authPhoneLabel: {
+    en: "Phone number",
+    zu: "Inombolo yefoni",
+    st: "Nomoro ea fono",
+    af: "Foonnommer",
+  },
+  authPhonePlaceholder: {
+    en: "083 123 4567",
+    zu: "083 123 4567",
+    st: "083 123 4567",
+    af: "083 123 4567",
+  },
+  authPhoneHint: {
+    en: "SA numbers only. We'll send you a 6-digit code by SMS.",
+    zu: "Izinombolo zaseNingizimu Afrika kuphela. Sizokuthumela ikhodi enezinombolo ezingu-6 nge-SMS.",
+    st: "Linomoro tsa Afrika Boroa feela. Re tla u romella khoutu ea linomoro tse 6 ka SMS.",
+    af: "Slegs SA-nommers. Ons stuur jou 'n 6-syfer-kode per SMS.",
+  },
+  authPhoneSaveCta: {
+    en: "Send SMS code",
+    zu: "Thumela ikhodi ye-SMS",
+    st: "Romela khoutu ea SMS",
+    af: "Stuur SMS-kode",
+  },
+  authPhoneSignInCta: {
+    en: "Sign in by SMS",
+    zu: "Ngena nge-SMS",
+    st: "Kena ka SMS",
+    af: "Meld aan met SMS",
+  },
+  authInvalidPhone: {
+    en: "Enter a valid SA cell number (starts with 0 or +27)",
+    zu: "Faka inombolo yefoni evumelekile yaseNingizimu Afrika (iqala ngo-0 noma +27)",
+    st: "Kenya nomoro e nepahetseng ea fono ea Afrika Boroa (e qala ka 0 kapa +27)",
+    af: "Voer 'n geldige SA-selnommer in (begin met 0 of +27)",
+  },
+  authInvalidCode: {
+    en: "Enter the 6-digit code from your SMS",
+    zu: "Faka ikhodi enezinombolo ezingu-6 evela ku-SMS wakho",
+    st: "Kenya khoutu ea linomoro tse 6 e tsoang ho SMS ea hao",
+    af: "Voer die 6-syfer-kode uit jou SMS in",
+  },
+  authOtpLabel: {
+    en: "6-digit code",
+    zu: "Ikhodi yamanani angu-6",
+    st: "Khoutu ea linomoro tse 6",
+    af: "6-syfer-kode",
+  },
+  authOtpPlaceholder: {
+    en: "123456",
+    zu: "123456",
+    st: "123456",
+    af: "123456",
+  },
+  authOtpSentTitle: {
+    en: "Code sent 📱",
+    zu: "Ikhodi ithunyelwe 📱",
+    st: "Khoutu e rometsoe 📱",
+    af: "Kode gestuur 📱",
+  },
+  authOtpSentBody: {
+    en: "We sent a 6-digit code to {phone}. Enter it below to finish.",
+    zu: "Sithumele ikhodi enezinombolo ezingu-6 ku-{phone}. Yifake ngezansi ukuze uqedele.",
+    st: "Re rometse khoutu ea linomoro tse 6 ho {phone}. E kenye tlaase ho qeta.",
+    af: "Ons het 'n 6-syfer-kode aan {phone} gestuur. Voer dit hieronder in om te voltooi.",
+  },
+  authVerifyCta: {
+    en: "Verify",
+    zu: "Qinisekisa",
+    st: "Netefatsa",
+    af: "Verifieer",
+  },
+  authVerifying: {
+    en: "Verifying...",
+    zu: "Kuyaqinisekiswa...",
+    st: "Ho netefatsoa...",
+    af: "Verifieer...",
+  },
+  authResendCta: {
+    en: "Resend code",
+    zu: "Thumela ikhodi futhi",
+    st: "Romela khoutu hape",
+    af: "Stuur kode weer",
+  },
 } as const;
 
 export type TKey = keyof typeof t;
