@@ -68,21 +68,26 @@ grant select on public.whatsapp_bot_status to authenticated;
 -- KasiKash user who owns that number. Used by the webhook to
 -- attribute incoming messages to the right account.
 --
--- Matches against profiles.phone (added in PR #18) because that's the
--- canonical "how the user identifies themselves to the world"
--- reference. If profiles.phone is null (user never linked their
--- phone), incoming WhatsApp messages from that number are unknown
--- and get a "please link your account first" auto-reply.
+-- Matches against auth.users.phone — that's where Supabase Auth stores
+-- the phone when the user completes the phone-OTP link/sign-in flow
+-- from PR #18. Supabase stores it as digits-only (e.g. '27831234567'),
+-- but the webhook sends it with a leading '+', so we strip
+-- non-digits on both sides before comparing.
+--
+-- If the sender's number was never linked to a KasiKash account,
+-- this returns null and the webhook auto-replies with a "please link
+-- your account first" nudge.
 -- ---------------------------------------------------------------------------
 create or replace function public.user_id_from_whatsapp_phone(p_phone text)
 returns uuid
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, auth
 as $$
-  select id from public.profiles
-  where phone = p_phone
+  select id from auth.users
+  where phone is not null
+    and phone = regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g')
   limit 1;
 $$;
 
