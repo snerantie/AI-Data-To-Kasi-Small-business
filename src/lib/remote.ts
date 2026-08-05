@@ -430,26 +430,28 @@ export async function fetchUserPrimaryStokvel(
 }
 
 export async function createStokvel(
-  userId: string,
+  _userId: string,
   s: { name: string; goal: number; members: number },
 ): Promise<string | null> {
   if (!supabase) return null;
-  const { data, error } = await supabase
-    .from("stokvels")
-    .insert({
-      owner_id: userId,
-      name: s.name,
-      goal: s.goal,
-      members: s.members,
-    })
-    .select("id")
-    .single();
+  // We call a SECURITY DEFINER RPC instead of INSERT-ing directly because
+  // on some Supabase projects auth.uid() returns NULL inside the RLS
+  // WITH CHECK context (a known edge case), causing the owner_id check
+  // to fail even when the JWT sub matches the payload. The RPC reads
+  // auth.uid() from the session claims in a normal function context
+  // (which works fine) and sets owner_id server-side, so clients can't
+  // forge someone else's identity. See migration 006 for the diagnosis.
+  const { data, error } = await supabase.rpc("create_stokvel", {
+    p_name: s.name,
+    p_goal: s.goal,
+    p_members: s.members,
+  });
   if (error) {
     console.warn("[kasikash] createStokvel:", error.message);
     return null;
   }
   // The DB trigger auto-adds the creator as an admin membership.
-  return (data as { id: string }).id;
+  return typeof data === "string" ? data : null;
 }
 
 export async function updateStokvel(
@@ -465,18 +467,21 @@ export async function updateStokvel(
 }
 
 export async function insertContribution(
-  userId: string,
+  _userId: string,
   stokvelId: string,
   contribution: Contribution,
 ): Promise<void> {
   if (!supabase) return;
-  const { error } = await supabase.from("contributions").insert({
-    id: contribution.id,
-    stokvel_id: stokvelId,
-    owner_id: userId,
-    amount: contribution.amount,
-    note: contribution.note ?? null,
-    created_at: new Date(contribution.createdAt).toISOString(),
+  // Same reasoning as createStokvel: use a SECURITY DEFINER RPC so the
+  // insert doesn't get blocked by the auth.uid()-in-RLS-WITH-CHECK bug.
+  // The RPC also verifies stokvel membership server-side (defense in
+  // depth) since it bypasses RLS. Note: the RPC generates the row id
+  // server-side, so the client-side optimistic `contribution.id` and
+  // the persisted id may differ briefly until Realtime rehydrates.
+  const { error } = await supabase.rpc("contribute_to_stokvel", {
+    p_stokvel_id: stokvelId,
+    p_amount: contribution.amount,
+    p_note: contribution.note ?? null,
   });
   if (error) console.warn("[kasikash] insertContribution:", error.message);
 }
