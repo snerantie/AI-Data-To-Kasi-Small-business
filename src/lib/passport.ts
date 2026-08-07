@@ -3,6 +3,7 @@ import jsPDF from "jspdf";
 import type { Lang, TKey } from "../i18n";
 import { tr, trParams } from "../i18n";
 import type { AppState, Sale, Tab } from "../store";
+import { computeBankSignals } from "./bank/signals";
 import { confidenceFromRatio, type ConfidenceLabel } from "./evidence";
 import type { ScoreDetail, ScoreFactorKey } from "./score";
 import {
@@ -609,6 +610,73 @@ export function renderPassport(input: PassportInput): jsPDF {
         y,
         tr("pdfLabelRepaymentRate", lang),
         formatPct(rate),
+      );
+    }
+  }
+
+  // --- Bank activity (PR #23) ------------------------------------------
+  //
+  // Only rendered when the user has imported at least one bank
+  // statement. The signals here are all "observed" tier evidence —
+  // we know these movements happened at the bank, but we're
+  // deliberately careful NOT to describe unknown inflows as customer
+  // revenue. Anything unclassified stays on the "Unclassified" line
+  // so a lender reading the passport sees exactly how much of the
+  // bank activity we could attribute confidently.
+  if (state.bankTransactions.length > 0) {
+    const signals = computeBankSignals(state.bankTransactions, {
+      windowDays: 30,
+      now: detail.computedAt,
+    });
+    y += 3;
+    y = drawSectionTitle(doc, y, tr("pdfSectionBankActivity", lang));
+
+    y = drawLabelValue(
+      doc,
+      y,
+      tr("pdfLabelBankInflows", lang),
+      formatR(signals.inflowsTotal),
+    );
+    y = drawLabelValue(
+      doc,
+      y,
+      tr("pdfLabelBankOutflows", lang),
+      formatR(signals.outflowsTotal),
+    );
+    y = drawLabelValue(
+      doc,
+      y,
+      tr("pdfLabelInflowDiversity", lang),
+      String(signals.inflowCounterpartyDiversity),
+    );
+    if (signals.cashDepositRatio !== null) {
+      y = drawLabelValue(
+        doc,
+        y,
+        tr("pdfLabelCashDepositRatio", lang),
+        formatPct(signals.cashDepositRatio * 100),
+      );
+    }
+    if (signals.recurringInflowCount > 0) {
+      y = drawLabelValue(
+        doc,
+        y,
+        tr("pdfLabelRecurringInflows", lang),
+        String(signals.recurringInflowCount),
+      );
+    }
+    if (signals.topSupplier) {
+      // Truncate the counterparty name so the passport layout doesn't
+      // buckle when a description is unusually long.
+      const supplierName =
+        signals.topSupplier.name.length > 24
+          ? signals.topSupplier.name.slice(0, 22) + "…"
+          : signals.topSupplier.name;
+      y = drawLabelValue(
+        doc,
+        y,
+        tr("pdfLabelTopSupplier", lang),
+        `${supplierName} · ${formatR(signals.topSupplier.amount)}`,
       );
     }
   }

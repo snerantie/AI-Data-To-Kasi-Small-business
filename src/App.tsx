@@ -11,6 +11,7 @@ import { Splash } from "./screens/Splash";
 import { Settings } from "./screens/Settings";
 import { PassportPreview } from "./screens/PassportPreview";
 import { ScanReceipt } from "./screens/ScanReceipt";
+import { ImportStatement } from "./screens/ImportStatement";
 import { NotifyProvider } from "./components/NotifyProvider";
 import {
   PaymentReturn,
@@ -33,7 +34,9 @@ export type Screen =
   | "insights"
   | "settings"
   | "passport"
-  | "scan";
+  | "scan"
+  // New in PR #23: upload + parse bank statements.
+  | "import";
 
 const SCREENS_WITH_NAV: Screen[] = [
   "home",
@@ -130,6 +133,9 @@ export default function App() {
                   )}
                   {screen === "scan" && (
                     <ScanReceipt lang={lang} onNavigate={setScreen} />
+                  )}
+                  {screen === "import" && (
+                    <ImportStatement lang={lang} onNavigate={setScreen} />
                   )}
                 </motion.div>
               </AnimatePresence>
