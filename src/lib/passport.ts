@@ -3,7 +3,14 @@ import jsPDF from "jspdf";
 import type { Lang, TKey } from "../i18n";
 import { tr, trParams } from "../i18n";
 import type { AppState, Sale, Tab } from "../store";
+import { confidenceFromRatio, type ConfidenceLabel } from "./evidence";
 import type { ScoreDetail, ScoreFactorKey } from "./score";
+import {
+  declaredRevenue,
+  expensesTotal,
+  observedRevenue,
+  overallEvidenceRatio,
+} from "./score";
 
 /**
  * KasiKash "Financial Passport" — a one-page PDF summary of the user's
@@ -85,13 +92,23 @@ const formatDate = (ts: number, lang: Lang) => {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const cutoff30 = () => Date.now() - 30 * MS_PER_DAY;
 
-const salesInLast30 = (sales: Sale[]) =>
-  sales.filter((s) => s.createdAt >= cutoff30());
+/**
+ * Only "real" sales (eventType='sale'). Reclassified receipt rows —
+ * which now have eventType='expense' after migration 010 — are
+ * deliberately excluded here. That's the property the regression
+ * tests in score.test.ts guarantee: expenses can never sneak back
+ * into the revenue side of the passport.
+ */
+const salesOnly = (sales: readonly Sale[]): Sale[] =>
+  sales.filter((s) => (s.eventType ?? "sale") === "sale");
 
-const activeDaysCount = (sales: Sale[]): number => {
+const salesInLast30 = (sales: readonly Sale[]) =>
+  salesOnly(sales).filter((s) => s.createdAt >= cutoff30());
+
+const activeDaysCount = (sales: readonly Sale[]): number => {
   const days = new Set<number>();
   const c = cutoff30();
-  for (const s of sales) {
+  for (const s of salesOnly(sales)) {
     if (s.createdAt >= c) {
       days.add(Math.floor(s.createdAt / MS_PER_DAY));
     }
@@ -99,10 +116,7 @@ const activeDaysCount = (sales: Sale[]): number => {
   return days.size;
 };
 
-const revenue30d = (sales: Sale[]): number =>
-  salesInLast30(sales).reduce((sum, s) => sum + s.price * s.qty, 0);
-
-const topSellerName = (sales: Sale[]): string | null => {
+const topSellerName = (sales: readonly Sale[]): string | null => {
   const counts = new Map<string, number>();
   for (const s of salesInLast30(sales)) {
     const key = s.item.trim().toLowerCase();
@@ -116,9 +130,8 @@ const topSellerName = (sales: Sale[]): string | null => {
       best = name;
     }
   }
-  // Return the original casing of the top item, not the lowercase key.
   if (!best) return null;
-  const canonical = sales.find(
+  const canonical = salesOnly(sales).find(
     (s) => s.item.trim().toLowerCase() === best,
   );
   return canonical ? canonical.item : best;
@@ -316,6 +329,37 @@ function drawFactorRow(
 }
 
 /**
+ * Draw the evidence-confidence pill above the business-activity
+ * section. A single line: "Evidence confidence: Medium" with a small
+ * coloured dot on the left. Kept minimal so the section it labels
+ * stays the focus.
+ */
+function drawConfidenceBadge(
+  doc: Doc,
+  y: number,
+  label: ConfidenceLabel,
+  lang: Lang,
+): number {
+  const color = CONFIDENCE_COLOR[label];
+  const dotY = y - 1.5;
+  setColorFill(doc, color);
+  doc.circle(CONTENT_X + 1.5, dotY, 1.5, "F");
+
+  setColorText(doc, COLOR_MUTED);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(tr("passportConfidenceLabel", lang), CONTENT_X + 5, y);
+
+  setColorText(doc, color);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  const labelText = tr(CONFIDENCE_LABEL_KEY[label], lang);
+  doc.text(labelText, CONTENT_X + CONTENT_W, y, { align: "right" });
+
+  return y + 4;
+}
+
+/**
  * jsPDF's `getTextWidth` requires the current font state; we set it
  * temporarily to `sz` and return the value plus a tiny padding.
  */
@@ -362,6 +406,32 @@ const FACTOR_NAME_KEY: Record<ScoreFactorKey, TKey> = {
   time_on_platform: "factorTimeOnPlatform",
   profile_maturity: "factorProfileMaturity",
   recent_momentum: "factorRecentMomentum",
+  // New in PR #22 — rewards the user for having any independently-
+  // verifiable evidence at all (Yoco payments, scanned receipts, etc).
+  evidence_confidence: "factorEvidenceConfidence",
+};
+
+/**
+ * Map a ConfidenceLabel to the i18n key that renders it in the
+ * passport's evidence badge.
+ */
+const CONFIDENCE_LABEL_KEY: Record<ConfidenceLabel, TKey> = {
+  unknown: "passportConfidenceUnknown",
+  low: "passportConfidenceLow",
+  medium: "passportConfidenceMedium",
+  high: "passportConfidenceHigh",
+};
+
+/**
+ * RGB colour for each confidence label. Coral for low signals a
+ * "please add more observable evidence" nudge without shouting; gold
+ * for medium; green for high.
+ */
+const CONFIDENCE_COLOR: Record<ConfidenceLabel, [number, number, number]> = {
+  unknown: COLOR_MUTED,
+  low: COLOR_CORAL,
+  medium: COLOR_GOLD,
+  high: COLOR_GREEN,
 };
 
 /**
@@ -447,9 +517,30 @@ export function renderPassport(input: PassportInput): jsPDF {
   }
 
   // --- Business activity (last 30 days) --------------------------------
-  if (state.sales.length > 0) {
+  //
+  // The passport prefers honest evidence over flattering numbers.
+  // Instead of a single "Monthly turnover" line that implies certainty,
+  // we show declared and observed revenue side by side, plus the
+  // supplier-purchase total drawn from scanned receipts + the new
+  // expenses table. The overall confidence badge tells the reader
+  // how much of the financial picture is externally corroborated.
+  const declared30 = declaredRevenue(state);
+  const observed30 = observedRevenue(state);
+  const expenses30 = expensesTotal(state);
+  const evidenceRatio = overallEvidenceRatio(state);
+  const confidence = confidenceFromRatio(evidenceRatio);
+  const hasAnyActivity =
+    state.sales.length > 0 || state.expenses.length > 0;
+
+  if (hasAnyActivity) {
     y += 3;
     y = drawSectionTitle(doc, y, tr("pdfSectionSalesActivity", lang));
+
+    // Confidence badge at the top of the section — a coloured pill
+    // that summarises the overall evidence-mix in one word.
+    y = drawConfidenceBadge(doc, y, confidence, lang);
+
+    // Sales activity metrics.
     y = drawLabelValue(
       doc,
       y,
@@ -462,12 +553,33 @@ export function renderPassport(input: PassportInput): jsPDF {
       tr("pdfLabelActiveDays", lang),
       `${activeDaysCount(state.sales)} / 30`,
     );
+
+    // The honest turnover split. Declared always shown; observed
+    // shown when non-zero so we don't clutter the passport for
+    // cash-only users at MVP.
     y = drawLabelValue(
       doc,
       y,
-      tr("pdfLabelRevenue30d", lang),
-      formatR(revenue30d(state.sales)),
+      tr("pdfLabelDeclaredRevenue", lang),
+      formatR(declared30),
     );
+    if (observed30 > 0) {
+      y = drawLabelValue(
+        doc,
+        y,
+        tr("pdfLabelObservedRevenue", lang),
+        formatR(observed30),
+      );
+    }
+    if (expenses30 > 0) {
+      y = drawLabelValue(
+        doc,
+        y,
+        tr("pdfLabelSupplierPurchases", lang),
+        formatR(expenses30),
+      );
+    }
+
     const top = topSellerName(state.sales);
     if (top) {
       y = drawLabelValue(doc, y, tr("pdfLabelTopSeller", lang), top);
@@ -541,6 +653,36 @@ export function renderPassport(input: PassportInput): jsPDF {
       .filter((c) => (c.status ?? "confirmed") === "confirmed")
       .reduce((s, c) => s + c.amount, 0);
     y = drawLabelValue(doc, y, tr("pdfLabelStokvelSaved", lang), formatR(potTotal));
+  }
+
+  // --- Tier legend -----------------------------------------------------
+  //
+  // Sits between the content and the footer so any lender reading the
+  // passport knows what "declared / observed / verified" mean without
+  // having to ask. Compact: one row, three dots.
+  const legendY = 258;
+  setColorText(doc, COLOR_MUTED);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.text(tr("passportTierLegendTitle", lang), CONTENT_X, legendY);
+
+  // Three dots + labels, evenly spaced.
+  const legendItems: Array<{ color: [number, number, number]; key: TKey }> = [
+    { color: COLOR_CORAL, key: "passportTierDeclared" },
+    { color: COLOR_GOLD, key: "passportTierObserved" },
+    { color: COLOR_GREEN, key: "passportTierVerified" },
+  ];
+  let legendX = CONTENT_X;
+  const legendItemY = legendY + 3;
+  for (const item of legendItems) {
+    setColorFill(doc, item.color);
+    doc.circle(legendX + 1, legendItemY - 1, 1, "F");
+    setColorText(doc, COLOR_INK);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text(tr(item.key, lang), legendX + 3.5, legendItemY);
+    // Move the pointer along by the label width + a small gap.
+    legendX += 3.5 + doc.getTextWidth(tr(item.key, lang)) + 6;
   }
 
   // --- Footer + disclaimer ---------------------------------------------

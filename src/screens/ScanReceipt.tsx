@@ -21,6 +21,15 @@ import type { OcrItem, OcrProgress } from "../lib/ocr";
 import { formatRand, useStore } from "../store";
 
 /**
+ * As of PR #22, receipt scans are recorded as *expenses*, not sales.
+ * A supplier receipt is direct evidence of a purchase (money out) —
+ * treating those line items as sales inflated the KasiScore
+ * dishonestly. The screen's UX is unchanged; only the underlying
+ * event type has flipped, and the success toast now says "added to
+ * expenses" instead of "added to sales".
+ */
+
+/**
  * Receipt-scanning screen. Users take (or pick) a photo of a supplier
  * receipt; Tesseract.js runs client-side OCR; the parser turns raw
  * text into structured line items; the user reviews / edits / removes
@@ -42,7 +51,7 @@ export function ScanReceipt({
   lang: Lang;
   onNavigate: (s: Screen) => void;
 }) {
-  const { addSales } = useStore();
+  const { addExpenses } = useStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Screen state machine. Kept as an explicit union so we can't get
@@ -148,13 +157,23 @@ export function ScanReceipt({
     if (picked.length === 0) return;
     setSavingBusy(true);
     try {
-      addSales(
+      addExpenses(
         picked.map((it) => ({
           item: it.name,
           qty: it.qty,
           price: it.price,
           raw: it.raw,
-          source: "receipt" as const,
+          // Every scanned line lands with the same envelope: it's a
+          // real expense event with a supplier receipt as evidence,
+          // and OCR is treated as "observed" — the paper artefact
+          // exists even if we don't cryptographically verify it.
+          eventType: "expense" as const,
+          evidenceType: "supplier_receipt" as const,
+          evidenceTier: "observed" as const,
+          provenance: {
+            captured_via: "scan_receipt_screen",
+            captured_at_ms: Date.now(),
+          },
         })),
       );
       setSavedFlash(picked.length);

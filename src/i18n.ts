@@ -1511,6 +1511,106 @@ export const t = {
     st: "Chelete e kenneng (matsatsi a 30)",
     af: "Inkomste (30 dae)",
   },
+
+  // ---------------------------------------------------------------------
+  // PR #22 — Evidence-tier-aware Financial Passport labels.
+  //
+  // The passport now shows declared vs observed revenue side by side
+  // instead of one collapsed "turnover" line. Copy is deliberately
+  // neutral about the change — the receipt reclassification isn't a
+  // "lost sales" event, the passport is just becoming more accurate.
+  // ---------------------------------------------------------------------
+  pdfLabelDeclaredRevenue: {
+    en: "Declared sales (30 days)",
+    zu: "Ukudayisa okushiwo (izinsuku ezingu-30)",
+    st: "Thekiso e boletsoeng (matsatsi a 30)",
+    af: "Verklaarde verkope (30 dae)",
+  },
+  pdfLabelObservedRevenue: {
+    en: "Observed sales (30 days)",
+    zu: "Ukudayisa okubonwe (izinsuku ezingu-30)",
+    st: "Thekiso e bonoeng (matsatsi a 30)",
+    af: "Waargeneemde verkope (30 dae)",
+  },
+  pdfLabelSupplierPurchases: {
+    en: "Supplier purchases (30 days)",
+    zu: "Ukuthenga kubathengisi (izinsuku ezingu-30)",
+    st: "Theko ho baabi (matsatsi a 30)",
+    af: "Voorsienerse aankope (30 dae)",
+  },
+
+  // Evidence-confidence badge, drawn just under the section title.
+  passportConfidenceLabel: {
+    en: "Evidence confidence",
+    zu: "Ithemba lobufakazi",
+    st: "Boitshepo ba bopaki",
+    af: "Bewysvertroue",
+  },
+  passportConfidenceUnknown: {
+    en: "No data yet",
+    zu: "Ayikho idatha okwamanje",
+    st: "Ha ho na data hakaale",
+    af: "Nog geen data nie",
+  },
+  passportConfidenceLow: {
+    en: "Low",
+    zu: "Phansi",
+    st: "E tlaase",
+    af: "Laag",
+  },
+  passportConfidenceMedium: {
+    en: "Medium",
+    zu: "Phakathi",
+    st: "Bohareng",
+    af: "Medium",
+  },
+  passportConfidenceHigh: {
+    en: "High",
+    zu: "Phakeme",
+    st: "E phahameng",
+    af: "Hoog",
+  },
+
+  // Tier legend printed just above the disclaimer footer.
+  passportTierLegendTitle: {
+    en: "Evidence tiers:",
+    zu: "Amazinga obufakazi:",
+    st: "Maemo a bopaki:",
+    af: "Bewysvlakke:",
+  },
+  passportTierDeclared: {
+    en: "Declared — self-reported",
+    zu: "Okushiwo — okubikwe wumnini",
+    st: "E boletsoeng — e tlalehiloeng ke mong'a eona",
+    af: "Verklaar — self gerapporteer",
+  },
+  passportTierObserved: {
+    en: "Observed — digital record",
+    zu: "Okubonwe — irekhodi ledijithali",
+    st: "E bonoeng — rekoto ea dijithale",
+    af: "Waargeneem — digitale rekord",
+  },
+  passportTierVerified: {
+    en: "Verified — bank / third-party confirmed",
+    zu: "Okuqinisekisiwe — okuqinisekiswe yibhange",
+    st: "E netefalitsoeng — e netefalitsoeng ke banka",
+    af: "Geverifieer — bevestig deur bank / derde party",
+  },
+
+  // Score factor name for the new evidence_confidence factor.
+  factorEvidenceConfidence: {
+    en: "Evidence quality",
+    zu: "Ikhwalithi yobufakazi",
+    st: "Boleng ba bopaki",
+    af: "Bewyskwaliteit",
+  },
+  factorEvidenceConfidenceExplain: {
+    en: "Rewards records backed by independent digital evidence — Yoco payments, supplier receipts, bank webhooks.",
+    zu: "Kunika umvuzo amarekhodi asekelwa ubufakazi bedijithali obuzimele — izinkokhelo ze-Yoco, izirisidi zabathengisi, izimemezelo zebhange.",
+    st: "E putsa lirekoto tse tšehetsoang ke bopaki ba dijithale bo ikemetseng — litefello tsa Yoco, lirisidi tsa baabi, litšebelisong tsa banka.",
+    af: "Beloon rekords wat gestaaf word deur onafhanklike digitale bewys — Yoco-betalings, verskaffer-kwitansies, bank-webhaakies.",
+  },
+
   pdfLabelTabsPaid: {
     en: "Tabs paid",
     zu: "Izikweletu ezikhokhiwe",
