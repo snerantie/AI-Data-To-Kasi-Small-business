@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import type { Lang } from "../i18n";
 import type {
   Sale,
+  Expense,
   Tab,
   Contribution,
   ContributionMethod,
@@ -14,6 +15,17 @@ import type {
   MemberRole,
   StokvelInvite,
 } from "../store";
+import type {
+  EventType,
+  EvidenceTier,
+  EvidenceType,
+  Provenance,
+} from "./evidence";
+import {
+  classifyLegacyContribution,
+  classifyLegacySale,
+  classifyLegacyTab,
+} from "./evidence";
 
 /**
  * Thin CRUD wrapper around Supabase for KasiKash.
@@ -285,7 +297,31 @@ export async function upsertProfile(
   if (error) console.warn("[kasikash] upsertProfile:", error.message);
 }
 
-// ---- Sales ------------------------------------------------------------------
+// ---- Sales & Expenses -------------------------------------------------------
+//
+// Sales and expenses share the same shape. Historically, the sales
+// table held everything (including receipt-sourced rows that were
+// really expenses, hence the PR #22 reclassification). Going forward:
+//   * sales table  → rows with event_type='sale' (revenue) OR the
+//                    reclassified event_type='expense' rows (kept in
+//                    place, per the "preserve raw" rule).
+//   * expenses tbl → new expense rows only (from PR #22 onward).
+//
+// Callers fetch both and split by event_type client-side. This keeps
+// the API surface small during the transition; a later PR can
+// consolidate once every value-bearing path uses the new columns.
+
+/**
+ * Common column set for the evidence envelope. Nullable in DB during
+ * the transition (migration 010 backfills), then defaulted here so
+ * downstream code always has a tier to key on.
+ */
+type EvidenceCols = {
+  event_type: EventType | null;
+  evidence_type: EvidenceType | null;
+  evidence_tier: EvidenceTier | null;
+  provenance: Provenance | null;
+};
 
 type SaleRow = {
   id: string;
@@ -295,23 +331,45 @@ type SaleRow = {
   raw: string | null;
   source: Sale["source"] | null;
   created_at: string;
-};
+} & Partial<EvidenceCols>;
 
-const rowToSale = (r: SaleRow): Sale => ({
-  id: r.id,
-  item: r.item,
-  qty: r.qty,
-  price: typeof r.price === "string" ? parseFloat(r.price) : r.price,
-  raw: r.raw ?? undefined,
-  source: (r.source ?? "manual") as Sale["source"],
-  createdAt: new Date(r.created_at).getTime(),
-});
+const rowToSale = (r: SaleRow): Sale => {
+  // If the row hasn't been backfilled yet (migration 010 hasn't run
+  // on this project, or a client wrote a legacy-shape row after 010
+  // ran), synthesise the envelope from the legacy `source` field.
+  const envelope = r.evidence_tier
+    ? {
+        eventType: (r.event_type ?? "sale") as EventType,
+        evidenceType: (r.evidence_type ?? "manual_entry") as EvidenceType,
+        evidenceTier: r.evidence_tier,
+        provenance: (r.provenance ?? {}) as Provenance,
+      }
+    : classifyLegacySale((r.source ?? null) as "voice" | "manual" | "receipt" | null);
+  return {
+    id: r.id,
+    item: r.item,
+    qty: r.qty,
+    price: typeof r.price === "string" ? parseFloat(r.price) : r.price,
+    raw: r.raw ?? undefined,
+    source: (r.source ?? "manual") as Sale["source"],
+    createdAt: new Date(r.created_at).getTime(),
+    eventType: envelope.eventType,
+    evidenceType: envelope.evidenceType,
+    evidenceTier: envelope.evidenceTier,
+    provenance: envelope.provenance,
+  };
+};
 
 export async function fetchSales(userId: string): Promise<Sale[] | null> {
   if (!supabase) return null;
+  // Include the new evidence envelope columns. Fields are optional in
+  // the DB (nullable), so backwards-compat with pre-migration rows is
+  // handled by rowToSale's fallback classifier.
   const { data, error } = await supabase
     .from("sales")
-    .select("id, item, qty, price, raw, source, created_at")
+    .select(
+      "id, item, qty, price, raw, source, created_at, event_type, evidence_type, evidence_tier, provenance",
+    )
     .eq("owner_id", userId)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -322,36 +380,131 @@ export async function fetchSales(userId: string): Promise<Sale[] | null> {
   return (data as SaleRow[]).map(rowToSale);
 }
 
+/**
+ * Fill in the evidence envelope for an outgoing insert. Prefers the
+ * caller-supplied envelope; falls back to the classifier applied to
+ * the legacy `source` field. This means every row we ever write from
+ * PR #22 onward has all four evidence columns populated, even if the
+ * caller forgot to set them.
+ */
+function saleInsertPayload(userId: string, s: Sale) {
+  const legacy = classifyLegacySale(
+    (s.source ?? null) as "voice" | "manual" | "receipt" | null,
+  );
+  return {
+    id: s.id,
+    owner_id: userId,
+    item: s.item,
+    qty: s.qty,
+    price: s.price,
+    raw: s.raw ?? null,
+    source: s.source ?? "manual",
+    event_type: s.eventType ?? legacy.eventType,
+    evidence_type: s.evidenceType ?? legacy.evidenceType,
+    evidence_tier: s.evidenceTier ?? legacy.evidenceTier,
+    provenance: s.provenance ?? legacy.provenance,
+    created_at: new Date(s.createdAt).toISOString(),
+  };
+}
+
 export async function insertSale(userId: string, sale: Sale): Promise<void> {
   if (!supabase) return;
-  const { error } = await supabase.from("sales").insert({
-    id: sale.id,
-    owner_id: userId,
-    item: sale.item,
-    qty: sale.qty,
-    price: sale.price,
-    raw: sale.raw ?? null,
-    source: sale.source ?? "manual",
-    created_at: new Date(sale.createdAt).toISOString(),
-  });
+  const { error } = await supabase.from("sales").insert(saleInsertPayload(userId, sale));
   if (error) console.warn("[kasikash] insertSale:", error.message);
 }
 
 export async function insertSales(userId: string, sales: Sale[]): Promise<void> {
   if (!supabase || sales.length === 0) return;
-  const { error } = await supabase.from("sales").insert(
-    sales.map((s) => ({
-      id: s.id,
-      owner_id: userId,
-      item: s.item,
-      qty: s.qty,
-      price: s.price,
-      raw: s.raw ?? null,
-      source: s.source ?? "manual",
-      created_at: new Date(s.createdAt).toISOString(),
-    })),
-  );
+  const { error } = await supabase
+    .from("sales")
+    .insert(sales.map((s) => saleInsertPayload(userId, s)));
   if (error) console.warn("[kasikash] insertSales:", error.message);
+}
+
+// ---- Expenses ---------------------------------------------------------------
+
+type ExpenseRow = {
+  id: string;
+  item: string;
+  qty: number;
+  price: number | string;
+  raw: string | null;
+  created_at: string;
+} & Partial<EvidenceCols>;
+
+const rowToExpense = (r: ExpenseRow): Expense => ({
+  id: r.id,
+  item: r.item,
+  qty: r.qty,
+  price: typeof r.price === "string" ? parseFloat(r.price) : r.price,
+  raw: r.raw ?? undefined,
+  createdAt: new Date(r.created_at).getTime(),
+  eventType: (r.event_type ?? "expense") as EventType,
+  evidenceType: (r.evidence_type ?? "manual_entry") as EvidenceType,
+  evidenceTier: (r.evidence_tier ?? "declared") as EvidenceTier,
+  provenance: (r.provenance ?? {}) as Provenance,
+});
+
+export async function fetchExpenses(
+  userId: string,
+): Promise<Expense[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("expenses")
+    .select(
+      "id, item, qty, price, raw, created_at, event_type, evidence_type, evidence_tier, provenance",
+    )
+    .eq("owner_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    // A missing table (migration 010 hasn't been applied yet) shows up
+    // as 42P01. Treat that as "no expenses yet" rather than an error —
+    // the client keeps working, just without expense signal.
+    if ((error as unknown as { code?: string }).code !== "42P01") {
+      console.warn("[kasikash] fetchExpenses:", error.message);
+    }
+    return null;
+  }
+  return (data as ExpenseRow[]).map(rowToExpense);
+}
+
+function expenseInsertPayload(userId: string, e: Expense) {
+  return {
+    id: e.id,
+    owner_id: userId,
+    item: e.item,
+    qty: e.qty,
+    price: e.price,
+    raw: e.raw ?? null,
+    event_type: e.eventType ?? "expense",
+    evidence_type: e.evidenceType ?? "manual_entry",
+    evidence_tier: e.evidenceTier ?? "declared",
+    provenance: e.provenance ?? {},
+    created_at: new Date(e.createdAt).toISOString(),
+  };
+}
+
+export async function insertExpense(
+  userId: string,
+  expense: Expense,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("expenses")
+    .insert(expenseInsertPayload(userId, expense));
+  if (error) console.warn("[kasikash] insertExpense:", error.message);
+}
+
+export async function insertExpenses(
+  userId: string,
+  expenses: Expense[],
+): Promise<void> {
+  if (!supabase || expenses.length === 0) return;
+  const { error } = await supabase
+    .from("expenses")
+    .insert(expenses.map((e) => expenseInsertPayload(userId, e)));
+  if (error) console.warn("[kasikash] insertExpenses:", error.message);
 }
 
 // ---- Tabs -------------------------------------------------------------------
@@ -362,21 +515,37 @@ type TabRow = {
   amount: number | string;
   paid: boolean;
   created_at: string;
-};
+} & Partial<EvidenceCols>;
 
-const rowToTab = (r: TabRow): Tab => ({
-  id: r.id,
-  customer: r.customer,
-  amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
-  paid: r.paid,
-  createdAt: new Date(r.created_at).getTime(),
-});
+const rowToTab = (r: TabRow): Tab => {
+  const envelope = r.evidence_tier
+    ? {
+        eventType: (r.event_type ?? (r.paid ? "tab_settled" : "tab_created")) as EventType,
+        evidenceType: (r.evidence_type ?? "manual_entry") as EvidenceType,
+        evidenceTier: r.evidence_tier,
+        provenance: (r.provenance ?? {}) as Provenance,
+      }
+    : classifyLegacyTab({ paid: r.paid ?? false });
+  return {
+    id: r.id,
+    customer: r.customer,
+    amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
+    paid: r.paid,
+    createdAt: new Date(r.created_at).getTime(),
+    eventType: envelope.eventType,
+    evidenceType: envelope.evidenceType,
+    evidenceTier: envelope.evidenceTier,
+    provenance: envelope.provenance,
+  };
+};
 
 export async function fetchTabs(userId: string): Promise<Tab[] | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from("tabs")
-    .select("id, customer, amount, paid, created_at")
+    .select(
+      "id, customer, amount, paid, created_at, event_type, evidence_type, evidence_tier, provenance",
+    )
     .eq("owner_id", userId)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -389,12 +558,17 @@ export async function fetchTabs(userId: string): Promise<Tab[] | null> {
 
 export async function insertTab(userId: string, tab: Tab): Promise<void> {
   if (!supabase) return;
+  const legacy = classifyLegacyTab({ paid: tab.paid ?? false });
   const { error } = await supabase.from("tabs").insert({
     id: tab.id,
     owner_id: userId,
     customer: tab.customer,
     amount: tab.amount,
     paid: tab.paid ?? false,
+    event_type: tab.eventType ?? legacy.eventType,
+    evidence_type: tab.evidenceType ?? legacy.evidenceType,
+    evidence_tier: tab.evidenceTier ?? legacy.evidenceTier,
+    provenance: tab.provenance ?? legacy.provenance,
     created_at: new Date(tab.createdAt).toISOString(),
   });
   if (error) console.warn("[kasikash] insertTab:", error.message);
@@ -448,7 +622,10 @@ type ContributionRow = {
   reference: string | null;
   confirmed_at: string | null;
   rejected_reason: string | null;
-};
+  // PR #22 evidence envelope. Nullable — backwards-compat handled in
+  // rowToContribution below.
+  payment_id: string | null;
+} & Partial<EvidenceCols>;
 
 type InviteRow = {
   code: string;
@@ -466,19 +643,37 @@ const rowToMembership = (r: MembershipRow): StokvelMember => ({
 const rowToContribution = (
   r: ContributionRow,
   members: Map<string, string>,
-): Contribution => ({
-  id: r.id,
-  amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
-  note: r.note ?? undefined,
-  createdAt: new Date(r.created_at).getTime(),
-  memberName: members.get(r.owner_id),
-  ownerId: r.owner_id,
-  status: r.status ?? undefined,
-  method: r.method ?? undefined,
-  reference: r.reference ?? undefined,
-  confirmedAt: r.confirmed_at ? new Date(r.confirmed_at).getTime() : undefined,
-  rejectedReason: r.rejected_reason ?? undefined,
-});
+): Contribution => {
+  const envelope = r.evidence_tier
+    ? {
+        eventType: (r.event_type ?? "contribution_in") as EventType,
+        evidenceType: (r.evidence_type ?? "manual_entry") as EvidenceType,
+        evidenceTier: r.evidence_tier,
+        provenance: (r.provenance ?? {}) as Provenance,
+      }
+    : classifyLegacyContribution({
+        method: r.method ?? null,
+        status: r.status ?? null,
+        payment_id: r.payment_id ?? null,
+      });
+  return {
+    id: r.id,
+    amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
+    note: r.note ?? undefined,
+    createdAt: new Date(r.created_at).getTime(),
+    memberName: members.get(r.owner_id),
+    ownerId: r.owner_id,
+    status: r.status ?? undefined,
+    method: r.method ?? undefined,
+    reference: r.reference ?? undefined,
+    confirmedAt: r.confirmed_at ? new Date(r.confirmed_at).getTime() : undefined,
+    rejectedReason: r.rejected_reason ?? undefined,
+    eventType: envelope.eventType,
+    evidenceType: envelope.evidenceType,
+    evidenceTier: envelope.evidenceTier,
+    provenance: envelope.provenance,
+  };
+};
 
 const rowToBankAccount = (r: StokvelRow): StokvelBankAccount | null => {
   // If literally every bank field is null, treat the stokvel as
@@ -547,7 +742,7 @@ export async function fetchUserPrimaryStokvel(
       supabase
         .from("contributions")
         .select(
-          "id, amount, note, owner_id, created_at, status, method, reference, confirmed_at, rejected_reason",
+          "id, amount, note, owner_id, created_at, status, method, reference, confirmed_at, rejected_reason, payment_id, event_type, evidence_type, evidence_tier, provenance",
         )
         .eq("stokvel_id", stokvelId)
         .order("created_at", { ascending: false })

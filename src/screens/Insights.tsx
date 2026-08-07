@@ -31,6 +31,8 @@ const FACTOR_NAME_KEY: Record<ScoreFactorKey, TKey> = {
   time_on_platform: "factorTimeOnPlatform",
   profile_maturity: "factorProfileMaturity",
   recent_momentum: "factorRecentMomentum",
+  // PR #22 — the eighth factor. Rewards independent digital evidence.
+  evidence_confidence: "factorEvidenceConfidence",
 };
 
 const FACTOR_EXPLAIN_KEY: Record<ScoreFactorKey, TKey> = {
@@ -41,6 +43,7 @@ const FACTOR_EXPLAIN_KEY: Record<ScoreFactorKey, TKey> = {
   time_on_platform: "factorTimeOnPlatformExplain",
   profile_maturity: "factorProfileMaturityExplain",
   recent_momentum: "factorRecentMomentumExplain",
+  evidence_confidence: "factorEvidenceConfidenceExplain",
 };
 
 function tierI18nKey(

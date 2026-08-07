@@ -326,4 +326,6 @@ const FACTOR_NAME_KEY: Record<ScoreFactorKey, TKey> = {
   time_on_platform: "factorTimeOnPlatform",
   profile_maturity: "factorProfileMaturity",
   recent_momentum: "factorRecentMomentum",
+  // PR #22 — new eighth factor for evidence quality.
+  evidence_confidence: "factorEvidenceConfidence",
 };

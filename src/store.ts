@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Lang } from "./i18n";
+import type {
+  EventType,
+  EvidenceTier,
+  EvidenceType,
+  Provenance,
+} from "./lib/evidence";
 import { isCloudConfigured } from "./lib/supabase";
 import {
   createInvite as remoteCreateInvite,
@@ -7,11 +13,14 @@ import {
   ensureSession,
   fetchLatestInvite,
   fetchProfile,
+  fetchExpenses,
   fetchSales,
   fetchTabs,
   fetchUserPrimaryStokvel,
   getCurrentAuth,
   insertContribution as remoteInsertContribution,
+  insertExpense as remoteInsertExpense,
+  insertExpenses as remoteInsertExpenses,
   insertSale as remoteInsertSale,
   insertSales as remoteInsertSales,
   insertTab as remoteInsertTab,
@@ -70,6 +79,12 @@ export type Profile = {
   businessType: BusinessType | null;
 };
 
+// Value-bearing records now carry an evidence envelope (PR #22).
+// All four envelope fields are optional at the type level so:
+//   1. rows fetched from a not-yet-migrated backend still parse, and
+//   2. code that constructs objects locally (voice/manual paths) can
+//      default them via the setDefault helpers below.
+// The classifier functions in src/lib/evidence.ts fill them in.
 export type Sale = {
   id: string;
   item: string;
@@ -77,10 +92,34 @@ export type Sale = {
   price: number;
   createdAt: number;
   raw?: string;
-  // "receipt" was reintroduced when we shipped real Tesseract.js OCR
-  // (PR #17). Sales imported from a scanned receipt land with this
-  // source so Home + Insights can badge them accurately.
+  // "receipt" is retained here for backwards compat with rows written
+  // before PR #22, but new receipt scans no longer create sales rows
+  // — they create Expense rows instead. Historical receipt-sourced
+  // sales get reclassified in migration 010 (event_type='expense'
+  // in place, row preserved).
   source?: "voice" | "manual" | "receipt";
+  eventType?: EventType;
+  evidenceType?: EvidenceType;
+  evidenceTier?: EvidenceTier;
+  provenance?: Provenance;
+};
+
+/**
+ * Business expense (money out): typically a supplier receipt scanned
+ * via ScanReceipt. Introduced in PR #22. Shape mirrors Sale but the
+ * event_type constraint pins it to "expense".
+ */
+export type Expense = {
+  id: string;
+  item: string;
+  qty: number;
+  price: number;
+  createdAt: number;
+  raw?: string;
+  eventType?: EventType; // Always "expense" in practice.
+  evidenceType?: EvidenceType;
+  evidenceTier?: EvidenceTier;
+  provenance?: Provenance;
 };
 
 export type Tab = {
@@ -89,6 +128,10 @@ export type Tab = {
   amount: number;
   createdAt: number;
   paid?: boolean;
+  eventType?: EventType;
+  evidenceType?: EvidenceType;
+  evidenceTier?: EvidenceTier;
+  provenance?: Provenance;
 };
 
 export type MemberRole = "admin" | "member";
@@ -133,6 +176,11 @@ export type Contribution = {
   reference?: string;
   confirmedAt?: number;
   rejectedReason?: string;
+  // PR #22 evidence envelope.
+  eventType?: EventType;
+  evidenceType?: EvidenceType;
+  evidenceTier?: EvidenceTier;
+  provenance?: Provenance;
 };
 
 // Bank account attached to the stokvel — where members must EFT
@@ -167,6 +215,11 @@ export type AppState = {
   lang: Lang | null;
   profile: Profile;
   sales: Sale[];
+  // Expenses (business-side money out) live in their own array as of
+  // PR #22. Historical receipt-sourced sales that got reclassified by
+  // migration 010 stay in `sales` with eventType='expense' — the
+  // Financial Passport + KasiScore treat both sources as expenses.
+  expenses: Expense[];
   tabs: Tab[];
   stokvel: Stokvel | null;
   paymentConfig: PaymentConfigStatus | null;
@@ -191,6 +244,7 @@ const emptyState: AppState = {
     businessType: null,
   },
   sales: [],
+  expenses: [],
   tabs: [],
   stokvel: null,
   paymentConfig: null,
@@ -442,9 +496,13 @@ async function performHydrate(): Promise<void> {
     userId = uid;
     authInfo = await getCurrentAuth();
 
-    const [profileFetch, sales, tabs, stokvelRes] = await Promise.all([
+    const [profileFetch, sales, expenses, tabs, stokvelRes] = await Promise.all([
       fetchProfile(uid),
       fetchSales(uid),
+      // Expenses table is new in migration 010. If it doesn't exist
+      // yet on this project, fetchExpenses returns null and we keep
+      // whatever's already in state (usually []). No error thrown.
+      fetchExpenses(uid),
       fetchTabs(uid),
       fetchUserPrimaryStokvel(uid),
     ]);
@@ -464,6 +522,7 @@ async function performHydrate(): Promise<void> {
       onboarded: profileFetch ? profileFetch.onboarded : state.onboarded,
       profile: profileFetch?.profile ?? state.profile,
       sales: sales ?? state.sales,
+      expenses: expenses ?? state.expenses,
       tabs: tabs ?? state.tabs,
       stokvel: stokvelRes?.stokvel ?? null,
       paymentConfig,
@@ -703,6 +762,49 @@ export function useStore() {
     setState((s) => ({ sales: [...full, ...s.sales] }));
     if (userId) sync(() => remoteInsertSales(userId!, full));
   }, []);
+
+  /**
+   * Log a single expense (typically from ScanReceipt). Introduced with
+   * PR #22. The caller is expected to pass the evidence envelope in
+   * `expense.evidence*` fields; if omitted, remote.ts's insertExpense
+   * falls back to observed / supplier_receipt for expense records.
+   */
+  const addExpense = useCallback(
+    (expense: Omit<Expense, "id" | "createdAt">) => {
+      const full: Expense = {
+        ...expense,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        eventType: expense.eventType ?? "expense",
+      };
+      setState((s) => ({ expenses: [full, ...s.expenses] }));
+      if (userId) sync(() => remoteInsertExpense(userId!, full));
+      return full;
+    },
+    [],
+  );
+
+  /**
+   * Bulk-log expenses (typically one call per successful receipt scan
+   * with multiple line items). Mirrors addSales() so callers converting
+   * from addSales({source:'receipt'}) → addExpenses(...) have familiar
+   * ergonomics.
+   */
+  const addExpenses = useCallback(
+    (expenses: Omit<Expense, "id" | "createdAt">[]) => {
+      if (expenses.length === 0) return;
+      const now = Date.now();
+      const full: Expense[] = expenses.map((expense, i) => ({
+        ...expense,
+        id: crypto.randomUUID(),
+        createdAt: now + i,
+        eventType: expense.eventType ?? "expense",
+      }));
+      setState((s) => ({ expenses: [...full, ...s.expenses] }));
+      if (userId) sync(() => remoteInsertExpenses(userId!, full));
+    },
+    [],
+  );
 
   const undoSale = useCallback((id: string) => {
     setState((s) => ({ sales: s.sales.filter((x) => x.id !== id) }));
@@ -1149,6 +1251,8 @@ export function useStore() {
     // sales/tabs/contributions
     addSale,
     addSales,
+    addExpense,
+    addExpenses,
     undoSale,
     addTab,
     markTabPaid,
@@ -1188,9 +1292,18 @@ export function estimatedProfitToday(sales: Sale[]) {
   return Math.round(sumSalesToday(sales) * 0.22);
 }
 
+/**
+ * Revenue-derived helpers filter by eventType='sale' (or missing,
+ * which defaults to 'sale' for pre-PR-22 rows). This is the
+ * same guarantee the passport regression tests enforce: reclassified
+ * receipt-sourced rows (event_type='expense' after migration 010)
+ * cannot inflate revenue calculations.
+ */
+const isRealSale = (s: Sale) => (s.eventType ?? "sale") === "sale";
+
 export function sumWeekProfit(sales: Sale[]) {
   const from = Date.now() - 1000 * 60 * 60 * 24 * 7;
-  const week = sales.filter((s) => s.createdAt >= from);
+  const week = sales.filter((s) => isRealSale(s) && s.createdAt >= from);
   const rev = week.reduce((a, s) => a + s.qty * s.price, 0);
   return Math.round(rev * 0.22);
 }
@@ -1202,6 +1315,7 @@ export function totalOwed(tabs: Tab[]) {
 export function topSeller(sales: Sale[]) {
   const totals: Record<string, number> = {};
   for (const s of sales) {
+    if (!isRealSale(s)) continue;
     totals[s.item] = (totals[s.item] || 0) + s.qty * s.price;
   }
   let best: { item: string; rev: number } | null = null;
