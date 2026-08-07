@@ -6,11 +6,21 @@ import type {
   EvidenceType,
   Provenance,
 } from "./lib/evidence";
+import type {
+  BankId,
+  ClassificationCategory,
+  ClassificationSource,
+  Direction as BankDirection,
+  ImportSummary,
+} from "./lib/bank/types";
+import type { PersistableStatement } from "./lib/bank/pipeline";
 import { isCloudConfigured } from "./lib/supabase";
 import {
   createInvite as remoteCreateInvite,
   createStokvel as remoteCreateStokvel,
   ensureSession,
+  fetchBankStatements,
+  fetchBankTransactions,
   fetchLatestInvite,
   fetchProfile,
   fetchExpenses,
@@ -18,6 +28,8 @@ import {
   fetchTabs,
   fetchUserPrimaryStokvel,
   getCurrentAuth,
+  insertBankStatement as remoteInsertBankStatement,
+  insertBankTransactions as remoteInsertBankTransactions,
   insertContribution as remoteInsertContribution,
   insertExpense as remoteInsertExpense,
   insertExpenses as remoteInsertExpenses,
@@ -211,6 +223,60 @@ export type StokvelInvite = {
   expiresAt: number | null;
 };
 
+/**
+ * PR #23 client-side shape for one uploaded bank statement. Mirrors
+ * `public.bank_statements` in the DB, minus server-only fields.
+ * Every row carries a `fileHash` so the client can pre-flight-check
+ * "have I imported this file before?" against `state.bankStatements`
+ * without asking the server.
+ */
+export type BankStatement = {
+  id: string;
+  bank: BankId;
+  filename: string;
+  fileHash: string;
+  accountRef: string | null; // masked, last 4 digits
+  periodStart: number | null;
+  periodEnd: number | null;
+  openingBalance: number | null;
+  closingBalance: number | null;
+  transactionCount: number;
+  importedAt: number;
+  createdAt: number;
+};
+
+/**
+ * PR #23 client-side shape for one parsed bank-statement line.
+ * Mirrors `public.bank_transactions` in the DB.
+ *
+ * The three envelope fields are constant by DB CHECK constraint —
+ * event_type='bank_transaction', evidence_type='bank_statement_line',
+ * evidence_tier='observed' — so downstream code (passport, score
+ * helpers) can key off classification alone and not have to combine
+ * event_type filters.
+ */
+export type BankTransaction = {
+  id: string;
+  statementId: string;
+  occurredAt: number;
+  direction: BankDirection;
+  amount: number;
+  description: string;
+  counterpartyName: string | null;
+  counterpartyHash: string;
+  reference: string | null;
+  classification: ClassificationCategory;
+  classificationConfidence: number;
+  classificationSource: ClassificationSource;
+  isRecurring: boolean;
+  fingerprint: string;
+  eventType: "bank_transaction";
+  evidenceType: "bank_statement_line";
+  evidenceTier: "observed";
+  provenance: Provenance;
+  createdAt: number;
+};
+
 export type AppState = {
   lang: Lang | null;
   profile: Profile;
@@ -223,6 +289,11 @@ export type AppState = {
   tabs: Tab[];
   stokvel: Stokvel | null;
   paymentConfig: PaymentConfigStatus | null;
+  // PR #23 bank statement imports. Fully local-first: the arrays live
+  // in localStorage even in demo mode; when cloud is configured, they
+  // hydrate from bank_statements + bank_transactions in Supabase.
+  bankStatements: BankStatement[];
+  bankTransactions: BankTransaction[];
   onboarded: boolean;
 };
 
@@ -248,6 +319,8 @@ const emptyState: AppState = {
   tabs: [],
   stokvel: null,
   paymentConfig: null,
+  bankStatements: [],
+  bankTransactions: [],
 };
 
 // ---- Persistence ----------------------------------------------------------
@@ -259,11 +332,17 @@ function loadInitial(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as AppState;
+      const parsed = JSON.parse(raw) as Partial<AppState>;
       return {
         ...emptyState,
         ...parsed,
         profile: { ...emptyState.profile, ...(parsed.profile ?? {}) },
+        // Defensive defaults for fields introduced in later PRs so
+        // that a user upgrading from an older cached state doesn't
+        // blow up on `undefined.filter(...)`.
+        expenses: parsed.expenses ?? [],
+        bankStatements: parsed.bankStatements ?? [],
+        bankTransactions: parsed.bankTransactions ?? [],
       };
     }
     // Migrate from older cache versions
@@ -496,7 +575,15 @@ async function performHydrate(): Promise<void> {
     userId = uid;
     authInfo = await getCurrentAuth();
 
-    const [profileFetch, sales, expenses, tabs, stokvelRes] = await Promise.all([
+    const [
+      profileFetch,
+      sales,
+      expenses,
+      tabs,
+      stokvelRes,
+      bankStatements,
+      bankTransactions,
+    ] = await Promise.all([
       fetchProfile(uid),
       fetchSales(uid),
       // Expenses table is new in migration 010. If it doesn't exist
@@ -505,6 +592,10 @@ async function performHydrate(): Promise<void> {
       fetchExpenses(uid),
       fetchTabs(uid),
       fetchUserPrimaryStokvel(uid),
+      // Bank statements + transactions are new in migration 011. Same
+      // graceful-missing-table behaviour as expenses.
+      fetchBankStatements(uid),
+      fetchBankTransactions(uid),
     ]);
 
     // Fetch payment config if a stokvel exists (needs to happen after
@@ -526,6 +617,8 @@ async function performHydrate(): Promise<void> {
       tabs: tabs ?? state.tabs,
       stokvel: stokvelRes?.stokvel ?? null,
       paymentConfig,
+      bankStatements: bankStatements ?? state.bankStatements,
+      bankTransactions: bankTransactions ?? state.bankTransactions,
     };
 
     state = merged;
@@ -804,6 +897,162 @@ export function useStore() {
       if (userId) sync(() => remoteInsertExpenses(userId!, full));
     },
     [],
+  );
+
+  /**
+   * Import a fully-processed bank statement (PR #23). Idempotent:
+   *   * If the file has already been uploaded (matched by fileHash),
+   *     returns duplicate: true and doesn't re-import anything.
+   *   * If the file is new but contains transactions that already
+   *     exist (fingerprint match, e.g. overlapping statement
+   *     periods), those individual rows are skipped by the DB.
+   *
+   * Works in demo mode too — the statement + transactions are
+   * appended to local state only, giving users something to look at
+   * even before they've wired up Supabase.
+   */
+  const addBankStatement = useCallback(
+    async (parsed: PersistableStatement): Promise<ImportSummary> => {
+      const totalTransactions = parsed.transactions.length;
+
+      // Demo-mode / offline branch: append to local state with
+      // client-generated IDs. No server round-trip.
+      if (!userId || !isCloudConfigured) {
+        // Client-side duplicate check by fileHash.
+        const alreadyImported = state.bankStatements.some(
+          (s) => s.fileHash === parsed.fileHash,
+        );
+        if (alreadyImported) {
+          return {
+            statementId:
+              state.bankStatements.find((s) => s.fileHash === parsed.fileHash)!
+                .id,
+            totalTransactions,
+            inserted: 0,
+            duplicates: totalTransactions,
+            dropped: parsed.dropped,
+            warnings: [
+              ...parsed.warnings,
+              "This file was already imported earlier — no new transactions were added.",
+            ],
+          };
+        }
+        const stmtId = crypto.randomUUID();
+        const now = Date.now();
+        const stmt: BankStatement = {
+          id: stmtId,
+          bank: parsed.bank,
+          filename: parsed.filename,
+          fileHash: parsed.fileHash,
+          accountRef: parsed.accountRef,
+          periodStart: parsed.periodStart,
+          periodEnd: parsed.periodEnd,
+          openingBalance: parsed.openingBalance,
+          closingBalance: parsed.closingBalance,
+          transactionCount: totalTransactions,
+          importedAt: now,
+          createdAt: now,
+        };
+        // Client-side fingerprint dedup: skip any tx whose
+        // fingerprint already exists in bankTransactions.
+        const existingFps = new Set(
+          state.bankTransactions.map((t) => t.fingerprint),
+        );
+        const newTxs: BankTransaction[] = [];
+        let duplicates = 0;
+        for (const t of parsed.transactions) {
+          if (existingFps.has(t.fingerprint)) {
+            duplicates++;
+            continue;
+          }
+          newTxs.push({
+            id: crypto.randomUUID(),
+            statementId: stmtId,
+            occurredAt: t.occurredAt,
+            direction: t.direction,
+            amount: t.amount,
+            description: t.description,
+            counterpartyName: t.counterpartyName,
+            counterpartyHash: t.counterpartyHash,
+            reference: t.reference,
+            classification: t.classification,
+            classificationConfidence: t.classificationConfidence,
+            classificationSource: t.classificationSource,
+            isRecurring: t.isRecurring,
+            fingerprint: t.fingerprint,
+            eventType: "bank_transaction",
+            evidenceType: "bank_statement_line",
+            evidenceTier: "observed",
+            provenance: t.parserMeta ?? {},
+            createdAt: now,
+          });
+        }
+        setState((s) => ({
+          bankStatements: [stmt, ...s.bankStatements],
+          bankTransactions: [...newTxs, ...s.bankTransactions],
+        }));
+        return {
+          statementId: stmtId,
+          totalTransactions,
+          inserted: newTxs.length,
+          duplicates,
+          dropped: parsed.dropped,
+          warnings: parsed.warnings,
+        };
+      }
+
+      // Cloud branch. Insert statement first; if a duplicate row was
+      // detected (unique conflict on file_hash), don't re-insert the
+      // transactions.
+      const stmtResult = await remoteInsertBankStatement(userId, parsed);
+      if (!stmtResult) {
+        return {
+          statementId: "",
+          totalTransactions,
+          inserted: 0,
+          duplicates: 0,
+          dropped: parsed.dropped,
+          warnings: [
+            ...parsed.warnings,
+            "Could not save the statement to the cloud. Try again in a moment.",
+          ],
+        };
+      }
+      if (stmtResult.duplicate) {
+        return {
+          statementId: stmtResult.statementId,
+          totalTransactions,
+          inserted: 0,
+          duplicates: totalTransactions,
+          dropped: parsed.dropped,
+          warnings: [
+            ...parsed.warnings,
+            "This file was already imported earlier — no new transactions were added.",
+          ],
+        };
+      }
+
+      const txResult = await remoteInsertBankTransactions(
+        userId,
+        stmtResult.statementId,
+        parsed.transactions,
+      );
+
+      // Re-hydrate so local state reflects the canonical DB row ids
+      // + counts. Coalesced hydration means multiple imports in
+      // quick succession only trigger one fetch cycle.
+      await hydrateFromRemote();
+
+      return {
+        statementId: stmtResult.statementId,
+        totalTransactions,
+        inserted: txResult?.inserted ?? 0,
+        duplicates: txResult?.duplicates ?? 0,
+        dropped: parsed.dropped,
+        warnings: parsed.warnings,
+      };
+    },
+    [state.bankStatements, state.bankTransactions],
   );
 
   const undoSale = useCallback((id: string) => {
@@ -1253,6 +1502,7 @@ export function useStore() {
     addSales,
     addExpense,
     addExpenses,
+    addBankStatement,
     undoSale,
     addTab,
     markTabPaid,

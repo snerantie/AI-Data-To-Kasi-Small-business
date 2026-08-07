@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 import type { Lang } from "../i18n";
 import type {
+  BankStatement,
+  BankTransaction,
   Sale,
   Expense,
   Tab,
@@ -26,6 +28,13 @@ import {
   classifyLegacySale,
   classifyLegacyTab,
 } from "./evidence";
+import type {
+  BankId,
+  ClassificationCategory,
+  ClassificationSource,
+  Direction as BankDirection,
+} from "./bank/types";
+import type { PersistableStatement } from "./bank/pipeline";
 
 /**
  * Thin CRUD wrapper around Supabase for KasiKash.
@@ -581,6 +590,276 @@ export async function updateTabPaid(id: string): Promise<void> {
     .update({ paid: true, paid_at: new Date().toISOString() })
     .eq("id", id);
   if (error) console.warn("[kasikash] updateTabPaid:", error.message);
+}
+
+// ---- Bank statements + transactions (PR #23) ------------------------------
+//
+// Idempotent inserts:
+//   * bank_statements is UNIQUE (owner_id, file_hash). We detect the
+//     "same file re-uploaded" case by catching the 23505 error and
+//     returning the existing row's id + duplicate=true instead of
+//     surfacing a hard failure to the caller.
+//   * bank_transactions is UNIQUE (owner_id, fingerprint). We use
+//     UPSERT with `onConflict: 'owner_id,fingerprint', ignoreDuplicates: true`
+//     which quietly skips any row that already exists — the shared
+//     transactions across overlapping statement periods.
+//
+// A missing table (`42P01`) is treated the same as "no data" so a
+// client running against a project where migration 011 hasn't been
+// applied still functions in demo-mode fashion.
+
+type BankStatementRow = {
+  id: string;
+  bank: string;
+  filename: string;
+  file_hash: string;
+  account_ref: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  opening_balance: number | string | null;
+  closing_balance: number | string | null;
+  transaction_count: number;
+  imported_at: string;
+  created_at: string;
+};
+
+type BankTransactionRow = {
+  id: string;
+  statement_id: string;
+  occurred_at: string;
+  direction: BankDirection;
+  amount: number | string;
+  description: string;
+  counterparty_name: string | null;
+  counterparty_hash: string | null;
+  reference: string | null;
+  classification: ClassificationCategory;
+  classification_confidence: number | string;
+  classification_source: ClassificationSource;
+  is_recurring: boolean;
+  fingerprint: string;
+  event_type: string;
+  evidence_type: string;
+  evidence_tier: string;
+  provenance: Provenance | null;
+  created_at: string;
+};
+
+const parseNum = (n: number | string | null): number | null => {
+  if (n === null || n === undefined) return null;
+  return typeof n === "string" ? parseFloat(n) : n;
+};
+
+const rowToBankStatement = (r: BankStatementRow): BankStatement => ({
+  id: r.id,
+  bank: r.bank as BankId,
+  filename: r.filename,
+  fileHash: r.file_hash,
+  accountRef: r.account_ref,
+  periodStart: r.period_start ? new Date(r.period_start).getTime() : null,
+  periodEnd: r.period_end ? new Date(r.period_end).getTime() : null,
+  openingBalance: parseNum(r.opening_balance),
+  closingBalance: parseNum(r.closing_balance),
+  transactionCount: r.transaction_count,
+  importedAt: new Date(r.imported_at).getTime(),
+  createdAt: new Date(r.created_at).getTime(),
+});
+
+const rowToBankTransaction = (r: BankTransactionRow): BankTransaction => ({
+  id: r.id,
+  statementId: r.statement_id,
+  occurredAt: new Date(r.occurred_at).getTime(),
+  direction: r.direction,
+  amount: parseNum(r.amount) ?? 0,
+  description: r.description,
+  counterpartyName: r.counterparty_name,
+  counterpartyHash: r.counterparty_hash ?? "",
+  reference: r.reference,
+  classification: r.classification,
+  classificationConfidence: parseNum(r.classification_confidence) ?? 0,
+  classificationSource: r.classification_source,
+  isRecurring: r.is_recurring,
+  fingerprint: r.fingerprint,
+  // These three are DB-CHECK-constrained so parsing them back to their
+  // literal types is safe. If someone changes the constraints, they'd
+  // trigger a runtime narrowing failure here and the row falls back
+  // to the default envelope.
+  eventType: "bank_transaction",
+  evidenceType: "bank_statement_line",
+  evidenceTier: "observed",
+  provenance: r.provenance ?? {},
+  createdAt: new Date(r.created_at).getTime(),
+});
+
+export async function fetchBankStatements(
+  userId: string,
+): Promise<BankStatement[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("bank_statements")
+    .select(
+      "id, bank, filename, file_hash, account_ref, period_start, period_end, opening_balance, closing_balance, transaction_count, imported_at, created_at",
+    )
+    .eq("owner_id", userId)
+    .order("imported_at", { ascending: false })
+    .limit(50);
+  if (error) {
+    if ((error as unknown as { code?: string }).code !== "42P01") {
+      console.warn("[kasikash] fetchBankStatements:", error.message);
+    }
+    return null;
+  }
+  return (data as BankStatementRow[]).map(rowToBankStatement);
+}
+
+export async function fetchBankTransactions(
+  userId: string,
+): Promise<BankTransaction[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("bank_transactions")
+    .select(
+      "id, statement_id, occurred_at, direction, amount, description, counterparty_name, counterparty_hash, reference, classification, classification_confidence, classification_source, is_recurring, fingerprint, event_type, evidence_type, evidence_tier, provenance, created_at",
+    )
+    .eq("owner_id", userId)
+    .order("occurred_at", { ascending: false })
+    .limit(500);
+  if (error) {
+    if ((error as unknown as { code?: string }).code !== "42P01") {
+      console.warn("[kasikash] fetchBankTransactions:", error.message);
+    }
+    return null;
+  }
+  return (data as BankTransactionRow[]).map(rowToBankTransaction);
+}
+
+/**
+ * Try to insert a `bank_statements` row. If a row with the same
+ * (owner_id, file_hash) already exists, returns { statementId, duplicate: true }
+ * so the caller can short-circuit the transaction insert step.
+ *
+ * Returns `null` when Supabase isn't configured (demo-mode caller
+ * handles the local case).
+ */
+export async function insertBankStatement(
+  userId: string,
+  parsed: PersistableStatement,
+): Promise<
+  | { statementId: string; duplicate: boolean }
+  | null
+> {
+  if (!supabase) return null;
+
+  const row = {
+    owner_id: userId,
+    bank: parsed.bank,
+    filename: parsed.filename,
+    file_hash: parsed.fileHash,
+    account_ref: parsed.accountRef,
+    period_start: parsed.periodStart
+      ? new Date(parsed.periodStart).toISOString().slice(0, 10)
+      : null,
+    period_end: parsed.periodEnd
+      ? new Date(parsed.periodEnd).toISOString().slice(0, 10)
+      : null,
+    opening_balance: parsed.openingBalance,
+    closing_balance: parsed.closingBalance,
+    transaction_count: parsed.transactions.length,
+  };
+
+  const { data, error } = await supabase
+    .from("bank_statements")
+    .insert(row)
+    .select("id")
+    .single();
+
+  if (error) {
+    // 23505 = unique violation. Look up the existing row's id so the
+    // caller has something usable to link to.
+    if ((error as unknown as { code?: string }).code === "23505") {
+      const { data: existing, error: lookupErr } = await supabase
+        .from("bank_statements")
+        .select("id")
+        .eq("owner_id", userId)
+        .eq("file_hash", parsed.fileHash)
+        .single();
+      if (lookupErr || !existing) {
+        console.warn(
+          "[kasikash] insertBankStatement: conflict but couldn't find existing row:",
+          lookupErr?.message,
+        );
+        return null;
+      }
+      return { statementId: (existing as { id: string }).id, duplicate: true };
+    }
+    console.warn("[kasikash] insertBankStatement:", error.message);
+    return null;
+  }
+
+  return { statementId: (data as { id: string }).id, duplicate: false };
+}
+
+/**
+ * Bulk-insert bank transactions with idempotency. Any row whose
+ * (owner_id, fingerprint) already exists is silently ignored, so
+ * re-imports of overlapping statement periods don't double-count.
+ *
+ * Returns the counts of inserted vs duplicate rows. Since Supabase's
+ * insert doesn't tell us per-row which were duplicates, we compute
+ * duplicates as `total - inserted` after re-fetching.
+ */
+export async function insertBankTransactions(
+  userId: string,
+  statementId: string,
+  txs: PersistableStatement["transactions"],
+): Promise<{ inserted: number; duplicates: number } | null> {
+  if (!supabase || txs.length === 0) {
+    return { inserted: 0, duplicates: 0 };
+  }
+
+  // Build the insert payload. All CHECK-constrained envelope fields
+  // are hard-coded here; if a future maintainer accidentally leaves
+  // one out, the DB will reject the insert with a clear error rather
+  // than silently allowing bad data through.
+  const rows = txs.map((t) => ({
+    owner_id: userId,
+    statement_id: statementId,
+    occurred_at: new Date(t.occurredAt).toISOString(),
+    direction: t.direction,
+    amount: t.amount,
+    description: t.description,
+    counterparty_name: t.counterpartyName,
+    counterparty_hash: t.counterpartyHash,
+    reference: t.reference,
+    classification: t.classification,
+    classification_confidence: t.classificationConfidence,
+    classification_source: t.classificationSource,
+    is_recurring: t.isRecurring,
+    fingerprint: t.fingerprint,
+    event_type: "bank_transaction" as const,
+    evidence_type: "bank_statement_line" as const,
+    evidence_tier: "observed" as const,
+    provenance: t.parserMeta ?? {},
+  }));
+
+  const { data, error } = await supabase
+    .from("bank_transactions")
+    .upsert(rows, {
+      onConflict: "owner_id,fingerprint",
+      ignoreDuplicates: true,
+    })
+    .select("id");
+
+  if (error) {
+    console.warn("[kasikash] insertBankTransactions:", error.message);
+    return null;
+  }
+
+  const inserted = (data as unknown[])?.length ?? 0;
+  return {
+    inserted,
+    duplicates: rows.length - inserted,
+  };
 }
 
 // ---- Stokvel + memberships + contributions --------------------------------

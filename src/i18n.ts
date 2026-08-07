@@ -1611,6 +1611,311 @@ export const t = {
     af: "Beloon rekords wat gestaaf word deur onafhanklike digitale bewys — Yoco-betalings, verskaffer-kwitansies, bank-webhaakies.",
   },
 
+  // ---------------------------------------------------------------------
+  // PR #23 — Bank statement importer + passport bank-activity section.
+  //
+  // Copy is deliberately factual. The passport's job is to show
+  // what actually moved through the account, not to speculate about
+  // what those movements were for — so labels say "Bank inflows"
+  // and "Unclassified", not "Sales" and "Customer payments".
+  // ---------------------------------------------------------------------
+
+  // Home card + screen chrome
+  importStatementCard: {
+    en: "Import bank statement",
+    zu: "Ngenisa isitatimende sasebhange",
+    st: "Kenya statemente ea banka",
+    af: "Voer bankstaat in",
+  },
+  importStatementCardDesc: {
+    en: "Upload a PDF or CSV. Adds observed evidence to your passport.",
+    zu: "Layisha i-PDF noma i-CSV. Yengeza ubufakazi obubonwe kwipasi yakho.",
+    st: "Kenya PDF kapa CSV. E kenya bopaki bo bonoeng ho pasa ea hao.",
+    af: "Laai 'n PDF of CSV op. Voeg waargeneemde bewyse by jou paspoort.",
+  },
+  importStatementTitle: {
+    en: "Import bank statement",
+    zu: "Ngenisa isitatimende sasebhange",
+    st: "Kenya statemente ea banka",
+    af: "Voer bankstaat in",
+  },
+  importIdleBody: {
+    en: "Pick a PDF or CSV file exported from your online banking. It's parsed on this device — the file itself is not uploaded anywhere.",
+    zu: "Khetha ifayela le-PDF noma i-CSV elikhishwe kwibhange yakho ye-inthanethi. Lifundwa kule idivayisi — ifayela ngokwalo alilayishelwa ndawo.",
+    st: "Khetha faele ea PDF kapa CSV e tsoang ho banka ea hao ea inthanete. E baloa sesebelisoa sena — faele ka boeona ha e kenngoe kae kapa kae.",
+    af: "Kies 'n PDF- of CSV-lêer wat uit jou aanlyn-bankdiens uitgevoer is. Dit word op hierdie toestel ontleed — die lêer self word nêrens opgelaai nie.",
+  },
+  importChooseFile: {
+    en: "Choose file",
+    zu: "Khetha ifayela",
+    st: "Khetha faele",
+    af: "Kies lêer",
+  },
+  importSupportedHeader: {
+    en: "What works today",
+    zu: "Okusebenza namuhla",
+    st: "Se sebetsang kajeno",
+    af: "Wat vandag werk",
+  },
+  importSupportCapitecFnb: {
+    en: "PDF statements from Capitec and FNB (others use a generic parser).",
+    zu: "Izitatimende ze-PDF ezivela ku-Capitec ne-FNB (amanye asebenzisa isihlukanisi sika-jikelele).",
+    st: "Litatemente tsa PDF ho tsoa Capitec le FNB (tse ling li sebelisa mo-parser oa akaretsang).",
+    af: "PDF-state van Capitec en FNB (ander gebruik 'n generiese ontleder).",
+  },
+  importSupportCsvAny: {
+    en: "CSV exports from any SA bank.",
+    zu: "Ukukhipha kwe-CSV kunoma iyiphi ibhange lase-SA.",
+    st: "Ho ntša CSV ho banka efe kapa efe ea SA.",
+    af: "CSV-uitvoere van enige SA-bank.",
+  },
+  importSupportOnDevice: {
+    en: "All parsing happens on your phone. Nothing is uploaded as a file.",
+    zu: "Konke ukuhlaziywa kwenzeka kufoni yakho. Akukho okulayishelwa njengefayela.",
+    st: "Ho hlophisoa hohle ho etsahala fonong ea hao. Ha ho letho le kenngoang joalo ka faele.",
+    af: "Alle ontleding gebeur op jou foon. Niks word as 'n lêer opgelaai nie.",
+  },
+  importPrivacyNote: {
+    en: "Only the extracted transactions are saved to your account, under the same privacy rules as your sales data. The original file is discarded from memory once parsing finishes.",
+    zu: "Kufakwe kuphela ukuthengiselana okukhishiwe ku-akhawunti yakho, ngaphansi kwemithetho yobumfihlo efanayo nedatha yakho yokudayisa. Ifayela loqobo lilahlwa emsonto uma ukuhlaziywa sekuphelile.",
+    st: "Ke lintlha tse ntšitsoeng feela tse bolokehang ho akhaonto ea hao, tlas'a melao ea lekunutu e tšoanang le data ea hao ea thekiso. Faele ea mantlha e lahleloa mohopolong ha ho hlophisoa ho phethiloe.",
+    af: "Slegs die onttrekde transaksies word na jou rekening gestoor, onder dieselfde privaatheidsreëls as jou verkoopsdata. Die oorspronklike lêer word uit die geheue verwyder sodra ontleding voltooi is.",
+  },
+
+  // Progress labels
+  importPhaseReading: {
+    en: "Reading the file...",
+    zu: "Ifunda ifayela...",
+    st: "Ho bala faele...",
+    af: "Besig om die lêer te lees...",
+  },
+  importPhaseParsing: {
+    en: "Parsing statement layout...",
+    zu: "Ihlaziya isakhiwo sesitatimende...",
+    st: "Ho hlahloba sebopeho sa statemente...",
+    af: "Ontleed staatuitleg...",
+  },
+  importPhaseClassifying: {
+    en: "Classifying {count} transactions...",
+    zu: "Ihlukanisa ukuthengiselana okungu-{count}...",
+    st: "Ho arola lintlha tse {count}...",
+    af: "Klassifiseer {count} transaksies...",
+  },
+  importPhaseSaving: {
+    en: "Saving {count} transactions...",
+    zu: "Ilondoloza ukuthengiselana okungu-{count}...",
+    st: "Ho boloka lintlha tse {count}...",
+    af: "Stoor {count} transaksies...",
+  },
+
+  // Error / retry
+  importErrorTitle: {
+    en: "Import failed",
+    zu: "Ukungeniswa kuhlulekile",
+    st: "Kenyo e hlolehile",
+    af: "Invoer het misluk",
+  },
+  importTryAgain: {
+    en: "Try another file",
+    zu: "Zama elinye ifayela",
+    st: "Leka faele e nngoe",
+    af: "Probeer 'n ander lêer",
+  },
+  importUnsupportedType: {
+    en: "That file type isn't supported. Please upload a PDF or CSV.",
+    zu: "Lolo hlobo lwefayela alusekelwe. Sicela ulayishe i-PDF noma i-CSV.",
+    st: "Mofuta oo oa faele ha o tšehetsoe. Ka kopo kenya PDF kapa CSV.",
+    af: "Daardie lêertipe word nie ondersteun nie. Laai asseblief 'n PDF of CSV op.",
+  },
+
+  // Done view
+  importDoneTitle: {
+    en: "Statement imported ✓",
+    zu: "Isitatimende sifakiwe ✓",
+    st: "Statemente e kenngoe ✓",
+    af: "Staat ingevoer ✓",
+  },
+  importDoneSubtitle: {
+    en: "Parsed as a {bank} statement.",
+    zu: "Ihlaziywe njengesitatimende se-{bank}.",
+    st: "E hlophisitsoe joalo ka statemente ea {bank}.",
+    af: "Ontleed as 'n {bank}-staat.",
+  },
+  importSummaryTotal: {
+    en: "Total transactions",
+    zu: "Ukuthengiselana okuphelele",
+    st: "Kakaretso ea lintlha",
+    af: "Totale transaksies",
+  },
+  importSummaryInserted: {
+    en: "Newly imported",
+    zu: "Kufakwe kabusha",
+    st: "E ntšoa kenngoa",
+    af: "Nuut ingevoer",
+  },
+  importSummaryDuplicates: {
+    en: "Already on file",
+    zu: "Sivele sikhona efayeleni",
+    st: "E se e le teng",
+    af: "Reeds op rekord",
+  },
+  importSummaryDropped: {
+    en: "Couldn't read",
+    zu: "Ayikwazanga ukufunda",
+    st: "E ne e sa khone ho balea",
+    af: "Kon nie lees nie",
+  },
+  importWarningsHeader: {
+    en: "Notes from the parser",
+    zu: "Amanothi avela kumhlaziyi",
+    st: "Litlhaloso ho tsoa ho mohlahlobisi",
+    af: "Notas van die ontleder",
+  },
+  importPreviewHeader: {
+    en: "First few transactions",
+    zu: "Ukuthengiselana kokuqala",
+    st: "Lintlha tsa pele",
+    af: "Eerste paar transaksies",
+  },
+  importAnother: {
+    en: "Import another",
+    zu: "Ngenisa okunye",
+    st: "Kenya e nngoe",
+    af: "Voer nog een in",
+  },
+  importBackHome: {
+    en: "Back to home",
+    zu: "Buyela ekhaya",
+    st: "Khutlela hae",
+    af: "Terug na tuis",
+  },
+
+  // Classification display labels — shown on the transaction preview
+  // and in future review UIs. NOTE: there is deliberately no
+  // "customer_sale" entry. See src/lib/bank/classify.ts.
+  classificationUnknown: {
+    en: "Unclassified",
+    zu: "Akuhlukaniswe",
+    st: "Ha e arotsoe",
+    af: "Nie geklassifiseer",
+  },
+  classificationOwnTransfer: {
+    en: "Own transfer",
+    zu: "Ukudlulisa kwakho",
+    st: "Phetiso ea hao",
+    af: "Eie oordrag",
+  },
+  classificationCashDeposit: {
+    en: "Cash deposit",
+    zu: "Ukufaka imali",
+    st: "Ho beha chelete",
+    af: "Kontantdeposito",
+  },
+  classificationCashWithdrawal: {
+    en: "Cash withdrawal",
+    zu: "Ukukhipha imali",
+    st: "Ho ntša chelete",
+    af: "Kontantonttrekking",
+  },
+  classificationBankFee: {
+    en: "Bank fee",
+    zu: "Imali yebhange",
+    st: "Tefo ea banka",
+    af: "Bankfooi",
+  },
+  classificationAirtime: {
+    en: "Airtime / data",
+    zu: "I-airtime / idatha",
+    st: "Airtime / data",
+    af: "Lugtyd / data",
+  },
+  classificationUtility: {
+    en: "Utility",
+    zu: "Insiza",
+    st: "Tšebeletso",
+    af: "Nutsdiens",
+  },
+  classificationRentOrSubscription: {
+    en: "Rent / subscription",
+    zu: "Irenti / okubhaliselwe",
+    st: "Rente / ho ngolisa",
+    af: "Huur / intekening",
+  },
+  classificationSupplierLike: {
+    en: "Supplier",
+    zu: "Umthengisi",
+    st: "Moabi",
+    af: "Verskaffer",
+  },
+  classificationSalaryLike: {
+    en: "Salary-like",
+    zu: "Njengeholo",
+    st: "E kang moputso",
+    af: "Salaris-agtig",
+  },
+  classificationStokvelRelated: {
+    en: "Stokvel",
+    zu: "I-stokvel",
+    st: "Stokvel",
+    af: "Stokvel",
+  },
+  classificationLoanRepayment: {
+    en: "Loan repayment",
+    zu: "Ukukhokha imali eboleka",
+    st: "Ho lefa mokitlane",
+    af: "Leningsterugbetaling",
+  },
+  classificationRefund: {
+    en: "Refund",
+    zu: "Imbuyiselo",
+    st: "Ho khutlisa chelete",
+    af: "Terugbetaling",
+  },
+
+  // Passport bank-activity section
+  pdfSectionBankActivity: {
+    en: "Bank activity (30 days)",
+    zu: "Umsebenzi webhange (izinsuku ezingu-30)",
+    st: "Mosebetsi oa banka (matsatsi a 30)",
+    af: "Bankaktiwiteit (30 dae)",
+  },
+  pdfLabelBankInflows: {
+    en: "Bank inflows",
+    zu: "Ukungena kwemali ebhange",
+    st: "Chelete e kenang bankeng",
+    af: "Bank-invloei",
+  },
+  pdfLabelBankOutflows: {
+    en: "Bank outflows",
+    zu: "Ukuphuma kwemali ebhange",
+    st: "Chelete e tsoang bankeng",
+    af: "Bank-uitvloei",
+  },
+  pdfLabelInflowDiversity: {
+    en: "Distinct payers",
+    zu: "Ababhadalayo abehlukene",
+    st: "Ba lefang ba fapaneng",
+    af: "Verskillende betalers",
+  },
+  pdfLabelCashDepositRatio: {
+    en: "Cash deposit share",
+    zu: "Ingxenye yokufaka imali",
+    st: "Karolo ea ho beha chelete",
+    af: "Kontantdeposito-aandeel",
+  },
+  pdfLabelRecurringInflows: {
+    en: "Recurring inflows",
+    zu: "Ukungena okuphindaphindayo",
+    st: "Ho kena ho phetahalang",
+    af: "Herhalende invloeie",
+  },
+  pdfLabelTopSupplier: {
+    en: "Top supplier",
+    zu: "Umthengisi ophezulu",
+    st: "Moabi oa hlooho",
+    af: "Top-verskaffer",
+  },
+
   pdfLabelTabsPaid: {
     en: "Tabs paid",
     zu: "Izikweletu ezikhokhiwe",

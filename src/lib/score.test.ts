@@ -53,6 +53,11 @@ const emptyState = (): AppState => ({
   tabs: [],
   stokvel: null,
   paymentConfig: null,
+  // PR #23 additions — empty by default; specific tests populate them
+  // when needed. Included here so the type-checker forces us to update
+  // this fixture whenever AppState grows a new field.
+  bankStatements: [],
+  bankTransactions: [],
 });
 
 const makeSale = (
