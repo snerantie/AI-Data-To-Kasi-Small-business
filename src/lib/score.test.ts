@@ -393,6 +393,99 @@ describe("empty-account (insufficientData) behaviour", () => {
     expect(computeKasiScore(state, "user-1").insufficientData).toBe(false);
   });
 
+  // -------------------------------------------------------------------
+  // PR #26 regression: a pending contribution from ANOTHER member
+  // MUST NOT unlock the current user's numerical score.
+  //
+  // Reported from pilot use:
+  //   "How can I have 500 [now 341] score if I haven't done anything.
+  //    And in the settings is that visible to everyone?"
+  //
+  // The old totalValueBearingEvents() counted every row on
+  // `stk.contributions`, from every member, at every status. So the
+  // instant a new joiner logged a pending R200, every existing member
+  // of the stokvel (including the admin who'd only filled in a
+  // profile) got past the emptiness check and started displaying
+  // "300 + profile-completeness ≈ 341" — a number that contradicted
+  // every visible factor row (all zero). Same problem for members
+  // themselves: they'd see a 341 score just because they joined a
+  // stokvel where someone else had a pending contribution.
+  //
+  // Post-fix: contributions only count when they're (a) the current
+  // user's, and (b) confirmed. Otherwise emptiness persists.
+  // -------------------------------------------------------------------
+
+  it("someone else's pending contribution does not unlock my score", () => {
+    const state = emptyState();
+    const someoneElse = "other-user";
+    const me = "user-1";
+    state.stokvel = stokvelWithGoal(
+      5000,
+      [
+        // Another member's pending contribution — should not count
+        // toward the current user's totalValueBearingEvents.
+        {
+          ...makeContribution("c1", someoneElse, 1, 200, "declared"),
+          status: "pending",
+        },
+      ],
+      me,
+    );
+    const detail = computeKasiScore(state, me);
+    expect(detail.insufficientData).toBe(true);
+    expect(detail.score).toBe(300);
+  });
+
+  it("my own pending contribution does not unlock my score either", () => {
+    // Aligned with PR #22 "declared vs observed vs verified": a
+    // pending contribution is a claim, not yet evidence. It has to
+    // land (admin confirms, or bank matches) before the score
+    // treats it as real activity.
+    const state = emptyState();
+    const me = "user-1";
+    state.stokvel = stokvelWithGoal(
+      5000,
+      [
+        {
+          ...makeContribution("c1", me, 1, 200, "declared"),
+          status: "pending",
+        },
+      ],
+      me,
+    );
+    const detail = computeKasiScore(state, me);
+    expect(detail.insufficientData).toBe(true);
+  });
+
+  it("one confirmed own contribution IS enough to unlock the score", () => {
+    // The other side of the coin — the moment a real, confirmed
+    // event exists we DO want the score to become meaningful,
+    // however modest.
+    const state = emptyState();
+    const me = "user-1";
+    state.stokvel = stokvelWithGoal(
+      5000,
+      [makeContribution("c1", me, 1, 200, "declared")],
+      me,
+    );
+    const detail = computeKasiScore(state, me);
+    expect(detail.insufficientData).toBe(false);
+  });
+
+  it("filling in a profile alone does not unlock the score", () => {
+    // Profile completeness contributes points via profile_maturity
+    // once the score is unlocked, but on its own it is not
+    // financial evidence and shouldn't be enough to move the user
+    // past the empty state.
+    const state = emptyState();
+    // profile is already populated in emptyState() (ownerName +
+    // businessName), so this is the exact "brand-new user, no
+    // activity" case.
+    const detail = computeKasiScore(state, "user-1");
+    expect(detail.insufficientData).toBe(true);
+    expect(detail.score).toBe(300);
+  });
+
   it("no factor returns a neutral 50/60 fallback anymore", () => {
     // Regression: the pre-PR-24 code had "return 50" / "return 60"
     // fallbacks inside individual factor helpers. This test would

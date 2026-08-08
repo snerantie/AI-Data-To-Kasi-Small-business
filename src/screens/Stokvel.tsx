@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang } from "../i18n";
-import { buildInviteUrl } from "../lib/inviteLink";
+import { buildInviteUrl, normalizeInviteCode } from "../lib/inviteLink";
 import { tr, trParams } from "../i18n";
 import {
   formatRand,
@@ -1051,21 +1051,30 @@ function JoinStokvelSheet({
   // just has to tap Join.
   defaultCode?: string;
 }) {
-  // Start pre-filled with the invite code (if any). Uppercased +
-  // trimmed to match the same normalisation the manual-entry input
-  // already applies below.
+  // Start pre-filled with the invite code (if any), already run
+  // through the same normaliser we apply on manual typing below —
+  // so a code arriving from a WhatsApp `?invite=` link, from a
+  // hand-typed lowercase paste, or from a paste that lost its
+  // hyphens all end up looking identical in the input.
   const [code, setCode] = useState<string>(
-    defaultCode.trim().toUpperCase(),
+    normalizeInviteCode(defaultCode) ?? defaultCode.trim().toUpperCase(),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A code is submittable only if it normalises to a valid
+  // K-XXXX-XXXX shape. This mirrors the server-side format check,
+  // avoids a wasted RPC round-trip on obvious garbage, and lets us
+  // disable the "Join" button visually the moment the input is
+  // still incomplete.
+  const normalised = normalizeInviteCode(code);
+  const canSubmit = normalised !== null && !submitting;
+
   const submit = async () => {
-    const clean = code.trim();
-    if (!clean) return;
+    if (!normalised) return;
     setSubmitting(true);
     setError(null);
-    const result = await onSubmit(clean);
+    const result = await onSubmit(normalised);
     setSubmitting(false);
     if (result.ok) {
       onClose();
@@ -1089,9 +1098,19 @@ function JoinStokvelSheet({
             autoFocus
             value={code}
             onChange={(e) => {
-              setCode(e.target.value.toUpperCase());
+              // We deliberately DON'T force-uppercase or strip
+              // punctuation while the user is still typing —
+              // that would move the caret and make backspace feel
+              // broken on Android keyboards. Instead we let them
+              // type whatever, and `normalizeInviteCode` on
+              // submit accepts lower/mixed case, missing hyphens,
+              // stray spaces, and stray punctuation all as valid.
+              setCode(e.target.value);
               if (error) setError(null);
             }}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder={tr("stokvelJoinCodePlaceholder", lang)}
             className="mt-1 w-full px-4 py-3.5 rounded-xl bg-bg-card border border-white/10 text-white text-lg font-mono tracking-wider outline-none focus:border-kasi-green"
           />
@@ -1099,10 +1118,10 @@ function JoinStokvelSheet({
         {error && <div className="text-kasi-coral text-sm">{error}</div>}
         <button
           onClick={submit}
-          disabled={!code.trim() || submitting}
+          disabled={!canSubmit}
           className={
             "mt-2 py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
-            (code.trim() && !submitting
+            (canSubmit
               ? "bg-kasi-green text-bg shadow-glow"
               : "bg-white/5 text-white/30 cursor-not-allowed")
           }
