@@ -102,6 +102,23 @@ export type ScoreDetail = {
   tier: ScoreTier;
   factors: ScoreFactor[];
   computedAt: number;
+  /**
+   * True when the user has no value-bearing activity across ANY of
+   * the tables the score reads from (sales / expenses / tabs /
+   * stokvel contributions / bank transactions). When this flag is
+   * set, callers should NOT render the numerical score — show an
+   * empty state like "Log something to build your score" instead.
+   *
+   * The score value is still populated (equal to `SCORE_MIN`) for
+   * type stability, but has no informational content.
+   *
+   * See PR #24 rationale: previously the 8 factors returned a
+   * "neutral 50" for every category the user hadn't used yet,
+   * which averaged out to a fake ~530 score for empty accounts.
+   * Showing that number contradicts PR #22's "honest evidence
+   * over flattering numbers" principle.
+   */
+  insufficientData: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -267,8 +284,12 @@ function contributionConsistency(
 ): FactorResult {
   const stk = state.stokvel;
   if (!stk || !userId) {
+    // No stokvel means no consistency signal to measure. Return 0,
+    // not "neutral 50" — a user who isn't in a stokvel hasn't
+    // demonstrated contribution consistency, so this factor
+    // shouldn't contribute anything to the score.
     return {
-      normalised: 50,
+      normalised: 0,
       rawValue: 0,
       evidenceMix: null,
       tierWeightApplied: 1,
@@ -304,8 +325,10 @@ function contributionVolume(
 ): FactorResult {
   const stk = state.stokvel;
   if (!stk || !userId || !stk.goal || stk.goal <= 0) {
+    // No stokvel + goal means no volume signal. Return 0 not 50 —
+    // otherwise an empty account gets ~7 points from this alone.
     return {
-      normalised: 50,
+      normalised: 0,
       rawValue: 0,
       evidenceMix: null,
       tierWeightApplied: 1,
@@ -340,8 +363,12 @@ function contributionVolume(
 function tabRepayment(state: AppState): FactorResult {
   const tabs = state.tabs;
   if (tabs.length === 0) {
+    // No tabs → no repayment record → no signal. Score 0, not the
+    // former "neutral 60". A user who hasn't extended credit to
+    // customers hasn't demonstrated repayment discipline; the
+    // factor should reflect that honestly.
     return {
-      normalised: 60,
+      normalised: 0,
       rawValue: 0,
       evidenceMix: null,
       tierWeightApplied: 1,
@@ -369,8 +396,9 @@ function tabRepayment(state: AppState): FactorResult {
 function salesActivity(state: AppState): FactorResult {
   const trueSales = salesOnly(state.sales);
   if (trueSales.length === 0) {
+    // No sales → no activity signal. Zero, not "neutral 50".
     return {
-      normalised: 50,
+      normalised: 0,
       rawValue: 0,
       evidenceMix: null,
       tierWeightApplied: 1,
@@ -473,7 +501,8 @@ function recentMomentum(
   const weightedContribs = weightedSum(recentContribs, () => 1);
   const salesScore = clamp((weightedSales / 5) * 100, 0, 100);
   const contribScore = clamp((weightedContribs / 2) * 100, 0, 100);
-  const combined = Math.max(salesScore, contribScore, 30); // 30 floor
+  // No artificial floor — an empty account gets 0 here, not 30.
+  const combined = Math.max(salesScore, contribScore);
 
   const combinedRecords = [...recentSales, ...recentContribs];
 
@@ -508,8 +537,11 @@ function evidenceConfidence(state: AppState): FactorResult {
   ];
   const ratio = observedOrBetterRatio(allRecords);
   if (ratio === null) {
+    // No records → no evidence to be confident about. Zero, not
+    // the former "40 slight-below-neutral" that leaked ~4 points
+    // into empty-account scores.
     return {
-      normalised: 40, // slight below-neutral: no data, no reward
+      normalised: 0,
       rawValue: 0,
       evidenceMix: null,
       tierWeightApplied: 1,
@@ -535,14 +567,66 @@ export function tierFor(score: number): ScoreTier {
 }
 
 /**
+ * Count value-bearing records across every table the score reads
+ * from. Used by `computeKasiScore` to decide whether an account
+ * has enough activity for the numerical score to be meaningful.
+ *
+ * Explicitly does NOT count profile completeness (a filled-in name
+ * isn't evidence of anything creditworthy) or time-on-platform (a
+ * calendar clock isn't activity).
+ */
+function totalValueBearingEvents(state: AppState): number {
+  const stk = state.stokvel;
+  return (
+    state.sales.length +
+    state.expenses.length +
+    state.tabs.length +
+    (stk?.contributions.length ?? 0) +
+    state.bankTransactions.length
+  );
+}
+
+/**
  * Compute the current KasiScore + factor breakdown for a given
  * `AppState` snapshot. Deterministic given fixed `Date.now()`, which
  * is why the tests in score.test.ts stub the clock.
+ *
+ * Empty-account behaviour (PR #24): if the user has zero value-
+ * bearing records, returns a shape with `insufficientData: true`,
+ * `score = SCORE_MIN`, and every factor at 0. The UI reads that
+ * flag and shows "Log something to build your score" instead of
+ * pretending there's a real 530-ish number to display.
  */
 export function computeKasiScore(
   state: AppState,
   userId: string | null,
 ): ScoreDetail {
+  if (totalValueBearingEvents(state) === 0) {
+    // Build a factor list with every value at zero so downstream
+    // code (Insights breakdown, PDF passport) has a consistent
+    // shape to iterate over. The `insufficientData` flag is the
+    // signal that says "don't render the number, render the
+    // empty state".
+    const emptyFactors: ScoreFactor[] = (
+      Object.keys(WEIGHTS) as ScoreFactorKey[]
+    ).map((key) => ({
+      key,
+      weight: WEIGHTS[key],
+      normalised: 0,
+      contribution: 0,
+      rawValue: 0,
+      evidenceMix: null,
+      tierWeightApplied: 1,
+    }));
+    return {
+      score: SCORE_MIN,
+      tier: "building",
+      factors: emptyFactors,
+      computedAt: Date.now(),
+      insufficientData: true,
+    };
+  }
+
   const rawFactors: Array<{ key: ScoreFactorKey } & FactorResult> = [
     { key: "contribution_consistency", ...contributionConsistency(state, userId) },
     { key: "contribution_volume", ...contributionVolume(state, userId) },
@@ -580,6 +664,7 @@ export function computeKasiScore(
     tier: tierFor(score),
     factors,
     computedAt: Date.now(),
+    insufficientData: false,
   };
 }
 

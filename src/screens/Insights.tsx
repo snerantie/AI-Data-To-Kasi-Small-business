@@ -107,34 +107,64 @@ export function Insights({
         <div className="text-sm text-white/60 mt-0.5">{tr("creditSub", lang)}</div>
       </div>
 
-      {/* Circular score */}
-      <div className="relative rounded-3xl p-6 bg-gradient-to-br from-kasi-gold/25 via-kasi-green/15 to-bg-card border border-white/5 flex flex-col items-center">
-        <ScoreDial progress={progress} value={display} label={scoreLabel} />
-      </div>
+      {/* Circular score OR empty-state prompt.
+          When the account has zero value-bearing activity, we don't
+          show a number — we show an honest "start logging" prompt.
+          The factor breakdown below still renders (with all zeros),
+          so the user can see exactly which categories they haven't
+          touched yet. */}
+      {detail.insufficientData ? (
+        <div className="relative rounded-3xl p-8 bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10 flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-center text-white/40 font-display text-4xl font-bold">
+            —
+          </div>
+          <div className="text-center">
+            <div className="text-white/85 text-sm font-semibold">
+              {tr("scoreEmptyTitle", lang)}
+            </div>
+            <div className="text-white/50 text-xs mt-1 max-w-[240px] mx-auto leading-relaxed">
+              {tr("scoreEmptyBody", lang)}
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate("log")}
+            className="mt-1 px-5 py-2.5 rounded-full bg-kasi-green text-bg text-sm font-semibold flex items-center gap-2"
+          >
+            {tr("scoreEmptyCta", lang)}
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      ) : (
+        <div className="relative rounded-3xl p-6 bg-gradient-to-br from-kasi-gold/25 via-kasi-green/15 to-bg-card border border-white/5 flex flex-col items-center">
+          <ScoreDial progress={progress} value={display} label={scoreLabel} />
+        </div>
+      )}
 
-      {/* Financial passport CTA — sits directly under the score so
-          admins/members see the "download to prove your worth" action
-          the moment their score is visible. */}
-      <motion.button
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => onNavigate("passport")}
-        className="mt-4 w-full flex items-center gap-4 px-5 py-4 rounded-3xl bg-gradient-to-br from-kasi-gold/25 via-kasi-gold/10 to-transparent border border-kasi-gold/40"
-      >
-        <div className="w-12 h-12 rounded-2xl bg-kasi-gold text-bg flex items-center justify-center shrink-0 shadow-gold">
-          <FileText size={22} />
-        </div>
-        <div className="text-left flex-1 min-w-0">
-          <div className="font-semibold">
-            {tr("insightsDownloadCTA", lang)}
+      {/* Financial passport CTA — only shown when the score is
+          real. On an empty account, downloading a passport at 300
+          with zero data is meaningless, so we hide the card. */}
+      {!detail.insufficientData && (
+        <motion.button
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onNavigate("passport")}
+          className="mt-4 w-full flex items-center gap-4 px-5 py-4 rounded-3xl bg-gradient-to-br from-kasi-gold/25 via-kasi-gold/10 to-transparent border border-kasi-gold/40"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-kasi-gold text-bg flex items-center justify-center shrink-0 shadow-gold">
+            <FileText size={22} />
           </div>
-          <div className="text-white/60 text-xs mt-0.5">
-            {tr("insightsDownloadDesc", lang)}
+          <div className="text-left flex-1 min-w-0">
+            <div className="font-semibold">
+              {tr("insightsDownloadCTA", lang)}
+            </div>
+            <div className="text-white/60 text-xs mt-0.5">
+              {tr("insightsDownloadDesc", lang)}
+            </div>
           </div>
-        </div>
-        <ChevronRight size={20} className="text-kasi-gold" />
-      </motion.button>
+          <ChevronRight size={20} className="text-kasi-gold" />
+        </motion.button>
+      )}
 
       {/* Score breakdown */}
       <div className="mt-6">

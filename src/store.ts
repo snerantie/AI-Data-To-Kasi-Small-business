@@ -1658,8 +1658,15 @@ export function generateReference(): string {
  * for anonymous cloud users it's the anon uid, for demo mode it's
  * null (which the engine handles gracefully with neutral defaults).
  */
-export function kasiScore(state: AppState): number {
-  return computeKasiScore(state, userId).score;
+/**
+ * Small wrapper returning just the numerical score for the Home
+ * screen pill. Returns `null` when the score has insufficient data
+ * — the empty-account case introduced in PR #24 — so the caller
+ * can render an em-dash / prompt instead of a misleading number.
+ */
+export function kasiScore(state: AppState): number | null {
+  const detail = computeKasiScore(state, userId);
+  return detail.insufficientData ? null : detail.score;
 }
 
 /**
@@ -1770,8 +1777,12 @@ export function computeInsights(state: AppState): Insight[] {
     });
   }
 
+  // Credit-related insights only fire when there's a real score to
+  // reason about. An empty-state account gets `null` from
+  // kasiScore() as of PR #24 — no "you're 100 points from unlocking
+  // credit" message when there's no signal at all.
   const score = kasiScore(state);
-  if (score >= 700) {
+  if (score !== null && score >= 700) {
     insights.push({
       id: "credit-unlocked",
       key: "insightCreditUnlocked",
@@ -1779,7 +1790,7 @@ export function computeInsights(state: AppState): Insight[] {
       priority: 65,
       params: { amount: 2000 },
     });
-  } else if (score >= 600) {
+  } else if (score !== null && score >= 600) {
     insights.push({
       id: "score-climbing",
       key: "insightScoreClimbing",

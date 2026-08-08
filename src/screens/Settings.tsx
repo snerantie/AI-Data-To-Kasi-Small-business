@@ -10,6 +10,9 @@ import {
   Loader2,
   Bell,
   BellOff,
+  ChevronDown,
+  ChevronUp,
+  Wrench,
   Mail,
   MessageSquare,
   MessageCircle,
@@ -361,16 +364,15 @@ export function Settings({
           </Section>
         )}
 
-        {/* ---- WhatsApp bot (admin-only, cloud-only) ---- */}
-        {isCloud && (
-          <Section
-            icon={MessageCircle}
-            title={tr("settingsWhatsApp", lang)}
-            accent="green"
-          >
-            <WhatsAppBotBlock lang={lang} />
-          </Section>
-        )}
+        {/* ---- Advanced (developer-only setup, hidden by default) ----
+             Introduced in PR #24. Regular spaza/stokvel users have
+             no business seeing "Phone Number ID / Access Token /
+             Verify Token" — that's Meta Cloud API config for
+             developers running their own WhatsApp Business
+             integration. Wrapping it in a collapsed disclosure means
+             everyday users never encounter it, but the option
+             still exists for advanced users. */}
+        {isCloud && <AdvancedSettingsSection lang={lang} />}
 
         {/* ---- Account ---- */}
         <Section
@@ -1744,10 +1746,79 @@ function NotificationsBlock({ lang }: { lang: Lang }) {
 
 
 // ---------------------------------------------------------------------------
+// AdvancedSettingsSection (PR #24)
+//
+// Container for developer / technical setup that regular users
+// (spaza owners, stokvel members) should never see by default. Sits
+// collapsed at the bottom of Settings with a clear "for technical
+// users" disclaimer; taps expand it to reveal the WhatsApp bot
+// config (and, in future, any other Meta / integration / webhook
+// settings). Nothing inside this section is required to use the
+// core app — everything here is optional integration setup.
+//
+// Kept OUT of the top-level Settings sections list on purpose. The
+// pilot audience is kasi hustlers, not developers, and 90% of them
+// don't need to know that "Meta Cloud API credentials" exist as a
+// concept.
+// ---------------------------------------------------------------------------
+function AdvancedSettingsSection({ lang }: { lang: Lang }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="rounded-3xl border border-white/5 bg-bg-card/60 overflow-hidden">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3.5"
+      >
+        <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/60 shrink-0">
+          <Wrench size={16} />
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <div className="text-sm font-semibold text-white/85">
+            {tr("settingsAdvancedHeader", lang)}
+          </div>
+          <div className="text-[11px] text-white/45 mt-0.5 leading-snug">
+            {tr("settingsAdvancedHelp", lang)}
+          </div>
+        </div>
+        <div className="text-white/50 shrink-0">
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-white/5 p-4 flex flex-col gap-4">
+          {/* WhatsApp bot moved here from a top-level section.
+              Prefaced with a short "you don't need this" note so
+              any user who accidentally expands the advanced section
+              still isn't confused about whether they should be
+              filling it in. */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 text-[11px] text-white/60 leading-relaxed">
+            {tr("settingsAdvancedWhatsAppExplain", lang)}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <MessageCircle size={16} className="text-kasi-green" />
+              <div className="text-sm font-semibold text-white/80">
+                {tr("settingsWhatsApp", lang)}
+              </div>
+            </div>
+            <WhatsAppBotBlock lang={lang} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // WhatsAppBotBlock
 //
-// Admin-only. Lets a user paste in their Meta Cloud API credentials so
-// members can text natural-language sales into their KasiKash account.
+// Developer-only. Lets a user paste in their Meta Cloud API credentials
+// so members can text natural-language sales into their KasiKash account.
+//
+// As of PR #24, this block is no longer rendered as a top-level
+// Settings section. It's only reachable via AdvancedSettingsSection
+// above. Regular users never see it.
 //
 // Two states:
 //   * Not configured → form with 4 inputs + Generate-verify-token
@@ -1760,6 +1831,10 @@ function NotificationsBlock({ lang }: { lang: Lang }) {
 // call fails cleanly and the error is surfaced inline.
 // ---------------------------------------------------------------------------
 function WhatsAppBotBlock({ lang }: { lang: Lang }) {
+  // PR #24: this block used to live at the top level of Settings
+  // where every user saw it. Now it's tucked behind an "Advanced
+  // setup" disclosure so casual users don't encounter Meta Cloud
+  // API tokens by accident.
   const [status, setStatus] = useState<{
     isActive: boolean;
     senderPhone: string | null;

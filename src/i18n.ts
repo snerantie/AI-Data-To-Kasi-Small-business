@@ -1916,6 +1916,78 @@ export const t = {
     af: "Top-verskaffer",
   },
 
+  // ---------------------------------------------------------------------
+  // PR #24 — honest empty-state score.
+  //
+  // When a fresh account has no value-bearing activity, the score
+  // display is deliberately hidden. These keys drive the "log
+  // something to build your score" prompt shown on the Insights
+  // screen, the Passport preview, and the PDF passport itself.
+  // ---------------------------------------------------------------------
+  scoreEmptyTitle: {
+    en: "Your score will grow with real activity",
+    zu: "Iskoro sakho sizokhula ngomsebenzi wangempela",
+    st: "Sekoro sa hao se tla hola ka mosebetsi oa 'nete",
+    af: "Jou telling groei met werklike aktiwiteit",
+  },
+  scoreEmptyBody: {
+    en: "Log a sale, add a customer tab, or join a stokvel — each real action starts building your evidence.",
+    zu: "Bhalisa ukuthengisa, engeza itabhu yekhasimende, noma joyina i-stokvel — isenzo ngasinye sangempela siqala ukwakha ubufakazi bakho.",
+    st: "Ngola thekiso, kenya khoante ea moreki, kapa kena stokvel — ketso e nngoe le e nngoe ea 'nete e qala ho aha bopaki ba hao.",
+    af: "Teken 'n verkoop aan, voeg 'n kliëntrekening by, of sluit by 'n stokvel aan — elke werklike aksie begin jou bewyse bou.",
+  },
+  scoreEmptyCta: {
+    en: "Log your first sale",
+    zu: "Bhalisa ukuthengisa kwakho kokuqala",
+    st: "Ngola thekiso ea hao ea pele",
+    af: "Teken jou eerste verkoop aan",
+  },
+  pdfNoScoreYet: {
+    en: "Not enough activity yet. The KasiScore will appear once real business events have been logged (sales, expenses, contributions, or bank activity).",
+    zu: "Awukho umsebenzi owanele okwamanje. I-KasiScore izovela lapho sekubhaliswe imicimbi yangempela yebhizinisi (ukudayisa, izindleko, iminikelo, noma umsebenzi wasebhange).",
+    st: "Ha ho mosebetsi o lekaneng hakaale. KasiScore e tla hlaha ha liketsahalo tsa 'nete tsa khoebo li se li ngotsoe (thekiso, litšenyehelo, menehelo, kapa mosebetsi oa banka).",
+    af: "Nog nie genoeg aktiwiteit nie. Die KasiScore verskyn sodra werklike besigheidsgebeure aangeteken is (verkope, uitgawes, bydraes, of bankaktiwiteit).",
+  },
+
+  // ---------------------------------------------------------------------
+  // PR #24 — Settings advanced-section labels.
+  //
+  // WhatsApp bot config (Meta Cloud API tokens) is developer-only
+  // setup, not something a spaza owner should ever see by default.
+  // These labels drive a collapsed "Advanced setup" section that
+  // hides technical config behind an explicit tap.
+  // ---------------------------------------------------------------------
+  settingsAdvancedHeader: {
+    en: "Advanced setup",
+    zu: "Ukusetha okuthuthukile",
+    st: "Ho lokisa ho phahameng",
+    af: "Gevorderde opstelling",
+  },
+  settingsAdvancedHelp: {
+    en: "For technical users. Skip this section unless you're setting up a WhatsApp Business bot or a specific integration.",
+    zu: "Kwabasebenzisi bezobuchwepheshe. Yeqa lesi sigaba ngaphandle uma usetha i-bot ye-WhatsApp Business noma ukuhlanganiswa okuthile.",
+    st: "Bakeng sa basebelisi ba tekheniki. Tlola karolo ena ntle le haeba u lokisa bot ea WhatsApp Business kapa ho kopanya ho itseng.",
+    af: "Vir tegniese gebruikers. Slaan hierdie afdeling oor tensy jy 'n WhatsApp Business-bot of 'n spesifieke integrasie opstel.",
+  },
+  settingsAdvancedShow: {
+    en: "Show advanced options",
+    zu: "Bonisa okukhethwe kukho okuthuthukile",
+    st: "Bontša likhetho tse phahameng",
+    af: "Wys gevorderde opsies",
+  },
+  settingsAdvancedHide: {
+    en: "Hide advanced options",
+    zu: "Fihla okukhethwe kukho okuthuthukile",
+    st: "Pata likhetho tse phahameng",
+    af: "Versteek gevorderde opsies",
+  },
+  settingsAdvancedWhatsAppExplain: {
+    en: "Requires Meta Business API approval + your own Cloud API credentials. If you don't know what this means, you don't need it — skip.",
+    zu: "Idinga imvume ye-Meta Business API + imininingwane yakho ye-Cloud API. Uma ungayazi ukuthi kusho ukuthini lokhu, awuyidingi — yiqeqe.",
+    st: "E hloka tumello ea Meta Business API + lintlha tsa hao tsa Cloud API. Haeba u sa tsebe hore see se bolela'ng, ha u e hloke — e tlole.",
+    af: "Vereis Meta Business API-goedkeuring + jou eie Cloud API-geloofsbriewe. As jy nie weet wat dit beteken nie, het jy dit nie nodig nie — slaan oor.",
+  },
+
   pdfLabelTabsPaid: {
     en: "Tabs paid",
     zu: "Izikweletu ezikhokhiwe",

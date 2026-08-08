@@ -200,9 +200,11 @@ describe("reclassified receipt rows do not contribute to revenue or sales signal
       (f) => f.key === "sales_activity",
     )!;
 
-    // With no genuine sales, the factor falls back to its neutral 50
-    // rather than crediting the reclassified expenses.
-    expect(zeroSales.normalised).toBe(50);
+    // With no genuine sales, the factor is 0 — receipt-sourced
+    // expenses can't lift it. (PR #24 also dropped the former
+    // "neutral 50" fallback to zero across every factor for the
+    // honest-empty-state behaviour.)
+    expect(zeroSales.normalised).toBe(0);
     // With three declared sales in 30d, the factor tier-weights them
     // (0.2 × 3 = 0.6 out of ceiling of 20) which is still low but
     // strictly greater than the reclassified-only case.
@@ -341,6 +343,80 @@ describe("backwards compatibility with pre-PR-22 rows", () => {
 // ---------------------------------------------------------------------------
 // Public API invariants
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Empty-state (insufficientData) behaviour — introduced in PR #24.
+//
+// Before PR #24, every factor returned a "neutral" fallback (50 or 60
+// or 40 or 30) when the user hadn't used that feature yet. On a
+// brand-new empty account those neutrals averaged out to ~530 — a
+// misleading number that violated PR #22's "honest evidence over
+// flattering numbers" principle. The tests below hold the line.
+// ---------------------------------------------------------------------------
+
+describe("empty-account (insufficientData) behaviour", () => {
+  it("returns insufficientData=true when the state has no value-bearing records", () => {
+    const detail = computeKasiScore(emptyState(), "user-1");
+    expect(detail.insufficientData).toBe(true);
+  });
+
+  it("empty account score is the SCORE_MIN floor, not the former ~530", () => {
+    const detail = computeKasiScore(emptyState(), "user-1");
+    expect(detail.score).toBe(300);
+  });
+
+  it("empty account has every factor at normalised=0", () => {
+    const detail = computeKasiScore(emptyState(), "user-1");
+    for (const f of detail.factors) {
+      expect(f.normalised).toBe(0);
+      expect(f.contribution).toBe(0);
+    }
+  });
+
+  it("one logged sale is enough to make the score meaningful", () => {
+    // The threshold is intentionally low: even a single event
+    // means the user has done SOMETHING and the score reflects
+    // that (however modestly). Preserves user agency — one
+    // action moves the needle.
+    const state = emptyState();
+    state.sales = [makeSale("s1", 1, 20, "declared", "sale")];
+    const detail = computeKasiScore(state, "user-1");
+    expect(detail.insufficientData).toBe(false);
+  });
+
+  it("counts records across every value-bearing table, not just sales", () => {
+    // A user who only used the app for tabs (no sales, no
+    // stokvel) has done something real — their score should
+    // reflect that, not show empty state.
+    const state = emptyState();
+    state.tabs = [makeTab("t1", 3, false)];
+    expect(computeKasiScore(state, "user-1").insufficientData).toBe(false);
+  });
+
+  it("no factor returns a neutral 50/60 fallback anymore", () => {
+    // Regression: the pre-PR-24 code had "return 50" / "return 60"
+    // fallbacks inside individual factor helpers. This test would
+    // fail if any of those crept back in — verify that a
+    // one-event account doesn't have any factor at exactly 50 or
+    // 60 as a lazy fallback.
+    const state = emptyState();
+    state.sales = [makeSale("s1", 1, 20, "declared", "sale")];
+    const detail = computeKasiScore(state, "user-1");
+    // Factors that legitimately COULD hit 50 or 60 from real
+    // computation include tab_repayment (paid/total ratio × 100)
+    // and profile_maturity (fixed 25pt increments). Those are
+    // fine — we're checking that a fresh one-event account
+    // doesn't inherit a static fallback masquerading as data.
+    const contribConsistency = detail.factors.find(
+      (f) => f.key === "contribution_consistency",
+    )!;
+    const contribVolume = detail.factors.find(
+      (f) => f.key === "contribution_volume",
+    )!;
+    expect(contribConsistency.normalised).toBe(0); // no stokvel
+    expect(contribVolume.normalised).toBe(0); // no stokvel
+  });
+});
 
 describe("public API invariants", () => {
   it("weights sum to 1.0", () => {
