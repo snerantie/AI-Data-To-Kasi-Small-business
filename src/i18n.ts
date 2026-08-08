@@ -1335,48 +1335,86 @@ export const t = {
     af: "Onlangse aktiwiteit",
   },
 
+  // ---------------------------------------------------------------
+  // "How your score works" overview — shown above the factor list
+  // on Insights. Introduced after pilot feedback:
+  //   "I'm confused just by having a score in my side the members
+  //    also have a score and it has risen to 340 how?"
+  // The three bullets cover the three questions that confusion
+  // surfaces: whose activity counts, what "counts" means, and how
+  // to read the numbers below.
+  // ---------------------------------------------------------------
+  scoreHowItWorksTitle: {
+    en: "How your score works",
+    zu: "Ukuthi iskoro sakho sisebenza kanjani",
+    st: "Kamoo lintlha tsa hao li sebetsang kateng",
+    af: "Hoe jou telling werk",
+  },
+  scoreHowItWorksBullet1: {
+    en: "Only your own real activity counts — not other members', and not pending contributions.",
+    zu: "Kubalwa kuphela okwenzayo wena mathupha — hhayi okwamanye amalungu, futhi hhayi iminikelo esalindile.",
+    st: "Ho balloa mesebetsi ea hao feela — eseng ea litho tse ling, 'me eseng menehelo e sa emetseng.",
+    af: "Net jou eie werklike aktiwiteit tel — nie ander lede se aktiwiteit nie, en nie hangende bydraes nie.",
+  },
+  scoreHowItWorksBullet2: {
+    en: "Confirmed and bank-verified evidence counts more than self-declared activity.",
+    zu: "Ubufakazi obuqinisekisiwe nobuqinisekiswe ngebhange bubalelwa kakhulu kunomsebenzi ozibhalele wona.",
+    st: "Bopaki bo netefalitsoeng le bo netefalitsoeng ke banka bo bala haholo ho feta mesebetsi eo u ipolelang eona.",
+    af: "Bevestigde en bank-geverifieerde bewyse tel meer as self-verklaarde aktiwiteit.",
+  },
+  scoreHowItWorksBullet3: {
+    en: "Range: 300–850. Tap each factor below for what's driving it.",
+    zu: "Ibanga: 300–850. Cindezela isici ngasinye ngezansi ukubona okusiqhubayo.",
+    st: "Bophara: 300–850. Tobetsa ntlha e ngoe le e ngoe ka tlase ho bona se e susumetsang.",
+    af: "Reikwydte: 300–850. Tik op elke faktor hieronder om te sien wat dit dryf.",
+  },
+
   // Factor explanations (shown when a factor row is expanded).
+  // Rewritten after pilot feedback to include (a) what the factor
+  // actually measures with specifics, (b) how much it can move the
+  // score by (weight), and (c) what counts vs what doesn't — the
+  // "confirmed only, own contributions only" rule after PR #26.
   factorContribConsistencyExplain: {
-    en: "How often you make stokvel contributions. Regular weekly contributions boost this.",
-    zu: "Ukuthi unikela kangaki kwistokvel. Ukunikela njalo ngeviki kukukhulisa.",
-    st: "Kamoo u kenyang menehelo stokveleng hangata. Ho kenya beke le beke ho e phahamisa.",
-    af: "Hoe gereeld jy stokvel-bydraes maak. Gereelde weeklikse bydraes stoot dit op.",
+    en: "How many of the last 8 weeks you had at least one confirmed stokvel contribution. Regular weekly contributions are the single biggest driver of your score. Worth up to 20%. Pending or rejected contributions don't count until an admin confirms them, and other members' contributions never count toward your score.",
+    zu: "Ukuthi mangaki emavikini angu-8 adlule lapho ubunomnikelo owodwa oqinisekisiwe. Iminikelo ejwayelekile yamaviki iwumshini omkhulu wesikolo sakho. Ifika ku-20%. Iminikelo esalindile noma enqatshelwe ayibalwa kuze kwaqinisekiswe umlawuli, futhi iminikelo yamanye amalungu ayikaze ibalwe eskoreni sakho.",
+    st: "Palo ea libeke tse 8 tse fetileng tseo u bileng le monehelo o le mong o netefalitsoeng. Menehelo e tloaelehileng ea beke le beke ke ntho e kholohali e susumetsang lintlha tsa hao. Ea fihla ho 20%. Menehelo e sa emetseng kapa e hanoeng ha e balloe ho fihlela mookameli a e netefatsa, 'me menehelo ea litho tse ling ha e balloe ho hang lintlheng tsa hao.",
+    af: "Hoeveel van die laaste 8 weke jy ten minste een bevestigde stokvel-bydrae gehad het. Gereelde weeklikse bydraes is die grootste enkele drywer van jou telling. Werd tot 20%. Hangende of afgekeurde bydraes tel nie totdat 'n admin dit bevestig nie, en ander lede se bydraes tel nooit vir jou telling nie.",
   },
   factorContribVolumeExplain: {
-    en: "How much you've contributed compared to your stokvel's savings goal.",
-    zu: "Ukuthi unikele kangakanani uma kuqhathaniswa nomgomo wokonga wistokvel yakho.",
-    st: "Chelete eo u e kentseng ha e bapisoa le sepheo sa polokelo sa stokvel ea hao.",
-    af: "Hoeveel jy bygedra het teenoor jou stokvel se spaardoel.",
+    en: "Total value of your confirmed contributions compared to your stokvel's savings goal. Yoco or bank-verified contributions carry more weight than manually-entered ones. Capped at 1.5× the goal so a single over-contribution doesn't dominate. Worth up to 15%.",
+    zu: "Inani liphelele leminikelo yakho eqinisekisiwe uma kuqhathaniswa nomgomo wokonga wistokvel yakho. Iminikelo ye-Yoco noma eqinisekiswe ngebhange isindwa kakhulu kuneminikelo efakiwe ngesandla. Igciniwe ku-1.5× womgomo ukuze umnikelo owodwa ogqithisile ungabusi. Ifika ku-15%.",
+    st: "Boleng bo felletseng ba menehelo ea hao e netefalitsoeng ha bo bapisoa le sepheo sa polokelo sa stokvel ea hao. Menehelo e netefalitsoeng ke Yoco kapa ke banka e boima ho feta e kentsoeng ka letsoho. E khaotsoe ho 1.5× sepheo hore monehelo o le mong o feteletseng o se ke oa busa. E fihla ho 15%.",
+    af: "Totale waarde van jou bevestigde bydraes teenoor jou stokvel se spaardoel. Yoco- of bank-geverifieerde bydraes weeg swaarder as met-die-hand-ingevoerde bydraes. Beperk tot 1.5× die doel sodat 'n enkele oor-bydrae nie oorheers nie. Werd tot 15%.",
   },
   factorTabRepaymentExplain: {
-    en: "The share of customer tabs that have been paid off.",
-    zu: "Isabelo sezikweletu zamakhasimende ezikhokhwe.",
-    st: "Karolo ea likoloto tsa bareki tse lefiloeng.",
-    af: "Die deel van kliëntskulde wat afbetaal is.",
+    en: "The share of customer tabs you've marked as paid. Worth up to 15%. No tabs yet? This factor stays at 0 until you extend credit and settle it — a habit lenders like to see.",
+    zu: "Isabelo sezikweletu zamakhasimende ozimake njengezikhokhwe. Ifika ku-15%. Awunazo izikweletu okwamanje? Le sici sihlala ku-0 kuze kube nini uxhasa ngesikweletu futhi usikhokhe — umkhuba ababoleki abathanda ukuwubona.",
+    st: "Karolo ea likoloto tsa bareki tseo u li tšoailoeng li lefiloe. E fihla ho 15%. Ha ho na likoloto? Ntlha ena e lula e le 0 ho fihlela u fana ka mokitlane 'me u o lefe — mokhoa o tloaelehileng oo baemeli ba mokitlane ba ratang ho o bona.",
+    af: "Die deel van kliëntskulde wat jy as betaal gemerk het. Werd tot 15%. Nog geen skulde nie? Hierdie faktor bly by 0 totdat jy krediet gee en dit vereffen — 'n gewoonte wat lenings graag sien.",
   },
   factorSalesActivityExplain: {
-    en: "How many sales you've logged in the last 30 days.",
-    zu: "Ukuthi ubhalise ukudayisa okungakanani ezinsukwini ezingu-30 ezidlule.",
-    st: "Thekiso e kae eo u e ngotseng matsatsing a 30 a fetileng.",
-    af: "Hoeveel verkope jy in die laaste 30 dae aangeteken het.",
+    en: "Sales you've logged in the last 30 days. Yoco or receipt-backed sales weigh more than voice-logged cash sales. Aim for around 20 verified sales a month to reach the ceiling. Worth up to 10%.",
+    zu: "Ukudayisa okubhalisile ezinsukwini ezingu-30 ezidlule. Ukudayisa okuqinisekiswe ngeYoco noma amarisidi kubalwa kakhulu kunokudayisa kwecash okubhaliswe ngezwi. Zama ukufinyelela ekudayiseni okuqinisekisiwe okungu-20 ngenyanga ukuze ufike ekutheni. Ifika ku-10%.",
+    st: "Thekiso eo u e ngotseng matsatsing a 30 a fetileng. Thekiso e netefalitsoeng ke Yoco kapa ke lirisiti e boima ho feta thekiso ea chelete e ngotsoeng ka lentsoe. Leka ho fihlella thekiso e netefalitsoeng e ka bang 20 khoeling ho fihlella boemo bo phahameng. E fihla ho 10%.",
+    af: "Verkope wat jy in die laaste 30 dae aangeteken het. Yoco- of kwitansie-ondersteunde verkope weeg meer as stem-aangetekende kontantverkope. Mik vir ongeveer 20 geverifieerde verkope per maand om die maksimum te bereik. Werd tot 10%.",
   },
   factorTimeOnPlatformExplain: {
-    en: "How long you've been building your track record with KasiKash.",
-    zu: "Ukuthi sekunesikhathi esingakanani wakha umlando wakho ne-KasiKash.",
-    st: "Nako eo u seng u qetile u aha rekoto ea hao le KasiKash.",
-    af: "Hoe lank jy al jou rekord met KasiKash bou.",
+    en: "Days since your first activity on KasiKash. Consistency over time matters — this factor caps out at 6 months, so the longer you stay, the more it stabilises. Worth up to 8%.",
+    zu: "Izinsuku kusukela emsebenzini wakho wokuqala ku-KasiKash. Ukungaguquki ngokuhamba kwesikhathi kubalulekile — le sici sifika ekutheni ezinyangeni ezingu-6, ngakho isikhathi eside uhlala kuso, sizinza kakhulu. Ifika ku-8%.",
+    st: "Matsatsi ho tloha mosebetsing oa hao oa pele ho KasiKash. Ho tsitsa ha nako e ntse e ea pele ho bohlokoa — ntlha ena e fihla boemong bo phahameng likhoeling tse 6, ka hona nako e telele eo u lulang, e e tsitsang haholo. E fihla ho 8%.",
+    af: "Dae sedert jou eerste aktiwiteit op KasiKash. Konsekwentheid oor tyd tel — hierdie faktor bereik sy maksimum by 6 maande, so hoe langer jy bly, hoe meer stabiliseer dit. Werd tot 8%.",
   },
   factorProfileMaturityExplain: {
-    en: "Whether you've completed your profile, joined a stokvel, added banking, and made verified contributions.",
-    zu: "Ukuthi ngabe usiqedile isiphrofayela sakho, wajoyina istokvel, wafaka ibhange, futhi wenza iminikelo eqinisekisiwe.",
-    st: "Hore na u qetile profaele ea hao, u kene stokvel, u kenya banka, 'me u entse menehelo e netefalitsoeng.",
-    af: "Of jy jou profiel voltooi het, by 'n stokvel aangesluit het, bankbesonderhede bygevoeg het en bevestigde bydraes gemaak het.",
+    en: "Four completeness checks: your name, a business or stokvel, banking details, and at least one confirmed contribution. Each is worth a quarter of this factor. Worth up to 10% overall.",
+    zu: "Ukuhlolwa okune kokuqedelela: igama lakho, ibhizinisi noma istokvel, imininingwane yebhange, futhi okungenani umnikelo owodwa oqinisekisiwe. Konke kufika ekotheni ingxenye yale sici. Ifika ku-10% sekukonke.",
+    st: "Litlhahlobo tse 'ne tsa ho phethahala: lebitso la hao, khoebo kapa stokvel, lintlha tsa banka, 'me bonyane monehelo o le mong o netefalitsoeng. E 'ngoe le e 'ngoe ea fihla kotareng ea ntlha ena. E fihla ho 10% ka kakaretso.",
+    af: "Vier volledigheidskontroles: jou naam, 'n besigheid of stokvel, bankbesonderhede, en ten minste een bevestigde bydrae. Elkeen is 'n kwart van hierdie faktor werd. Werd tot 10% in geheel.",
   },
   factorRecentMomentumExplain: {
-    en: "Whether you've been actively using KasiKash in the last two weeks.",
-    zu: "Ukuthi ngabe uyisebenzisa ngempela i-KasiKash emavikini amabili adlule.",
-    st: "Hore na u ntse u sebelisa KasiKash libekeng tse peli tse fetileng.",
-    af: "Of jy KasiKash aktief in die afgelope twee weke gebruik het.",
+    en: "Your confirmed activity — sales or contributions — in the last 14 days. Showing up regularly matters; a quiet fortnight lowers this quickly. Worth up to 12%.",
+    zu: "Umsebenzi wakho oqinisekisiwe — ukudayisa noma iminikelo — emavikini angu-14 adlule. Ukuvela njalo kubalulekile; amaviki amabili athulile ayasehlisa ngokushesha. Ifika ku-12%.",
+    st: "Mesebetsi ea hao e netefalitsoeng — thekiso kapa menehelo — matsatsing a 14 a fetileng. Ho ipontsha khafetsa ho bohlokoa; libeke tse peli tse khutsitseng li fokotsa sena ka potlako. E fihla ho 12%.",
+    af: "Jou bevestigde aktiwiteit — verkope of bydraes — in die laaste 14 dae. Om gereeld te wys tel; 'n stil twee weke laat dit vinnig sak. Werd tot 12%.",
   },
 
   // Passport (PDF) + PassportPreview screen
@@ -1617,10 +1655,10 @@ export const t = {
     af: "Bewyskwaliteit",
   },
   factorEvidenceConfidenceExplain: {
-    en: "Rewards records backed by independent digital evidence — Yoco payments, supplier receipts, bank webhooks.",
-    zu: "Kunika umvuzo amarekhodi asekelwa ubufakazi bedijithali obuzimele — izinkokhelo ze-Yoco, izirisidi zabathengisi, izimemezelo zebhange.",
-    st: "E putsa lirekoto tse tšehetsoang ke bopaki ba dijithale bo ikemetseng — litefello tsa Yoco, lirisidi tsa baabi, litšebelisong tsa banka.",
-    af: "Beloon rekords wat gestaaf word deur onafhanklike digitale bewys — Yoco-betalings, verskaffer-kwitansies, bank-webhaakies.",
+    en: "The share of your records with independent proof — a Yoco transaction, a scanned supplier receipt, a matched bank statement line. Self-declared records don't hurt you but they don't lift this factor. Worth up to 10%.",
+    zu: "Isabelo samarekhodi akho anobufakazi obuzimele — ukuxhumana kwe-Yoco, irisidi yomthengisi eskeniwe, umugqa wesitatimende sebhange ohambisanayo. Amarekhodi ozibizele wona awakulimazi kodwa awasiphakamisi lesi sici. Ifika ku-10%.",
+    st: "Karolo ea lirekoto tsa hao tse nang le bopaki bo ikemetseng — mokhoa oa Yoco, resiti ea moabi e skenoeng, moleng oa statemente ea banka o lumellanang. Lirekoto tseo u ipolelang tsona ha li u utloise bohloko empa ha li phahamise ntlha ena. E fihla ho 10%.",
+    af: "Die deel van jou rekords met onafhanklike bewys — 'n Yoco-transaksie, 'n geskandeerde verskafferkwitansie, 'n bankstaat-lyn wat pas. Self-verklaarde rekords maak jou nie seer nie, maar hulle lig hierdie faktor nie op nie. Werd tot 10%.",
   },
 
   // ---------------------------------------------------------------------

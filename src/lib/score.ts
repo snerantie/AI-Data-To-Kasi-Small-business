@@ -574,14 +574,46 @@ export function tierFor(score: number): ScoreTier {
  * Explicitly does NOT count profile completeness (a filled-in name
  * isn't evidence of anything creditworthy) or time-on-platform (a
  * calendar clock isn't activity).
+ *
+ * PR #26 refinement: for stokvel contributions, we now only count
+ *   (a) contributions that belong to THIS user (via ownerId), and
+ *   (b) contributions that are actually `confirmed`, not still
+ *       `pending` verification.
+ *
+ * Prior behaviour was to count `stk.contributions.length` — every
+ * row on the stokvel, from every member, at every status. That
+ * caused a fresh admin who filled in their profile to jump from
+ * "empty state — log something to build your score" to a 341
+ * KasiScore the instant any member (including a joiner she hasn't
+ * even confirmed yet) logged a pending contribution. Every visible
+ * factor row read 0, but the number was 300 (SCORE_MIN) + 41 (from
+ * profile completeness) = 341, which looked like a bug to the
+ * pilot user — and rightly so. It contradicts PR #22's principle
+ * that a pending, unverified event isn't yet evidence.
+ *
+ * Post-fix behaviour: the empty state persists until the user has
+ * at least one piece of actual financial activity attributable to
+ * them (a sale, expense, tab, confirmed own-contribution, or bank
+ * transaction). Profile completeness alone no longer unlocks a
+ * score.
  */
-function totalValueBearingEvents(state: AppState): number {
+function totalValueBearingEvents(
+  state: AppState,
+  userId: string | null,
+): number {
   const stk = state.stokvel;
+  const myConfirmedContribs = userId
+    ? stk?.contributions.filter(
+        (c) =>
+          c.ownerId === userId &&
+          (c.status ?? "confirmed") === "confirmed",
+      ).length ?? 0
+    : 0;
   return (
     state.sales.length +
     state.expenses.length +
     state.tabs.length +
-    (stk?.contributions.length ?? 0) +
+    myConfirmedContribs +
     state.bankTransactions.length
   );
 }
@@ -601,7 +633,7 @@ export function computeKasiScore(
   state: AppState,
   userId: string | null,
 ): ScoreDetail {
-  if (totalValueBearingEvents(state) === 0) {
+  if (totalValueBearingEvents(state, userId) === 0) {
     // Build a factor list with every value at zero so downstream
     // code (Insights breakdown, PDF passport) has a consistent
     // shape to iterate over. The `insufficientData` flag is the

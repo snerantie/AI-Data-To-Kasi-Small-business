@@ -1,8 +1,10 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
   ChevronRight,
   FileText,
+  Info,
   Lightbulb,
   Sparkles,
   TrendingUp,
@@ -175,6 +177,17 @@ export function Insights({
         <div className="text-white/45 text-[11px] mb-3">
           {tr("scoreBreakdownSubtitle", lang)}
         </div>
+
+        {/* "How your score works" collapsible card. Added after
+            pilot feedback that users saw a number and a factor
+            list without understanding the connection between
+            them — especially why other members' pending
+            contributions couldn't lift their score. The three
+            bullets cover the specific questions the confusion
+            surfaces. Collapsed by default so it doesn't hog
+            screen space for returning users. */}
+        <HowItWorksCard lang={lang} />
+        
         <div className="flex flex-col gap-2">
           {detail.factors.map((f) => {
             const isExpanded = expanded === f.key;
@@ -362,6 +375,75 @@ function StatCard({
       </div>
       <div className="font-display font-bold text-xl">{value}</div>
     </div>
+  );
+}
+
+/**
+ * Compact "How your score works" explainer above the factor list.
+ *
+ * Collapsed by default (single row: icon + title + chevron) so
+ * repeat users aren't slowed down. When tapped, expands to three
+ * short bullets that answer the exact confusion PR #26 was
+ * triggered by:
+ *
+ *   1. Whose activity counts? — only yours, not other members',
+ *      not pending contributions.
+ *   2. What "counts" means? — confirmed / bank-verified evidence
+ *      beats self-declared.
+ *   3. How to read the score? — 300–850 range, tap each factor
+ *      row below for the specific driver.
+ *
+ * Intentionally NOT persisted across sessions — a user who
+ * expanded it once and later comes back might want to re-check
+ * a bullet, and animating open on tap is cheap.
+ */
+function HowItWorksCard({ lang }: { lang: Lang }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <motion.div
+      layout
+      className="mb-3 rounded-2xl bg-white/[0.03] border border-white/10 overflow-hidden"
+    >
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+      >
+        <div className="w-8 h-8 rounded-xl bg-kasi-green/10 border border-kasi-green/25 flex items-center justify-center text-kasi-green shrink-0">
+          <Info size={16} />
+        </div>
+        <div className="flex-1 min-w-0 text-sm font-medium text-white/90">
+          {tr("scoreHowItWorksTitle", lang)}
+        </div>
+        <motion.div
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="text-white/50 shrink-0"
+        >
+          <ChevronDown size={16} />
+        </motion.div>
+      </button>
+      {open && (
+        <motion.ul
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="px-4 pb-4 pt-1 flex flex-col gap-2 text-white/70 text-xs leading-relaxed"
+        >
+          <li className="flex gap-2">
+            <span className="text-kasi-green mt-[2px] shrink-0">•</span>
+            <span>{tr("scoreHowItWorksBullet1", lang)}</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-kasi-green mt-[2px] shrink-0">•</span>
+            <span>{tr("scoreHowItWorksBullet2", lang)}</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-kasi-green mt-[2px] shrink-0">•</span>
+            <span>{tr("scoreHowItWorksBullet3", lang)}</span>
+          </li>
+        </motion.ul>
+      )}
+    </motion.div>
   );
 }
 

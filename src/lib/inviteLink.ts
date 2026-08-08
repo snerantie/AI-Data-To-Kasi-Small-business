@@ -38,19 +38,51 @@ export function buildInviteUrl(code: string): string {
 }
 
 /**
+ * Normalise any user-typed or URL-supplied invite code into the
+ * canonical `K-XXXX-XXXX` shape that `generateInviteCode()` in
+ * `src/lib/remote.ts` produces.
+ *
+ * We accept a bunch of things a real human would type and treat
+ * them all as the same code:
+ *   * lower / mixed case: `k-m9p2-xr7a` → `K-M9P2-XR7A`
+ *   * missing hyphens:    `KM9P2XR7A`   → `K-M9P2-XR7A`
+ *   * extra spaces:       `K M9P2 XR7A` → `K-M9P2-XR7A`
+ *   * junk punctuation:   `K.M9P2.XR7A` → `K-M9P2-XR7A`
+ *
+ * The reporter's exact request:
+ * > "let it be automate not manual that people have to click the
+ * >  code as is such as this "-" or capital letter, can they just
+ * >  click any letter capitornsmall as long as it align with the
+ * >  letter"
+ *
+ * Returns null when the compact form isn't exactly the 9-char
+ * shape `generateInviteCode()` emits (a `K` followed by 8
+ * unambiguous alnum chars). Callers use the null to disable the
+ * submit button and skip the network round-trip on obvious
+ * garbage.
+ *
+ * Note: this only handles codes issued after invite generation
+ * settled on the `K-XXXX-XXXX` shape. Any legacy row in the DB
+ * with a different shape would fail here — none exist today.
+ */
+export function normalizeInviteCode(raw: string): string | null {
+  if (!raw) return null;
+  const compact = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^K[A-Z0-9]{8}$/.test(compact)) return null;
+  return `${compact.slice(0, 1)}-${compact.slice(1, 5)}-${compact.slice(5, 9)}`;
+}
+
+/**
  * Extract an invite code from the current URL's `?invite=...`
  * query parameter. Case-insensitive on the parameter name so a
  * user or WhatsApp-side tweak to `Invite`, `INVITE`, or `invite`
  * still works.
  *
- * Rules:
- *   * Returns null when no invite parameter is present.
- *   * Trims whitespace + upper-cases the code. Real invite codes
- *     are 6-8 upper-case alphanumeric chars; normalising here
- *     means the caller doesn't need to.
- *   * Returns null if the code is obviously invalid (empty,
- *     wrong length, non-alphanumeric) — a defensive check to
- *     stop us pinging the server with garbage.
+ * Delegates all code normalisation to `normalizeInviteCode`, so
+ * the exact same lenient parsing applies whether the code came
+ * from a tapped WhatsApp link or the manual-entry input in
+ * JoinStokvelSheet. Returns null when the parameter is missing or
+ * the value can't be normalised to a valid code.
  */
 export function parseInviteFromUrl(): string | null {
   if (typeof window === "undefined") return null;
@@ -63,13 +95,7 @@ export function parseInviteFromUrl(): string | null {
     }
   }
   if (!raw) return null;
-
-  const normalised = raw.trim().toUpperCase();
-  // Valid codes are alphanumeric, roughly 4-12 characters. Reject
-  // anything outside that range so we don't try to submit "abc def"
-  // or a full URL that was accidentally pasted as the value.
-  if (!/^[A-Z0-9]{4,12}$/.test(normalised)) return null;
-  return normalised;
+  return normalizeInviteCode(raw);
 }
 
 /**
