@@ -64,8 +64,14 @@ export function Home({
             <span className="text-[10px] text-white/50 uppercase tracking-wider">
               {tr("creditScore", lang)}
             </span>
-            <span className="font-display text-xl font-bold text-kasi-gold">
-              {score}
+            <span
+              className={
+                score === null
+                  ? "font-display text-2xl font-bold text-white/40"
+                  : "font-display text-xl font-bold text-kasi-gold"
+              }
+            >
+              {score === null ? "—" : score}
             </span>
           </button>
           <button

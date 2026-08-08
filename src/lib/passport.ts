@@ -503,18 +503,43 @@ export function renderPassport(input: PassportInput): jsPDF {
   // --- KasiScore --------------------------------------------------------
   y += 4;
   y = drawSectionTitle(doc, y, tr("pdfSectionScore", lang));
-  y = drawScoreBlock(doc, y, detail.score, tr(tierI18nKey(detail.tier), lang));
-
-  // Factor breakdown (compact).
-  y = drawSectionTitle(doc, y, tr("pdfSectionFactors", lang));
-  for (const f of detail.factors) {
-    y = drawFactorRow(
+  if (detail.insufficientData) {
+    // Empty-account passport: instead of showing "300 · Building"
+    // (which reads as a real score to anyone who doesn't know
+    // the tier bands), we show a short honest note. The factor
+    // breakdown that follows all-zeros too, so the recipient
+    // sees exactly zero substantive claims.
+    setColorText(doc, COLOR_MUTED);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(10);
+    const lines = doc.splitTextToSize(
+      tr("pdfNoScoreYet", lang),
+      CONTENT_W,
+    ) as string[];
+    for (const line of lines) {
+      doc.text(line, CONTENT_X, y);
+      y += 5;
+    }
+    y += 2;
+  } else {
+    y = drawScoreBlock(
       doc,
       y,
-      tr(FACTOR_NAME_KEY[f.key], lang),
-      f.weight,
-      f.normalised,
+      detail.score,
+      tr(tierI18nKey(detail.tier), lang),
     );
+
+    // Factor breakdown (compact).
+    y = drawSectionTitle(doc, y, tr("pdfSectionFactors", lang));
+    for (const f of detail.factors) {
+      y = drawFactorRow(
+        doc,
+        y,
+        tr(FACTOR_NAME_KEY[f.key], lang),
+        f.weight,
+        f.normalised,
+      );
+    }
   }
 
   // --- Business activity (last 30 days) --------------------------------

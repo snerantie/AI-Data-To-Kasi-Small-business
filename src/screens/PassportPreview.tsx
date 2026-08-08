@@ -101,7 +101,32 @@ export function PassportPreview({
           {tr("passportSubtitle", lang)}
         </p>
 
-        {/* Hero: KasiScore snapshot */}
+        {/* Empty-state banner. If the account has no activity yet,
+            we tell the user honestly and hide the numerical score
+            plus the Download / Share buttons. Downloading an
+            all-zero passport is misleading — better to route them
+            back to log something first. */}
+        {detail.insufficientData && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 flex flex-col gap-3">
+            <div className="text-white font-semibold text-sm">
+              {tr("scoreEmptyTitle", lang)}
+            </div>
+            <div className="text-white/60 text-xs leading-relaxed">
+              {tr("scoreEmptyBody", lang)}
+            </div>
+            <button
+              onClick={() => onNavigate("log")}
+              className="mt-1 self-start px-4 py-2 rounded-full bg-kasi-green text-bg text-xs font-semibold"
+            >
+              {tr("scoreEmptyCta", lang)}
+            </button>
+          </div>
+        )}
+
+        {/* Hero: KasiScore snapshot (only shown when we have real
+            data). Otherwise the empty-state banner above tells the
+            user what to do next. */}
+        {!detail.insufficientData && (
         <div className="relative rounded-3xl p-5 bg-gradient-to-br from-kasi-gold/25 via-kasi-green/15 to-bg-card border border-white/5">
           <div className="flex items-start justify-between">
             <div className="min-w-0">
@@ -139,6 +164,7 @@ export function PassportPreview({
             </div>
           )}
         </div>
+        )}
 
         {/* Factor mini-list — what's in the PDF */}
         <div>
@@ -216,43 +242,51 @@ export function PassportPreview({
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={runDownload}
-            disabled={busy !== null}
-            className={
-              "py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
-              (busy === null
-                ? "bg-kasi-green text-bg shadow-glow"
-                : "bg-white/5 text-white/30 cursor-not-allowed")
-            }
-          >
-            {busy === "download" ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <Download size={18} />
-            )}
-            {tr("passportDownloadBtn", lang)}
-          </button>
-          <button
-            onClick={runShare}
-            disabled={busy !== null}
-            className={
-              "py-3.5 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 " +
-              (busy === null
-                ? "bg-bg-card border border-white/10 text-white/80"
-                : "bg-white/5 text-white/30 cursor-not-allowed")
-            }
-          >
-            {busy === "share" ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Share2 size={16} />
-            )}
-            {tr("passportShareBtn", lang)}
-          </button>
-        </div>
+        {/* Actions.
+            When the account has insufficient data we hide the
+            Download and Share buttons — the passport at 300/850
+            with zero data conveys nothing useful, and letting
+            a user share one just because the buttons are there
+            invites the exact "why does it say 530 with no data"
+            confusion we're fixing in this PR. */}
+        {!detail.insufficientData && (
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={runDownload}
+              disabled={busy !== null}
+              className={
+                "py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
+                (busy === null
+                  ? "bg-kasi-green text-bg shadow-glow"
+                  : "bg-white/5 text-white/30 cursor-not-allowed")
+              }
+            >
+              {busy === "download" ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Download size={18} />
+              )}
+              {tr("passportDownloadBtn", lang)}
+            </button>
+            <button
+              onClick={runShare}
+              disabled={busy !== null}
+              className={
+                "py-3.5 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 " +
+                (busy === null
+                  ? "bg-bg-card border border-white/10 text-white/80"
+                  : "bg-white/5 text-white/30 cursor-not-allowed")
+              }
+            >
+              {busy === "share" ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Share2 size={16} />
+              )}
+              {tr("passportShareBtn", lang)}
+            </button>
+          </div>
+        )}
 
         {/* Timestamp + disclaimer */}
         <div className="text-white/40 text-xs text-center">
