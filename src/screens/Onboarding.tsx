@@ -13,6 +13,7 @@ import type { BusinessType } from "../store";
 import { useStore } from "../store";
 import type { Lang } from "../i18n";
 import { LANGS, tr, trParams } from "../i18n";
+import { normalizeInviteCode } from "../lib/inviteLink";
 import { Logo } from "../components/Logo";
 
 type Step = 0 | 1 | 2 | 3;
@@ -81,7 +82,7 @@ export function Onboarding() {
       if (stokvelMode === "choose") return false;
       if (stokvelMode === "skip") return true;
       if (stokvelMode === "create") return stokvelName.trim().length >= 1;
-      if (stokvelMode === "join") return joinCode.trim().length >= 4;
+      if (stokvelMode === "join") return normalizeInviteCode(joinCode) !== null;
     }
     return false;
   };
@@ -127,7 +128,15 @@ export function Onboarding() {
             return;
           }
         } else if (stokvelMode === "join") {
-          const result = await joinStokvelByCode(joinCode.trim());
+          // PR #26: the Next-button check above already rejects
+          // codes that can't be normalised, so this call always
+          // gets the canonical K-XXXX-XXXX form.
+          const canonical = normalizeInviteCode(joinCode);
+          if (!canonical) {
+            setError(tr("stokvelJoinInvalid", lang));
+            return;
+          }
+          const result = await joinStokvelByCode(canonical);
           if (!result.ok) {
             setError(
               result.error === "invalid_or_expired"

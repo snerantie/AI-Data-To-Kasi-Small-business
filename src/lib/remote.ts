@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { normalizeInviteCode } from "./inviteLink";
 import type { Lang } from "../i18n";
 import type {
   BankStatement,
@@ -1255,8 +1256,16 @@ export async function joinStokvelByCode(
   code: string,
 ): Promise<{ ok: true; stokvelId: string } | { ok: false; error: string }> {
   if (!supabase) return { ok: false, error: "Cloud not configured" };
+  // Defence in depth: even though the two upstream call-sites
+  // (JoinStokvelSheet + Onboarding) both run `normalizeInviteCode`
+  // before dispatching, we don't want a future caller (a test, a
+  // deep-link handler, an experiment) to send `km9p2xr7a` and
+  // silently 404 on the server. So re-normalise here and fall back
+  // to the historical trim+upper behaviour if we can't produce a
+  // canonical shape (e.g. an older non-standard code).
+  const canonical = normalizeInviteCode(code) ?? code.trim().toUpperCase();
   const { data, error } = await supabase.rpc("join_stokvel", {
-    invite_code: code.trim().toUpperCase(),
+    invite_code: canonical,
   });
   if (error) {
     const msg = error.message.toLowerCase();
