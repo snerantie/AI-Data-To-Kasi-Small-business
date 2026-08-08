@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang } from "../i18n";
+import { buildInviteUrl } from "../lib/inviteLink";
 import { tr, trParams } from "../i18n";
 import {
   formatRand,
@@ -48,12 +49,31 @@ type Sheet =
   | "contribute"
   | "reject";
 
-export function Stokvel({
-  lang,
-}: {
+/**
+ * Props (PR #25 additions):
+ *   pendingInviteCode  — when a user opens a `?invite=CODE` URL,
+ *                        App.tsx routes them here and passes the
+ *                        code so the Join sheet auto-opens
+ *                        pre-filled. `null` means the user got
+ *                        here normally.
+ *   onInviteConsumed   — called once we've either successfully
+ *                        joined or the user closed the sheet
+ *                        without joining, so App.tsx can clear
+ *                        the URL query parameter.
+ */
+export function Stokvel(props: {
   lang: Lang;
   onNavigate: (s: Screen) => void;
+  pendingInviteCode?: string | null;
+  onInviteConsumed?: () => void;
 }) {
+  const { lang } = props;
+  // onNavigate is accepted for API symmetry with the other screens
+  // (App.tsx passes it uniformly) but this screen currently
+  // navigates via internal sheets rather than parent-driven route
+  // changes, so we don't consume it here.
+  const pendingInviteCode = props.pendingInviteCode ?? null;
+  const onInviteConsumed = props.onInviteConsumed;
   const {
     state,
     userId,
@@ -70,6 +90,37 @@ export function Stokvel({
 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [flash, setFlash] = useState<number | null>(null);
+  // PR #25: when App.tsx forwards a `pendingInviteCode` from the
+  // `?invite=CODE` URL parameter, auto-open the Join sheet with the
+  // code pre-filled. Only fires when the user isn't already in a
+  // stokvel (the app doesn't yet support multiple memberships) —
+  // otherwise we'd overwrite whatever they're already looking at.
+  //
+  // We record the code we consumed so if App re-passes the same
+  // prop on a re-render we don't reopen the sheet endlessly.
+  const [consumedInviteCode, setConsumedInviteCode] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    if (!pendingInviteCode) return;
+    if (consumedInviteCode === pendingInviteCode) return;
+    if (state.stokvel) {
+      // Already in a stokvel. Silently discard the pending code so
+      // the URL doesn't sit there forever, but don't disrupt the
+      // user with a modal — they can join a second stokvel manually
+      // once we support multi-membership in a future PR.
+      setConsumedInviteCode(pendingInviteCode);
+      onInviteConsumed?.();
+      return;
+    }
+    setSheet("join");
+    setConsumedInviteCode(pendingInviteCode);
+    // NOTE: we don't call onInviteConsumed() yet — the URL stays
+    // populated until the Join sheet closes (see JoinStokvelSheet's
+    // onClose handler wiring below). That way if the user
+    // accidentally dismisses the sheet before joining, they can
+    // just refresh and re-trigger it.
+  }, [pendingInviteCode, consumedInviteCode, state.stokvel, onInviteConsumed]);
   const [displayed, setDisplayed] = useState(0);
   // When the user taps a quick-amount tile we don't contribute
   // immediately — we open a confirmation sheet with this amount
@@ -261,8 +312,16 @@ export function Stokvel({
           {sheet === "join" && (
             <JoinStokvelSheet
               lang={lang}
-              onClose={() => setSheet(null)}
+              onClose={() => {
+                setSheet(null);
+                // PR #25: close = the user is done with the invite
+                // (either joined successfully or dismissed the
+                // sheet). Let App.tsx clear the URL parameter so
+                // a refresh doesn't reopen this sheet.
+                onInviteConsumed?.();
+              }}
               onSubmit={joinStokvelByCode}
+              defaultCode={pendingInviteCode ?? undefined}
             />
           )}
         </AnimatePresence>
@@ -978,6 +1037,7 @@ function JoinStokvelSheet({
   lang,
   onClose,
   onSubmit,
+  defaultCode = "",
 }: {
   lang: Lang;
   onClose: () => void;
@@ -986,8 +1046,17 @@ function JoinStokvelSheet({
   ) =>
     | Promise<{ ok: true; stokvelId: string } | { ok: false; error: string }>
     | { ok: false; error: string };
+  // PR #25: when the sheet is opened from an invite link
+  // (`?invite=CODE`), the code is pre-filled here so the user
+  // just has to tap Join.
+  defaultCode?: string;
 }) {
-  const [code, setCode] = useState("");
+  // Start pre-filled with the invite code (if any). Uppercased +
+  // trimmed to match the same normalisation the manual-entry input
+  // already applies below.
+  const [code, setCode] = useState<string>(
+    defaultCode.trim().toUpperCase(),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1098,21 +1167,39 @@ function InviteSheet({
     setLoading(false);
   };
 
+  // PR #25: copy the full invite URL (not just the raw code) so a
+  // member pasting into WhatsApp gets a clickable link. Falls back
+  // to the code alone if the clipboard API is somehow unavailable,
+  // so the "Copy" button never leaves the user empty-handed.
   const copy = async () => {
     if (!invite) return;
+    const link = buildInviteUrl(invite.code);
     try {
-      await navigator.clipboard.writeText(invite.code);
+      await navigator.clipboard.writeText(link);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
-      // ignore
+      try {
+        await navigator.clipboard.writeText(invite.code);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+      } catch {
+        // ignore
+      }
     }
   };
 
+  // PR #25: the WhatsApp share message now embeds a tappable URL
+  // ahead of the raw code. Previously it only carried the code as
+  // text, so recipients had nothing to tap and had to manually
+  // enter it — the exact bug that was blocking new members from
+  // joining pilot stokvels.
   const shareWA = () => {
     if (!invite) return;
+    const inviteUrl = buildInviteUrl(invite.code);
     const message = trParams("stokvelInviteWhatsAppMessage", lang, {
       code: invite.code,
+      url: inviteUrl,
     });
     const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank", "noopener");

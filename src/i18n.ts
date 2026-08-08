@@ -322,7 +322,11 @@ export const t = {
     st: "Arolelana khoutu ena — mang kapa mang ea nang le eona a ka kena.",
     af: "Deel hierdie kode — enigiemand met die kode kan aansluit.",
   },
-  stokvelInviteCopy: { en: "Copy code", zu: "Kopisha ikhodi", st: "Kopisha khoutu", af: "Kopieer kode" },
+  // PR #25: renamed from "Copy code" to "Copy link" because the
+  // button now copies the full invite URL, not the raw code. The
+  // link contains the code so nothing is lost; the link is just
+  // more useful when pasted into WhatsApp / SMS / email.
+  stokvelInviteCopy: { en: "Copy link", zu: "Kopisha ilink", st: "Kopisha linki", af: "Kopieer skakel" },
   stokvelInviteCopied: { en: "Copied ✓", zu: "Kukopishiwe ✓", st: "E kopishoa ✓", af: "Gekopieer ✓" },
   stokvelInviteShareWhatsApp: {
     en: "Share on WhatsApp",
@@ -330,11 +334,19 @@ export const t = {
     st: "Arolelana ho WhatsApp",
     af: "Deel op WhatsApp",
   },
+  // PR #25: message now includes a tappable URL. Previously only
+  // the code was included — recipients saw plain text and couldn't
+  // click anything, which was the top pilot-blocking issue.
+  //
+  // The raw code is still repeated as a fallback in case a
+  // recipient's WhatsApp version fails to render the URL (rare but
+  // happens in older Android builds) — they can then open KasiKash
+  // manually and paste the code.
   stokvelInviteWhatsAppMessage: {
-    en: "Come join our stokvel on KasiKash! Enter this code: {code}",
-    zu: "Woza uzojoyina istokvel yethu ku-KasiKash! Faka le khodi: {code}",
-    st: "Tloo u kene stokveleng ea rona ho KasiKash! Kenya khoutu ena: {code}",
-    af: "Kom sluit aan by ons stokvel op KasiKash! Voer hierdie kode in: {code}",
+    en: "Come join our stokvel on KasiKash! Tap this link: {url}\n\nOr open KasiKash and use code: {code}",
+    zu: "Woza uzojoyina istokvel yethu ku-KasiKash! Cindezela lelilink: {url}\n\nNoma vula i-KasiKash ufake ikhodi: {code}",
+    st: "Tloo u kene stokveleng ea rona ho KasiKash! Tobetsa linki ena: {url}\n\nKapa bula KasiKash 'me u sebelise khoutu: {code}",
+    af: "Kom sluit aan by ons stokvel op KasiKash! Tik hierdie skakel: {url}\n\nOf maak KasiKash oop en gebruik kode: {code}",
   },
   stokvelInviteExpires: {
     en: "Expires in {days} day(s)",

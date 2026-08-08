@@ -18,6 +18,10 @@ import {
   clearPaymentReturnUrl,
   parsePaymentReturn,
 } from "./screens/PaymentReturn";
+import {
+  clearInviteUrl,
+  parseInviteFromUrl,
+} from "./lib/inviteLink";
 import { needsOnboarding, useStore } from "./store";
 import type { Lang } from "./i18n";
 
@@ -51,6 +55,26 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [splashDone, setSplashDone] = useState(false);
   const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState>(null);
+  // PR #25: invite-link handling.
+  //
+  // When a new member taps a WhatsApp invite link like
+  // `.../?invite=KX7QAP` we parse the code out on first render,
+  // route them to the Stokvel screen, and hand the code down as a
+  // prop so the Join sheet opens pre-filled. That turns "member
+  // must copy the code, open the app, find the join screen, paste
+  // the code, tap join" into "tap link → tap join". Two taps.
+  //
+  // The parameter stays in `pendingInviteCode` until either:
+  //   * The Stokvel screen has consumed it (auto-opened the Join
+  //     sheet + posted the request), OR
+  //   * The user manually cleared it (tapped away without joining).
+  //
+  // We DON'T clear the URL until the join is either successful or
+  // the user dismisses the prompt — otherwise a hydration hiccup
+  // or a refresh mid-onboarding would silently drop the invite.
+  const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(
+    null,
+  );
 
   const lang: Lang = state.lang ?? "en";
   const showNav = SCREENS_WITH_NAV.includes(screen);
@@ -66,11 +90,30 @@ export default function App() {
       // route them to the Stokvel tab afterward so they see it working.
       setScreen("stokvel");
     }
+
+    // Same first-render pass picks up any `?invite=CODE` in the URL
+    // so a WhatsApp-shared link auto-populates the Join Stokvel
+    // sheet without the user having to retype anything. Deliberately
+    // does NOT clearInviteUrl() here — see comment on
+    // pendingInviteCode above.
+    const invite = parseInviteFromUrl();
+    if (invite) {
+      setPendingInviteCode(invite);
+      setScreen("stokvel");
+    }
   }, []);
 
   const dismissPaymentReturn = () => {
     clearPaymentReturnUrl();
     setPaymentReturn(null);
+  };
+
+  // Called by the Stokvel screen once the pending invite has been
+  // either accepted or dismissed. Clearing state + URL together
+  // means a refresh doesn't re-trigger the prompt.
+  const clearPendingInvite = () => {
+    setPendingInviteCode(null);
+    clearInviteUrl();
   };
 
   return (
@@ -120,7 +163,12 @@ export default function App() {
                   )}
                   {screen === "tabs" && <Tabs lang={lang} />}
                   {screen === "stokvel" && (
-                    <Stokvel lang={lang} onNavigate={setScreen} />
+                    <Stokvel
+                      lang={lang}
+                      onNavigate={setScreen}
+                      pendingInviteCode={pendingInviteCode}
+                      onInviteConsumed={clearPendingInvite}
+                    />
                   )}
                   {screen === "insights" && (
                     <Insights lang={lang} onNavigate={setScreen} />
