@@ -134,17 +134,20 @@ describe("normalizeInviteCode", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildInviteUrl", () => {
-  it("prepends the current origin + /?invite= to the given code", () => {
+  it("prepends the current origin + /app/?invite= to the given code (PR #28)", () => {
+    // PR #28 moved the app under the /app path prefix so that
+    // kasikash.com/ can serve the marketing website. New invite
+    // URLs go straight to /app/?invite=CODE.
     installFakeWindow("https://kasikash.co.za/");
     expect(buildInviteUrl("K-M9P2-XR7A")).toBe(
-      "https://kasikash.co.za/?invite=K-M9P2-XR7A",
+      "https://kasikash.co.za/app/?invite=K-M9P2-XR7A",
     );
   });
 
   it("uses the same origin for a Vercel preview URL", () => {
     installFakeWindow("https://kasi-abc123.vercel.app/some/path");
     expect(buildInviteUrl("K-D8VN-P7CQ")).toBe(
-      "https://kasi-abc123.vercel.app/?invite=K-D8VN-P7CQ",
+      "https://kasi-abc123.vercel.app/app/?invite=K-D8VN-P7CQ",
     );
   });
 
@@ -154,7 +157,7 @@ describe("buildInviteUrl", () => {
     // includes an ampersand or space we don't want the URL to
     // break silently.
     installFakeWindow("https://kasikash.co.za/");
-    expect(buildInviteUrl("A B&C")).toContain("?invite=A%20B%26C");
+    expect(buildInviteUrl("A B&C")).toContain("/app/?invite=A%20B%26C");
   });
 
   it("has a sensible fallback when window is undefined (SSR path)", () => {
@@ -162,7 +165,7 @@ describe("buildInviteUrl", () => {
     // 'undefined'` is true. The helper must still return something
     // — a placeholder URL — instead of crashing.
     const result = buildInviteUrl("K-M9P2-XR7A");
-    expect(result).toContain("?invite=K-M9P2-XR7A");
+    expect(result).toContain("/app/?invite=K-M9P2-XR7A");
   });
 });
 

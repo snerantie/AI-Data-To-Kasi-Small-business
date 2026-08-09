@@ -12,6 +12,7 @@ import { Settings } from "./screens/Settings";
 import { PassportPreview } from "./screens/PassportPreview";
 import { ScanReceipt } from "./screens/ScanReceipt";
 import { ImportStatement } from "./screens/ImportStatement";
+import { Landing } from "./screens/Landing";
 import { NotifyProvider } from "./components/NotifyProvider";
 import {
   PaymentReturn,
@@ -50,72 +51,182 @@ const SCREENS_WITH_NAV: Screen[] = [
   "insights",
 ];
 
+/**
+ * PR #28 — path-based split between the marketing website and the app.
+ *
+ *   /              → marketing landing (src/screens/Landing.tsx)
+ *   /app  and  /app/…  → the KasiKash app itself
+ *
+ * Both live on the same domain (kasikash.com) — no subdomains — but
+ * they render completely different trees. The Landing is a full-
+ * width scrollable website with no phone frame; the app keeps its
+ * existing phone-frame wrapper so it still looks and feels like a
+ * mobile-first product on desktop.
+ *
+ * Backward compatibility for invite URLs shared BEFORE this split:
+ *   Old links look like `https://kasikash.com/?invite=CODE` (root
+ *   path). Those still work — when the Landing detects an
+ *   `?invite=` or `?payment_return=` param at the root, it
+ *   transparently navigates to `/app/…?invite=CODE` (client-side
+ *   history replaceState — no full page reload). The app then
+ *   consumes the invite exactly as it always has. This means every
+ *   already-shared WhatsApp invite in the pilot cohort continues to
+ *   open the join flow correctly.
+ *
+ * Why plain `pathname` routing rather than a router library:
+ *   The app has exactly two "modes" — website vs app — and no other
+ *   deep-linking needs (screen state inside the app is held in
+ *   React state, not URLs). Pulling in react-router for a
+ *   two-branch decision adds bundle weight for no benefit. When we
+ *   grow to deep-linking individual app screens we can revisit.
+ */
+function getPathname(): string {
+  if (typeof window === "undefined") return "/";
+  return window.location.pathname || "/";
+}
+
+/**
+ * Returns true when the current path should render the app tree.
+ * `/app`, `/app/`, `/app/anything` all count as app routes; a lone
+ * `/` or any other unrecognised path renders the Landing.
+ */
+function isAppPath(pathname: string): boolean {
+  return pathname === "/app" || pathname.startsWith("/app/");
+}
+
 export default function App() {
   const { state } = useStore();
+  const [pathname, setPathname] = useState<string>(getPathname);
   const [screen, setScreen] = useState<Screen>("home");
   const [splashDone, setSplashDone] = useState(false);
   const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState>(null);
   // PR #25: invite-link handling.
   //
   // When a new member taps a WhatsApp invite link like
-  // `.../?invite=KX7QAP` we parse the code out on first render,
-  // route them to the Stokvel screen, and hand the code down as a
-  // prop so the Join sheet opens pre-filled. That turns "member
-  // must copy the code, open the app, find the join screen, paste
-  // the code, tap join" into "tap link → tap join". Two taps.
-  //
-  // The parameter stays in `pendingInviteCode` until either:
-  //   * The Stokvel screen has consumed it (auto-opened the Join
-  //     sheet + posted the request), OR
-  //   * The user manually cleared it (tapped away without joining).
+  // `.../app/?invite=K-M9P2-XR7A` we parse the code out on first
+  // render, route them to the Stokvel screen, and hand the code
+  // down as a prop so the Join sheet opens pre-filled. Two taps
+  // instead of six.
   //
   // We DON'T clear the URL until the join is either successful or
-  // the user dismisses the prompt — otherwise a hydration hiccup
-  // or a refresh mid-onboarding would silently drop the invite.
+  // the user dismisses the prompt — otherwise a refresh
+  // mid-onboarding would silently drop the invite.
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(
     null,
   );
 
   const lang: Lang = state.lang ?? "en";
+  const onAppRoute = isAppPath(pathname);
   const showNav = SCREENS_WITH_NAV.includes(screen);
   const mustOnboard = needsOnboarding(state);
 
-  // On first render, check the URL for a payment_return param. If the
-  // user just came back from Yoco we'll show the confirmation overlay.
+  // ─────────────────────────────────────────────────────────────────
+  // Path-change plumbing.
+  //
+  // We listen for popstate so the browser back/forward buttons keep
+  // pathname state in sync with the address bar. Not strictly
+  // required for the pilot (nobody's going to hit back from the app
+  // into the landing), but it's a two-line safety net and prevents
+  // ghost states if someone does.
+  // ─────────────────────────────────────────────────────────────────
   useEffect(() => {
+    const onPopState = () => setPathname(getPathname());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────
+  // Backward compat: rescue root-path invite URLs.
+  //
+  // Historical `https://kasikash.com/?invite=CODE` links are already
+  // in WhatsApp conversations. We transparently move them under
+  // `/app/` so the existing app-side consumer picks them up. Only
+  // fires when we're literally at `/` — we don't want to redirect
+  // someone who's on `/legal` or a future website subpage.
+  // ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (onAppRoute) return;
+    if (pathname !== "/" && pathname !== "") return;
+
+    const search = new URLSearchParams(window.location.search);
+    const shouldRedirect =
+      search.has("invite") ||
+      search.has("payment_return") ||
+      search.has("payment_id");
+
+    if (shouldRedirect) {
+      const url = new URL(window.location.href);
+      const newUrl =
+        "/app/" +
+        (url.search ? url.search : "") +
+        (url.hash ? url.hash : "");
+      // replaceState — no history entry for `/` so back button won't
+      // trap the user in a redirect loop.
+      window.history.replaceState({}, "", newUrl);
+      setPathname("/app/");
+    }
+  }, [pathname, onAppRoute]);
+
+  // ─────────────────────────────────────────────────────────────────
+  // App-side URL consumption (payment_return + invite).
+  //
+  // Runs only when we're on an app route AND the splash has
+  // completed. On the landing route this whole block is skipped, so
+  // the marketing page never accidentally opens a Yoco return sheet
+  // or a Stokvel join sheet.
+  // ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!onAppRoute) return;
+
     const detected = parsePaymentReturn();
     if (detected) {
       setPaymentReturn(detected);
-      // If the user is mid-onboarding and returned from a payment,
-      // route them to the Stokvel tab afterward so they see it working.
       setScreen("stokvel");
     }
 
-    // Same first-render pass picks up any `?invite=CODE` in the URL
-    // so a WhatsApp-shared link auto-populates the Join Stokvel
-    // sheet without the user having to retype anything. Deliberately
-    // does NOT clearInviteUrl() here — see comment on
-    // pendingInviteCode above.
     const invite = parseInviteFromUrl();
     if (invite) {
       setPendingInviteCode(invite);
       setScreen("stokvel");
     }
-  }, []);
+  }, [onAppRoute]);
+
+  const navigateToApp = () => {
+    // Preserve any query params + hash from the landing URL — e.g.
+    // a partner sharing `kasikash.com/?welcome=1&utm_source=xyz`
+    // still gets attribution once they cross into the app.
+    const url = new URL(window.location.href);
+    const search = url.search;
+    const hash = url.hash;
+    window.history.pushState({}, "", "/app/" + search + hash);
+    setPathname("/app/");
+  };
 
   const dismissPaymentReturn = () => {
     clearPaymentReturnUrl();
     setPaymentReturn(null);
   };
 
-  // Called by the Stokvel screen once the pending invite has been
-  // either accepted or dismissed. Clearing state + URL together
-  // means a refresh doesn't re-trigger the prompt.
   const clearPendingInvite = () => {
     setPendingInviteCode(null);
     clearInviteUrl();
   };
 
+  // ─────────────────────────────────────────────────────────────────
+  // Website route: render the full-width marketing landing.
+  //
+  // Deliberately outside the phone-frame wrapper — the Landing is a
+  // real website, not a phone screen. It has its own layout, own
+  // nav, own footer, and reads at desktop widths just fine.
+  // ─────────────────────────────────────────────────────────────────
+  if (!onAppRoute) {
+    return <Landing onOpenApp={navigateToApp} />;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // App route: existing app tree, unchanged apart from being nested
+  // under this conditional.
+  // ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-6">
       {/* Global toast layer — rendered outside the phone-frame so

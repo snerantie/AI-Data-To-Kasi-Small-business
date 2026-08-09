@@ -22,20 +22,30 @@
 
 /**
  * Build the full URL a member taps to join a stokvel.
- * Includes the current app origin so the same helper works in
- * dev (localhost), Vercel previews, and the production custom
- * domain without config changes.
+ *
+ * Emits `<origin>/app/?invite=CODE` — the `/app/` prefix reflects
+ * the PR #28 split where `kasikash.com/` serves the marketing
+ * website and `kasikash.com/app/` serves the actual application.
+ *
+ * Backward compat: URLs generated before PR #28 look like
+ * `<origin>/?invite=CODE` (root path). Those still work because
+ * App.tsx's root-path redirect transparently moves them under
+ * `/app/` on load. New invites go straight to the right place.
+ *
+ * Uses `window.location.origin` at runtime so the same helper
+ * works in dev (localhost), Vercel previews, and the production
+ * custom domain without config changes.
  */
 export function buildInviteUrl(code: string): string {
   if (typeof window === "undefined") {
-    // SSR / test path — return the canonical production origin so
+    // SSR / test path — return the canonical production URL so
     // that any code accidentally invoking this off-browser
     // (e.g. a future Node-side share-image renderer) still emits a
     // link that resolves to the real app.
-    return `https://kasikash.com/?invite=${encodeURIComponent(code)}`;
+    return `https://kasikash.com/app/?invite=${encodeURIComponent(code)}`;
   }
   const origin = window.location.origin;
-  return `${origin}/?invite=${encodeURIComponent(code)}`;
+  return `${origin}/app/?invite=${encodeURIComponent(code)}`;
 }
 
 /**
