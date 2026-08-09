@@ -6,6 +6,12 @@
     <meta name="theme-color" content="#0B0F0A" />
     <meta name="description" content="KasiKash — Voice-first, multilingual finance OS for township small businesses. Speak isiZulu, Sesotho, or English." />
 
+    <!-- Canonical URL: tells search engines and link-preview services
+         (WhatsApp, Twitter, Facebook, LinkedIn) which URL to treat as
+         the source of truth even if the user landed via a share link,
+         a preview build, or a legacy Vercel URL. -->
+    <link rel="canonical" href="https://kasikash.com/" />
+
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
@@ -17,12 +23,28 @@
     <meta name="apple-mobile-web-app-title" content="KasiKash" />
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- Social preview -->
+    <!-- Social preview / Open Graph.
+         WhatsApp, Twitter, Facebook, LinkedIn all read these tags to
+         render the rich card that shows up when someone shares a
+         KasiKash invite link in a chat. Absolute URLs are important —
+         WhatsApp will silently drop a relative `og:image` path.
+         Using kasikash.com (the canonical domain) rather than the
+         Vercel URL so previews stay stable across deploys. -->
+    <meta property="og:site_name" content="KasiKash" />
     <meta property="og:title" content="KasiKash — Kasi hustle, upgraded." />
     <meta property="og:description" content="Voice-first finance OS for township small businesses. isiZulu · Sesotho · English." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icon.svg" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:url" content="https://kasikash.com/" />
+    <meta property="og:image" content="https://kasikash.com/icon.svg" />
+
+    <!-- Twitter Card — kept summary (not summary_large_image) because
+         we currently only have an SVG icon, not a wide banner. If a
+         wide PNG banner is added later, upgrade this to
+         summary_large_image and add a matching twitter:image. -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="KasiKash — Kasi hustle, upgraded." />
+    <meta name="twitter:description" content="Voice-first finance OS for township small businesses." />
+    <meta name="twitter:image" content="https://kasikash.com/icon.svg" />
 
     <title>KasiKash — Kasi hustle, upgraded.</title>
   </head>

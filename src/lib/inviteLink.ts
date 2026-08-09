@@ -28,10 +28,11 @@
  */
 export function buildInviteUrl(code: string): string {
   if (typeof window === "undefined") {
-    // SSR / test path — return a sentinel URL. In practice this
-    // code only runs in the browser, but tests + type-checking
-    // benefit from a defined return.
-    return `https://kasikash.example/?invite=${encodeURIComponent(code)}`;
+    // SSR / test path — return the canonical production origin so
+    // that any code accidentally invoking this off-browser
+    // (e.g. a future Node-side share-image renderer) still emits a
+    // link that resolves to the real app.
+    return `https://kasikash.com/?invite=${encodeURIComponent(code)}`;
   }
   const origin = window.location.origin;
   return `${origin}/?invite=${encodeURIComponent(code)}`;
