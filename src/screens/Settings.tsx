@@ -24,12 +24,15 @@ import {
   Eye,
   EyeOff,
   Landmark,
+  Smartphone,
 } from "lucide-react";
 import type { Screen } from "../App";
 import type { Lang, TKey } from "../i18n";
 import { LANGS, tr, trParams } from "../i18n";
 import type { BusinessType } from "../store";
 import { formatRand, useStore } from "../store";
+import { InstallSheet } from "../components/InstallSheet";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
 
 const BUSINESS_TYPES: BusinessType[] = [
   "spaza",
@@ -237,6 +240,19 @@ export function Settings({
             </div>
             {saved === "bizType" && <SavedBadge />}
           </div>
+        </Section>
+
+        {/* ---- Install on this phone (PR #29) ----
+             Permanent access point for the install flow. The Home
+             banner is dismissible; this Settings section is not, so
+             users who tap Not-Now on the banner can still find their
+             way back to install later. */}
+        <Section
+          icon={Smartphone}
+          title={tr("installSettingsHeader", lang)}
+          accent="green"
+        >
+          <InstallSettingsBlock lang={lang} />
         </Section>
 
         {/* ---- Stokvel ---- */}
@@ -2048,6 +2064,58 @@ function WhatsAppBotBlock({ lang }: { lang: Lang }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// InstallSettingsBlock (PR #29)
+//
+// A tiny, always-available surface for the Add-to-Home-Screen flow.
+// Complements the dismissible Home banner: users who tap "Not now"
+// on the banner can still return here to install later. Also useful
+// for users who onboarded on the desktop version and now open the
+// app on their phone.
+//
+// If the browser reports the app as already installed (running in
+// standalone display-mode), we show a friendly "already installed"
+// state instead of an install button. Prevents duplicate installs
+// and confirms to returning users that their earlier install stuck.
+// ---------------------------------------------------------------------------
+function InstallSettingsBlock({ lang }: { lang: Lang }) {
+  const { isInstalled } = useInstallPrompt();
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  if (isInstalled) {
+    return (
+      <div className="rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/25 text-kasi-green text-sm px-4 py-3 flex items-center gap-2">
+        <Check size={16} />
+        {tr("installSettingsAlreadyInstalled", lang)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-white/70 text-sm leading-relaxed">
+        {tr("installSettingsSub", lang)}
+      </p>
+      <button
+        onClick={() => setSheetOpen(true)}
+        className="flex items-center justify-center gap-2 py-3 rounded-xl bg-kasi-green text-bg font-semibold text-sm"
+      >
+        <Smartphone size={14} />
+        {tr("installSettingsButton", lang)}
+      </button>
+      <AnimatePresence>
+        {sheetOpen && (
+          <InstallSheet
+            lang={lang}
+            onClose={() => setSheetOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

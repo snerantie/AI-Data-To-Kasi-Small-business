@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
   FileUp,
   Mic,
@@ -6,6 +7,8 @@ import {
   UserPlus,
   TrendingUp,
   Settings as SettingsIcon,
+  Smartphone,
+  X,
 } from "lucide-react";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
@@ -19,6 +22,8 @@ import {
   kasiScore,
 } from "../store";
 import { SyncBadge } from "../components/SyncBadge";
+import { InstallSheet } from "../components/InstallSheet";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
 
 export function Home({
   lang,
@@ -34,6 +39,46 @@ export function Home({
   const score = kasiScore(state);
 
   const recent = state.sales.slice(0, 4);
+
+  // ─── PWA install banner (PR #29) ────────────────────────────────
+  // Small dismissible card that nudges the user to save the app to
+  // their home screen. Only shows when:
+  //   * The browser hasn't been marked "installed" (standalone mode)
+  //   * The user hasn't previously dismissed the banner in
+  //     localStorage (persistent across sessions)
+  //   * The current platform actually supports install (any mobile;
+  //     hides on desktop because Home is a mobile-first screen and
+  //     desktop users are unlikely to install)
+  // Tapping the banner opens the InstallSheet with platform-
+  // appropriate instructions.
+  const { platform, isInstalled } = useInstallPrompt();
+  const [bannerDismissed, setBannerDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("kasikash:install-banner-dismissed") === "1";
+  });
+  const [installSheetOpen, setInstallSheetOpen] = useState(false);
+
+  // Show the banner only for mobile-capable platforms where install
+  // is a realistic prospect. Desktop users generally don't add web
+  // apps to their home screen — they already have bookmarks.
+  const showInstallBanner =
+    !isInstalled &&
+    !bannerDismissed &&
+    (platform === "android-chrome" ||
+      platform === "ios-safari" ||
+      platform === "other-mobile");
+
+  const dismissBanner = () => {
+    window.localStorage.setItem("kasikash:install-banner-dismissed", "1");
+    setBannerDismissed(true);
+  };
+
+  // Close the sheet automatically if the user installs (via any
+  // path) so we don't leave a stale modal open behind the newly-
+  // launched PWA.
+  useEffect(() => {
+    if (isInstalled) setInstallSheetOpen(false);
+  }, [isInstalled]);
 
   const displayName = state.profile.ownerName?.trim() || "You";
   const businessName = state.profile.businessName?.trim();
@@ -83,6 +128,50 @@ export function Home({
           </button>
         </div>
       </div>
+
+      {/* ----- Install banner (PR #29) — dismissible, appears above the hero ----- */}
+      <AnimatePresence>
+        {showInstallBanner && (
+          <motion.div
+            key="install-banner"
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: -8, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mb-4 rounded-2xl border border-kasi-green/25 bg-gradient-to-br from-kasi-green/[0.08] to-transparent overflow-hidden"
+          >
+            <div className="p-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center text-kasi-green shrink-0">
+                <Smartphone size={18} />
+              </div>
+              <button
+                onClick={() => setInstallSheetOpen(true)}
+                className="flex-1 min-w-0 text-left"
+              >
+                <div className="text-sm font-semibold text-white truncate">
+                  {tr("installBannerTitle", lang)}
+                </div>
+                <div className="text-xs text-white/60 truncate">
+                  {tr("installBannerSub", lang)}
+                </div>
+              </button>
+              <button
+                onClick={() => setInstallSheetOpen(true)}
+                className="shrink-0 px-3 py-1.5 rounded-full bg-kasi-green text-bg text-xs font-semibold"
+              >
+                {tr("installBannerAction", lang)}
+              </button>
+              <button
+                onClick={dismissBanner}
+                aria-label={tr("installBannerDismiss", lang)}
+                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:bg-white/5"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ----- Hero: today's takings ----- */}
       <motion.div
@@ -238,6 +327,16 @@ export function Home({
           </div>
         )}
       </div>
+      {/* PR #29 — install sheet, mounted at the end so its fixed
+          backdrop sits above every other Home surface. */}
+      <AnimatePresence>
+        {installSheetOpen && (
+          <InstallSheet
+            lang={lang}
+            onClose={() => setInstallSheetOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
