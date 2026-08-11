@@ -14,6 +14,7 @@ import { ScanReceipt } from "./screens/ScanReceipt";
 import { ImportStatement } from "./screens/ImportStatement";
 import { Landing } from "./screens/Landing";
 import { PressHowItWorks } from "./screens/PressHowItWorks";
+import { PressKasiScore } from "./screens/PressKasiScore";
 import { NotifyProvider } from "./components/NotifyProvider";
 import {
   PaymentReturn,
@@ -105,7 +106,27 @@ function isAppPath(pathname: string): boolean {
  * meant to be screenshotted.
  */
 function isPressPath(pathname: string): boolean {
-  return pathname === "/press/how-it-works" || pathname === "/press/how-it-works/";
+  return (
+    pathname === "/press/how-it-works" ||
+    pathname === "/press/how-it-works/" ||
+    pathname === "/press/kasiscore" ||
+    pathname === "/press/kasiscore/"
+  );
+}
+
+/**
+ * Returns which press asset to render at the current pathname.
+ * Keeps the routing decision alongside the pathname check so a new
+ * press asset only needs one place to plug in.
+ */
+function pressComponentFor(pathname: string): React.ReactNode {
+  if (
+    pathname === "/press/kasiscore" ||
+    pathname === "/press/kasiscore/"
+  ) {
+    return <PressKasiScore />;
+  }
+  return <PressHowItWorks />;
 }
 
 export default function App() {
@@ -236,7 +257,7 @@ export default function App() {
   // screenshot.
   // ─────────────────────────────────────────────────────────────────
   if (onPressRoute) {
-    return <PressHowItWorks />;
+    return <>{pressComponentFor(pathname)}</>;
   }
 
   // ─────────────────────────────────────────────────────────────────

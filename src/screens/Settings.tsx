@@ -406,49 +406,38 @@ export function Settings({
               <div className="text-white/60 text-xs mt-1 mb-3">
                 {tr("accountResetDesc", lang)}
               </div>
-
-              <AnimatePresence mode="wait">
-                {!confirmReset ? (
-                  <motion.button
-                    key="ask"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setConfirmReset(true)}
-                    className="px-3 py-2 rounded-lg bg-kasi-coral/15 border border-kasi-coral/30 text-kasi-coral text-xs font-medium"
-                  >
-                    {tr("accountReset", lang)}
-                  </motion.button>
-                ) : (
-                  <motion.div
-                    key="confirm"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="flex flex-col gap-2"
-                  >
-                    <button
-                      onClick={doReset}
-                      disabled={resetting}
-                      className="px-3 py-2 rounded-lg bg-kasi-coral text-bg text-xs font-semibold flex items-center justify-center gap-1"
-                    >
-                      {resetting ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : null}
-                      {tr("accountResetConfirm", lang)}
-                    </button>
-                    <button
-                      onClick={() => setConfirmReset(false)}
-                      className="px-3 py-2 rounded-lg bg-bg-card border border-white/10 text-white/70 text-xs"
-                    >
-                      {tr("accountResetCancel", lang)}
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <button
+                onClick={() => setConfirmReset(true)}
+                className="px-3 py-2 rounded-lg bg-kasi-coral/15 border border-kasi-coral/30 text-kasi-coral text-xs font-medium"
+              >
+                {tr("accountReset", lang)}
+              </button>
             </div>
           )}
         </Section>
+
+        {/* PR #33 — type-to-confirm reset modal. Renders as a full-
+             screen overlay outside the scrolling Settings container
+             so it sits above every other surface. Requires typing
+             "DELETE" verbatim to enable the confirmation button,
+             preventing accidental wipes on shared / borrowed phones
+             or a curious child tapping around the app. */}
+        <AnimatePresence>
+          {confirmReset && (
+            <ResetConfirmModal
+              lang={lang}
+              resetting={resetting}
+              salesCount={state.sales.length}
+              tabsCount={state.tabs.length}
+              contributionsCount={
+                state.stokvel?.contributions.length ?? 0
+              }
+              hasStokvel={!!state.stokvel}
+              onCancel={() => setConfirmReset(false)}
+              onConfirm={doReset}
+            />
+          )}
+        </AnimatePresence>
 
         <div className="pt-2 text-center text-white/30 text-[10px]">
           {tr("appVersion", lang)} · v0.4
@@ -608,9 +597,17 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
 
   const [mode, setMode] = useState<"save" | "signin">("save");
   // Which channel the user is currently using in the anonymous form.
-  // Email stays the default for backwards compat; SA township users
-  // who prefer phone can switch with one tap.
-  const [channel, setChannel] = useState<"email" | "phone">("email");
+  //
+  // PR #33: default to Phone on mobile devices because most kasi
+  // users have WhatsApp + SMS but no consistently-checked email.
+  // Desktop keeps Email as the default (laptop users typically
+  // manage email actively). Users can still tap the other tab.
+  const [channel, setChannel] = useState<"email" | "phone">(() => {
+    if (typeof window === "undefined") return "email";
+    const ua = window.navigator.userAgent || "";
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+    return isMobile ? "phone" : "email";
+  });
   const [emailInput, setEmailInput] = useState("");
   const [phoneInput, setPhoneInput] = useState("");
   const [otpInput, setOtpInput] = useState("");
@@ -892,35 +889,45 @@ function AccountAuthBlock({ lang }: { lang: Lang }) {
   // phone), we prefer email — a small display choice; either identity
   // is a valid way to sign back in later.
   if (isSignedIn && (email || phone)) {
+    // PR #33: upgraded from a compact icon+text row to a green-tinted
+    // reassurance card that clearly says "your data is safe". Real
+    // pilot users needed positive confirmation that their backup
+    // worked; the previous UI was too subtle.
     const displayEmail = email;
     const displayPhone = phone;
     const usingPhone = !displayEmail && displayPhone;
     return (
       <div>
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center shrink-0">
-            {usingPhone ? (
-              <Phone size={16} className="text-kasi-green" />
-            ) : (
-              <Mail size={16} className="text-kasi-green" />
-            )}
+        <div className="rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/30 p-4">
+          <div className="flex items-center gap-2 text-kasi-green font-semibold text-sm mb-2">
+            <Check size={16} />
+            {tr("accountBackedUpTitle", lang)}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">
-              {tr("authSignedInAs", lang)}
+          <div className="flex items-center gap-2.5 mt-3">
+            <div className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center shrink-0">
+              {usingPhone ? (
+                <Phone size={14} className="text-white/80" />
+              ) : (
+                <Mail size={14} className="text-white/80" />
+              )}
             </div>
-            <div className="font-medium truncate">
-              {displayEmail ?? displayPhone}
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wider text-white/50">
+                {tr("authSignedInAs", lang)}
+              </div>
+              <div className="text-white font-medium truncate text-sm">
+                {displayEmail ?? displayPhone}
+              </div>
             </div>
-            <div className="text-white/60 text-xs mt-1">
-              {tr("authSignedInDesc", lang)}
-            </div>
+          </div>
+          <div className="text-white/60 text-xs leading-relaxed mt-3">
+            {tr("accountBackedUpSub", lang)}
           </div>
         </div>
         <button
           onClick={doSignOut}
           disabled={signingOut}
-          className="mt-4 w-full py-2.5 rounded-xl bg-bg border border-white/10 text-white/80 text-sm font-medium flex items-center justify-center gap-2"
+          className="mt-3 w-full py-2.5 rounded-xl bg-bg border border-white/10 text-white/70 text-sm font-medium flex items-center justify-center gap-2 hover:bg-white/[0.02]"
         >
           {signingOut ? (
             <Loader2 size={14} className="animate-spin" />
@@ -2117,5 +2124,176 @@ function InstallSettingsBlock({ lang }: { lang: Lang }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// ResetConfirmModal (PR #33)
+//
+// Full-screen overlay that gates the destructive reset behind two
+// deliberate checks:
+//   1. A summary of every record class that will be deleted, with
+//      counts, so the user sees exactly what they're about to lose
+//      (a spaza owner with 200 logged sales is going to think twice
+//      when they see "200 sales will be deleted")
+//   2. A text input that must contain the exact word DELETE before
+//      the confirmation button is enabled
+//
+// Modelled on Stripe/GitHub's dangerous-action confirmation UX. The
+// small friction is worth it because a reset is irrecoverable and
+// pilot phones are often shared with family or borrowed briefly.
+// ---------------------------------------------------------------------------
+function ResetConfirmModal({
+  lang,
+  resetting,
+  salesCount,
+  tabsCount,
+  contributionsCount,
+  hasStokvel,
+  onCancel,
+  onConfirm,
+}: {
+  lang: Lang;
+  resetting: boolean;
+  salesCount: number;
+  tabsCount: number;
+  contributionsCount: number;
+  hasStokvel: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  // Case-insensitive match so DELETE / delete / Delete all work.
+  // The reporter-provided reference (GitHub / Stripe) accepts either
+  // case; we follow the same convention because forcing exact caps
+  // adds friction without adding safety.
+  const canConfirm = typed.trim().toUpperCase() === "DELETE" && !resetting;
+
+  return (
+    <motion.div
+      key="reset-confirm-modal"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onCancel}
+    >
+      <motion.div
+        initial={{ y: 40 }}
+        animate={{ y: 0 }}
+        exit={{ y: 40 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="w-full md:max-w-md bg-bg-soft border-t md:border border-kasi-coral/30 md:rounded-3xl rounded-t-3xl p-5 pb-8 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2.5 mb-3">
+          <div className="w-9 h-9 rounded-xl bg-kasi-coral/15 border border-kasi-coral/30 flex items-center justify-center text-kasi-coral shrink-0">
+            <ShieldAlert size={16} />
+          </div>
+          <div className="font-display font-bold text-lg text-white">
+            {tr("accountResetModalTitle", lang)}
+          </div>
+        </div>
+
+        <p className="text-white/70 text-sm leading-relaxed mb-4">
+          {tr("accountResetModalBody", lang)}
+        </p>
+
+        {/* Summary of records that will be deleted. Only rows with
+             non-zero counts render, so an empty account doesn't show
+             three "0 sales / 0 tabs / 0 contributions" lines that
+             feel misleading. */}
+        {(salesCount > 0 ||
+          tabsCount > 0 ||
+          contributionsCount > 0 ||
+          hasStokvel) && (
+          <div className="rounded-2xl bg-white/[0.02] border border-white/10 p-3 mb-4">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold mb-2">
+              {tr("accountResetModalSummaryTitle", lang)}
+            </div>
+            <ul className="flex flex-col gap-1.5 text-sm">
+              {salesCount > 0 && (
+                <SummaryRow
+                  text={trParams("accountResetModalSummarySales", lang, {
+                    count: salesCount,
+                  })}
+                />
+              )}
+              {tabsCount > 0 && (
+                <SummaryRow
+                  text={trParams("accountResetModalSummaryTabs", lang, {
+                    count: tabsCount,
+                  })}
+                />
+              )}
+              {contributionsCount > 0 && (
+                <SummaryRow
+                  text={trParams(
+                    "accountResetModalSummaryContribs",
+                    lang,
+                    { count: contributionsCount },
+                  )}
+                />
+              )}
+              {hasStokvel && (
+                <SummaryRow
+                  text={tr("accountResetModalSummaryStokvel", lang)}
+                />
+              )}
+            </ul>
+          </div>
+        )}
+
+        <label className="flex flex-col gap-1.5 mb-4">
+          <span className="text-[11px] uppercase tracking-wider text-white/60">
+            {tr("accountResetModalTypeToConfirm", lang)}
+          </span>
+          <input
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoFocus
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="DELETE"
+            className="px-4 py-3 rounded-xl bg-bg border border-kasi-coral/30 text-white font-mono tracking-widest outline-none focus:border-kasi-coral"
+          />
+        </label>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-2xl bg-bg-card border border-white/10 text-white/80 font-semibold text-sm"
+          >
+            {tr("accountResetModalCancelButton", lang)}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className={
+              "flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 " +
+              (canConfirm
+                ? "bg-kasi-coral text-bg"
+                : "bg-white/5 text-white/30 cursor-not-allowed")
+            }
+          >
+            {resetting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : null}
+            {tr("accountResetModalConfirmButton", lang)}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function SummaryRow({ text }: { text: string }) {
+  return (
+    <li className="flex items-start gap-2 text-white/80">
+      <span className="text-kasi-coral shrink-0 leading-relaxed">•</span>
+      <span className="leading-relaxed">{text}</span>
+    </li>
   );
 }
