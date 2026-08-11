@@ -1230,6 +1230,223 @@ export const t = {
     st: "Hlakola lintlha tsohle tsa banka",
     af: "Vee alle bankbesonderhede uit",
   },
+
+  // ---------------------------------------------------------------------
+  // PWA "Add to Home Screen" (PR #29)
+  //
+  // Pilot users kept re-opening the WhatsApp invite link every
+  // session because they didn't know they could add the web app
+  // to their home screen. These strings drive the install banner
+  // on Home, the install section in Settings, and the InstallSheet
+  // modal with platform-specific instructions.
+  // ---------------------------------------------------------------------
+  installBannerTitle: {
+    en: "Save KasiKash to your home screen",
+    zu: "Londoloza i-KasiKash esikrinini sakho sasekhaya",
+    st: "Boloka KasiKash skrineng sa hao sa lehae",
+    af: "Stoor KasiKash op jou tuisskerm",
+  },
+  installBannerSub: {
+    en: "Opens like a real app. Works offline.",
+    zu: "Ivuleka njengohlelo lokusebenza. Isebenza ngaphandle kwe-inthanethi.",
+    st: "E buleha joalo ka applikeishene ea sebele. E sebetsa ntle le inthanete.",
+    af: "Maak oop soos 'n regte app. Werk vanlyn.",
+  },
+  installBannerDismiss: {
+    en: "Not now",
+    zu: "Hhayi manje",
+    st: "E seng hona joale",
+    af: "Nie nou nie",
+  },
+  installBannerAction: {
+    en: "Install",
+    zu: "Faka",
+    st: "Kenya",
+    af: "Installeer",
+  },
+  installSettingsHeader: {
+    en: "Install on this phone",
+    zu: "Faka kule foni",
+    st: "Kenya foneng ena",
+    af: "Installeer op hierdie foon",
+  },
+  installSettingsSub: {
+    en: "Adds a KasiKash icon to your home screen so you can open it in one tap — no browser needed.",
+    zu: "Yengeza isithombe se-KasiKash esikrinini sakho sasekhaya ukuze uyivule ngokucindezela okukodwa — akudingi isiphequluli.",
+    st: "Kenya letšoao la KasiKash skrineng sa hao sa lehae hore u tle u e bule ka ho tobetsa hang — ha ho hlokahale sebatli.",
+    af: "Voeg 'n KasiKash-ikoon by jou tuisskerm sodat jy dit met een tik kan oopmaak — geen blaaier nodig nie.",
+  },
+  installSettingsButton: {
+    en: "Add to home screen",
+    zu: "Engeza esikrinini sasekhaya",
+    st: "Kenya skrineng sa lehae",
+    af: "Voeg by tuisskerm",
+  },
+  installSettingsAlreadyInstalled: {
+    en: "KasiKash is already installed on this phone.",
+    zu: "I-KasiKash isivele ifakiwe kule foni.",
+    st: "KasiKash e se e kentsoe foneng ena.",
+    af: "KasiKash is reeds op hierdie foon geïnstalleer.",
+  },
+  installTitle: {
+    en: "Add KasiKash to your home screen",
+    zu: "Engeza i-KasiKash esikrinini sakho sasekhaya",
+    st: "Kenya KasiKash skrineng sa hao sa lehae",
+    af: "Voeg KasiKash by jou tuisskerm",
+  },
+  installSub: {
+    en: "Opens full-screen like a normal app. Icon on your home screen. Works offline for logged sales.",
+    zu: "Ivuleka isikrini esigcwele njengohlelo lokusebenza lujwayelekile. Isithombe esikrinini sakho sasekhaya. Isebenza ngaphandle kwe-inthanethi lapho kunikelwa ukudayisa.",
+    st: "E buleha skrineng se felletseng joalo ka applikeishene e tloaelehileng. Letšoao le skrineng sa hao sa lehae. E sebetsa ntle le inthanete bakeng sa thekiso e ngotsoeng.",
+    af: "Maak volskerm oop soos 'n gewone app. Ikoon op jou tuisskerm. Werk vanlyn vir aangetekende verkope.",
+  },
+  installAndroidCta: {
+    en: "Install now",
+    zu: "Faka manje",
+    st: "Kenya hona joale",
+    af: "Installeer nou",
+  },
+  installAndroidDone: {
+    en: "Installed! Look for the KasiKash icon on your home screen.",
+    zu: "Isifakiwe! Bheka isithombe se-KasiKash esikrinini sakho sasekhaya.",
+    st: "E kentsoe! Sheba letšoao la KasiKash skrineng sa hao sa lehae.",
+    af: "Geïnstalleer! Soek die KasiKash-ikoon op jou tuisskerm.",
+  },
+  installAndroidManualTitle: {
+    en: "How to add it manually",
+    zu: "Indlela yokwengeza mathupha",
+    st: "Mokhoa oa ho e kenya ka letsoho",
+    af: "Hoe om dit handmatig by te voeg",
+  },
+  installAndroidManualStep1: {
+    en: "Tap the three-dot menu at the top-right of Chrome.",
+    zu: "Cindezela imenyu enamachashazi amathathu phezulu kwesokudla e-Chrome.",
+    st: "Tobetsa menu ea likhutlo tse tharo holimo ho ka lehlakoreng le letona la Chrome.",
+    af: "Tik die drie-kolletjie kieslys aan die regs bo van Chrome.",
+  },
+  installAndroidManualStep2: {
+    en: "Choose Install app, or Add to home screen.",
+    zu: "Khetha Faka uhlelo lokusebenza, noma Engeza esikrinini sasekhaya.",
+    st: "Kgetha Kenya applikeishene, kapa Kenya skrineng sa lehae.",
+    af: "Kies Installeer app, of Voeg by tuisskerm.",
+  },
+  installAndroidManualStep3: {
+    en: "Confirm. The icon will appear on your home screen.",
+    zu: "Qinisekisa. Isithombe sizovela esikrinini sakho sasekhaya.",
+    st: "Netefatsa. Letšoao le tla hlaha skrineng sa hao sa lehae.",
+    af: "Bevestig. Die ikoon sal op jou tuisskerm verskyn.",
+  },
+  installIOSStep1Title: {
+    en: "Tap the Share icon",
+    zu: "Cindezela isithonjana Sokwabelana",
+    st: "Tobetsa letšoao la Ho arolelana",
+    af: "Tik die Deel-ikoon",
+  },
+  installIOSStep1Body: {
+    en: "It's the square with an up-arrow at the bottom of Safari (or top-right on iPad).",
+    zu: "Yisikwele esinomcibisholo obhekile phezulu ezansi kwe-Safari (noma phezulu kwesokudla ku-iPad).",
+    st: "Ke square e nang le motsu o holimo tlaase ho Safari (kapa holimo ho ka lehlakoreng le letona ho iPad).",
+    af: "Dit is die vierkant met 'n op-pyltjie aan die onderkant van Safari (of regs bo op iPad).",
+  },
+  installIOSStep2Title: {
+    en: "Choose \"Add to Home Screen\"",
+    zu: "Khetha \"Engeza Esikrinini Sasekhaya\"",
+    st: "Kgetha \"Kenya Skrineng sa Lehae\"",
+    af: "Kies \"Voeg by tuisskerm\"",
+  },
+  installIOSStep2Body: {
+    en: "You may need to scroll the share menu down to find it.",
+    zu: "Ungase kudingeke ukwehlise imenyu yokwabelana ukuyithola.",
+    st: "U ka 'na ua tlameha ho theola menu ea ho arolelana ho e fumana.",
+    af: "Jy mag dalk in die deel-kieslys moet afskuif om dit te vind.",
+  },
+  installIOSStep3Title: {
+    en: "Tap Add",
+    zu: "Cindezela Engeza",
+    st: "Tobetsa Kenya",
+    af: "Tik Voeg by",
+  },
+  installIOSStep3Body: {
+    en: "KasiKash will appear as an icon on your home screen like any other app.",
+    zu: "I-KasiKash izovela njengesithombe esikrinini sakho sasekhaya njengalo lonke olunye uhlelo lokusebenza.",
+    st: "KasiKash e tla hlaha e le letšoao skrineng sa hao sa lehae joalo ka applikeishene efe kapa efe e ngoe.",
+    af: "KasiKash sal as 'n ikoon op jou tuisskerm verskyn soos enige ander app.",
+  },
+  installDesktopHint: {
+    en: "You're on a laptop or desktop. Install works best on a phone — open kasikash.com on your phone's browser to add it to your home screen.",
+    zu: "Uku-laptop noma i-desktop. Ukufaka kusebenza kangcono efonini — vula i-kasikash.com kubhrawuza yefoni yakho ukuze uyifake esikrinini sakho sasekhaya.",
+    st: "U mo laptop kapa desktop. Ho kenya ho sebetsa hantle mo foneng — bula kasikash.com sebatling sa fone ea hao ho e kenya skrineng sa hao sa lehae.",
+    af: "Jy is op 'n skootrekenaar of tafelrekenaar. Installeer werk die beste op 'n foon — maak kasikash.com in jou foon se blaaier oop om dit by jou tuisskerm te voeg.",
+  },
+  installOtherMobileHint: {
+    en: "Your browser doesn't support one-tap install. Try opening kasikash.com in Chrome (Android) or Safari (iPhone) to add it to your home screen.",
+    zu: "Isiphequluli sakho asisekeli ukufaka ngokucindezela okukodwa. Zama ukuvula i-kasikash.com ku-Chrome (Android) noma i-Safari (iPhone) ukuze uyifake esikrinini sakho sasekhaya.",
+    st: "Sebatli sa hao ha se tšehetse ho kenya ka ho tobetsa hang. Leka ho bula kasikash.com ho Chrome (Android) kapa Safari (iPhone) ho e kenya skrineng sa hao sa lehae.",
+    af: "Jou blaaier ondersteun nie een-tik installeer nie. Probeer om kasikash.com in Chrome (Android) of Safari (iPhone) oop te maak om dit by jou tuisskerm te voeg.",
+  },
+  installFooterNote: {
+    en: "You can uninstall any time by pressing and holding the icon on your home screen.",
+    zu: "Ungayikhipha noma nini ngokucindezela nokubamba isithombe esikrinini sakho sasekhaya.",
+    st: "U ka tlosa neng kapa neng ka ho tobetsa le ho tšoara letšoao skrineng sa hao sa lehae.",
+    af: "Jy kan dit enige tyd verwyder deur die ikoon op jou tuisskerm in te druk en vas te hou.",
+  },
+
+  // ---------------------------------------------------------------------
+  // Stokvel banking empty-state prompt (PR #29)
+  //
+  // Instead of hiding banking behind Settings, admins now see a
+  // prominent empty-state card at the top of their Stokvel screen
+  // when banking isn't configured. Tap → opens a bottom sheet
+  // with the same fields available in Settings.
+  // ---------------------------------------------------------------------
+  stokvelBankingEmptyTitle: {
+    en: "Add banking so members can pay you",
+    zu: "Engeza ibhange ukuze amalungu akwazi ukukukhokhela",
+    st: "Kenya banka hore litho li khone ho u lefa",
+    af: "Voeg bank by sodat lede jou kan betaal",
+  },
+  stokvelBankingEmptyBody: {
+    en: "Once your banking is set up, members can copy your details or share your PayShap number with one tap.",
+    zu: "Uma nje ibhange lakho selokwe, amalungu angakopi imininingwane yakho noma abelane ngenombolo yakho ye-PayShap ngokucindezela okukodwa.",
+    st: "Ha panka ea hao e se e beiloe, litho li ka kopa lintlha tsa hao kapa arolelana nomoro ea hao ea PayShap ka ho tobetsa hang.",
+    af: "Sodra jou bank opgestel is, kan lede jou besonderhede kopieer of jou PayShap-nommer met een tik deel.",
+  },
+  stokvelBankingEmptyCta: {
+    en: "Set up banking",
+    zu: "Setha ibhange",
+    st: "Beha banka",
+    af: "Stel bankbesonderhede op",
+  },
+  stokvelBankingSheetTitle: {
+    en: "Banking details",
+    zu: "Imininingwane yebhange",
+    st: "Lintlha tsa banka",
+    af: "Bankbesonderhede",
+  },
+  stokvelBankingSheetSub: {
+    en: "Only the admin sees these fields. Members see your details automatically when they tap Contribute.",
+    zu: "Umlawuli kuphela obona lezi zinkambu. Amalungu abona imininingwane yakho ngokuzenzakalelayo lapho ecindezela Nikela.",
+    st: "Ke mookameli feela ea bonang libaka tsena. Litho li bona lintlha tsa hao ho itaeng ha ba tobetsa Fana.",
+    af: "Slegs die admin sien hierdie velde. Lede sien jou besonderhede outomaties wanneer hulle Bydra tik.",
+  },
+  stokvelBankingSheetSave: {
+    en: "Save banking",
+    zu: "Londoloza ibhange",
+    st: "Boloka banka",
+    af: "Stoor bank",
+  },
+  stokvelBankingSheetSaved: {
+    en: "Banking saved ✓",
+    zu: "Ibhange lilondoloziwe ✓",
+    st: "Banka e bolokiloe ✓",
+    af: "Bank gestoor ✓",
+  },
+  stokvelBankingMemberInfo: {
+    en: "Admin hasn't set up banking yet. Ask them to add it so you can contribute.",
+    zu: "Umlawuli akakalisethi ibhange okwamanje. Cela abengeze ukuze ukwazi ukunikela.",
+    st: "Mookameli ha a e-so behe banka. Mo kope hore a e kenye hore u tle u fane.",
+    af: "Admin het nog nie bank opgestel nie. Vra hulle om dit by te voeg sodat jy kan bydra.",
+  },
   payReturnProcessing: {
     en: "Confirming your payment...",
     zu: "Kuqinisekiswa inkokhelo yakho...",

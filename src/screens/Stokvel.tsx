@@ -47,7 +47,11 @@ type Sheet =
   | "invite"
   | "leave"
   | "contribute"
-  | "reject";
+  | "reject"
+  // PR #29 — Stokvel-side banking form. Same fields as the
+  // Settings section, but reachable directly from the Stokvel
+  // screen so admins aren't sent hunting for it.
+  | "banking";
 
 /**
  * Props (PR #25 additions):
@@ -85,6 +89,10 @@ export function Stokvel(props: {
     leaveStokvel,
     confirmContribution,
     rejectContribution,
+    // PR #29 — surfaced here so the empty-state banking sheet can
+    // save directly from the Stokvel screen instead of forcing the
+    // admin to navigate to Settings first.
+    saveStokvelBanking,
   } = useStore();
   const stokvel = state.stokvel;
 
@@ -141,6 +149,19 @@ export function Stokvel(props: {
   const total = stokvelTotal(stokvel);
   const goalReached = Boolean(stokvel && targetProgress >= 1);
   const isAdmin = stokvel?.role === "admin";
+
+  // PR #29 — is banking usable for this stokvel yet?
+  // "Usable" means at least a bank account number OR a PayShap
+  // phone AND a bank name. Anything less is a half-filled record
+  // that isn't useful for members trying to pay. Mirrors the
+  // check inside ContributeSheet so the empty-state prompt and
+  // the actual pay flow agree.
+  const bankAcc = stokvel?.bankAccount;
+  const hasBankingConfigured = Boolean(
+    bankAcc &&
+      (bankAcc.accountNumber || bankAcc.payshapPhone) &&
+      bankAcc.bankName,
+  );
 
   // Animate the progress bar
   useEffect(() => {
@@ -446,6 +467,46 @@ export function Stokvel(props: {
           </span>
           <span className="ml-auto text-kasi-gold">→</span>
         </motion.button>
+      )}
+
+      {/* Banking empty-state (PR #29).
+          Admin-only. Shown when the stokvel has no bank account
+          configured OR every field is empty. Tapping opens the
+          BankingSheet in a bottom modal — the same form that
+          Settings surfaces, but reachable directly from the
+          Stokvel screen so admins aren't sent hunting through
+          the Settings tab to find it. */}
+      {isAdmin && !hasBankingConfigured && (
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setSheet("banking")}
+          className="w-full mt-3 flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/30 text-left"
+        >
+          <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center text-kasi-green shrink-0">
+            <Landmark size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-white text-sm">
+              {tr("stokvelBankingEmptyTitle", lang)}
+            </div>
+            <div className="text-white/60 text-xs mt-0.5 leading-relaxed">
+              {tr("stokvelBankingEmptyBody", lang)}
+            </div>
+          </div>
+          <span className="text-kasi-green shrink-0 self-center">→</span>
+        </motion.button>
+      )}
+
+      {/* Member-side hint when the admin hasn't set up banking yet.
+          Contribute-time UX already handles this gracefully by
+          falling back to card/legacy, but a small inline message
+          here helps a member who's confused about WHY the bank
+          option isn't available. */}
+      {!isAdmin && !hasBankingConfigured && (
+        <div className="mt-3 rounded-2xl bg-white/[0.02] border border-white/10 p-3 text-white/60 text-xs leading-relaxed flex items-start gap-2">
+          <Info size={14} className="text-kasi-gold shrink-0 mt-0.5" />
+          <span>{tr("stokvelBankingMemberInfo", lang)}</span>
+        </div>
       )}
 
       {/* Quick contribute */}
@@ -871,6 +932,19 @@ export function Stokvel(props: {
             onConfirm={(reason) =>
               onRejectContribution(rejectingContribution.id, reason)
             }
+          />
+        )}
+        {/* PR #29 — banking form as a bottom sheet, reachable
+             directly from the Stokvel screen (via the empty-state
+             prompt above). Saves through the same
+             saveStokvelBanking() store method as the Settings
+             section, so both entry points write to the same row. */}
+        {sheet === "banking" && (
+          <BankingSheet
+            lang={lang}
+            existing={stokvel.bankAccount}
+            onClose={() => setSheet(null)}
+            onSave={saveStokvelBanking}
           />
         )}
       </AnimatePresence>
@@ -1877,5 +1951,207 @@ function RejectContributionSheet({
         </div>
       </div>
     </SheetShell>
+  );
+}
+
+
+// ============================================================================
+// BankingSheet (PR #29)
+//
+// A bottom-sheet version of the banking form that lives inside the
+// Stokvel screen. Same fields, same server-side save path, as the
+// BankingBlock inside Settings — but reachable directly from the
+// empty-state prompt so admins don't have to hunt through the
+// Settings tab to find it.
+//
+// Rules for a "usable" account (mirrors the check in the parent):
+//   * Bank name is required
+//   * At least ONE of accountNumber / payshapPhone is required
+//
+// On successful save, the sheet closes automatically. The parent
+// Stokvel screen re-renders with the empty-state prompt hidden
+// (because hasBankingConfigured is now true) and the ContributeSheet
+// picks up the new account details the next time a member taps a
+// quick-amount tile.
+// ============================================================================
+
+function BankingSheet({
+  lang,
+  existing,
+  onClose,
+  onSave,
+}: {
+  lang: Lang;
+  existing: StokvelBankAccount | null;
+  onClose: () => void;
+  onSave: (bank: {
+    bankName: string;
+    accountHolder: string;
+    accountNumber: string;
+    branchCode: string;
+    payshapPhone: string;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+}) {
+  const [bankName, setBankName] = useState(existing?.bankName ?? "");
+  const [accountHolder, setAccountHolder] = useState(
+    existing?.accountHolder ?? "",
+  );
+  const [accountNumber, setAccountNumber] = useState(
+    existing?.accountNumber ?? "",
+  );
+  const [branchCode, setBranchCode] = useState(existing?.branchCode ?? "");
+  const [payshapPhone, setPayshapPhone] = useState(
+    existing?.payshapPhone ?? "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Same "usability" rules as Stokvel's hasBankingConfigured check.
+  // Bank name is required; at least one destination (account number
+  // OR PayShap phone) is required.
+  const canSubmit =
+    bankName.trim().length > 0 &&
+    (accountNumber.trim().length > 0 || payshapPhone.trim().length > 0) &&
+    !saving;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setError(null);
+    setSaving(true);
+    const result = await onSave({
+      bankName: bankName.trim(),
+      accountHolder: accountHolder.trim(),
+      accountNumber: accountNumber.trim(),
+      branchCode: branchCode.trim(),
+      payshapPhone: payshapPhone.trim(),
+    });
+    setSaving(false);
+    if (result.ok) {
+      setSaved(true);
+      // Small beat so the user sees the "Saved ✓" state before we
+      // pull the sheet away.
+      window.setTimeout(onClose, 900);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  return (
+    <SheetShell title={tr("stokvelBankingSheetTitle", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-white/60 text-sm leading-relaxed">
+          {tr("stokvelBankingSheetSub", lang)}
+        </p>
+
+        <BankingSheetField
+          label={tr("bankName", lang)}
+          value={bankName}
+          onChange={setBankName}
+          placeholder={tr("settingsBankingPlaceholderBank", lang)}
+        />
+        <BankingSheetField
+          label={tr("bankAccountHolder", lang)}
+          value={accountHolder}
+          onChange={setAccountHolder}
+          placeholder={tr("settingsBankingPlaceholderHolder", lang)}
+        />
+        <BankingSheetField
+          label={tr("bankAccountNumber", lang)}
+          value={accountNumber}
+          onChange={setAccountNumber}
+          placeholder={tr("settingsBankingPlaceholderAccount", lang)}
+          mono
+          inputMode="numeric"
+        />
+        <BankingSheetField
+          label={tr("bankBranchCode", lang)}
+          value={branchCode}
+          onChange={setBranchCode}
+          placeholder={tr("settingsBankingPlaceholderBranch", lang)}
+          mono
+          inputMode="numeric"
+        />
+        <BankingSheetField
+          label={tr("bankPayshapPhone", lang)}
+          value={payshapPhone}
+          onChange={setPayshapPhone}
+          placeholder={tr("settingsBankingPlaceholderPayshap", lang)}
+          mono
+          inputMode="tel"
+        />
+
+        {error && (
+          <div className="rounded-xl bg-kasi-coral/[0.08] border border-kasi-coral/25 text-kasi-coral text-xs px-3 py-2">
+            {error}
+          </div>
+        )}
+        {saved && (
+          <div className="rounded-xl bg-kasi-green/[0.08] border border-kasi-green/25 text-kasi-green text-sm px-3 py-2 flex items-center gap-2">
+            <Check size={14} />
+            {tr("stokvelBankingSheetSaved", lang)}
+          </div>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={!canSubmit}
+          className={
+            "mt-2 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 " +
+            (canSubmit
+              ? "bg-kasi-green text-bg shadow-glow"
+              : "bg-white/5 text-white/30 cursor-not-allowed")
+          }
+        >
+          {saving ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Landmark size={16} />
+          )}
+          {tr("stokvelBankingSheetSave", lang)}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
+
+// Local field component. Kept private to the file because it's only
+// used inside BankingSheet and its shape is slightly different from
+// the one in Settings (mobile-first layout, tighter vertical rhythm
+// suited to a sheet).
+function BankingSheetField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  mono,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  mono?: boolean;
+  inputMode?: "text" | "numeric" | "tel";
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[11px] uppercase tracking-wider text-white/50">
+        {label}
+      </span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={inputMode ?? "text"}
+        autoCapitalize={mono ? "off" : "words"}
+        autoCorrect="off"
+        spellCheck={false}
+        className={
+          "px-4 py-3 rounded-xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green " +
+          (mono ? "font-mono text-sm tracking-wide" : "")
+        }
+      />
+    </label>
   );
 }
