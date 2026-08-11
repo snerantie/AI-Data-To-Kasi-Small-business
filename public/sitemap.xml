@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  KasiKash sitemap (PR #30).
+
+  Served at https://kasikash.com/sitemap.xml (files under public/
+  are copied verbatim to the site root at build time by Vite).
+
+  Currently a single-URL sitemap because the marketing site is one
+  page. When we add /blog, /press, /for-lenders sub-pages later,
+  register each URL here so Google finds them on the next crawl.
+
+  Not listed here (deliberate):
+    * /app/*    — the actual application. Contains user-specific
+                   state and shouldn't be indexed. Blocked in
+                   robots.txt as well.
+
+  Google will re-crawl the sitemap according to its own schedule
+  after we submit it via Search Console; the `lastmod` value below
+  is a hint, not a guarantee.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://kasikash.com/</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
