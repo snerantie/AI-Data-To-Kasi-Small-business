@@ -56,6 +56,7 @@ import {
   CircleCheck,
   Eye,
   FileText,
+  HelpCircle,
   Landmark,
   Mic,
   PiggyBank,
@@ -90,6 +91,7 @@ export function Landing({ onOpenApp }: { onOpenApp: () => void }) {
       <InteractiveKasiScore />
       <EvidenceTiers />
       <ForFinancialInstitutions />
+      <FrequentlyAskedQuestions />
       <ContactSection />
       <Founder />
       <Footer onOpenApp={onOpenApp} />
@@ -964,7 +966,128 @@ function ForFinancialInstitutions() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. Contact form
+// 9. Frequently asked questions (PR #30)
+//
+// Visible FAQ section that mirrors the FAQPage JSON-LD block in
+// index.html <head>. Two reasons the visible content matters:
+//   * Google penalises inconsistency between structured data and
+//     page content — the visible section proves the FAQ isn't
+//     invented purely for search-engine consumption.
+//   * Humans doing due diligence (CEOs, journalists, potential
+//     lender partners) benefit from a clear Q&A alongside the
+//     essay sections.
+// The Q&A copy is intentionally verbatim between here and the
+// JSON-LD block — if you edit one, edit the other. See PR #30.
+// ---------------------------------------------------------------------------
+
+type FaqEntry = { question: string; answer: string };
+
+const FAQ_ENTRIES: FaqEntry[] = [
+  {
+    question: "What is KasiKash?",
+    answer:
+      "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, hair salons, taxi ranks, kasi hustles. It turns cash sales, customer tabs, bank activity, and stokvel contributions into a Financial Passport that formal lenders can trust.",
+  },
+  {
+    question: "How does the KasiScore work?",
+    answer:
+      "The KasiScore is a 300–850 credit signal built transparently from three tiers of evidence: declared (self-reported sales), observed (bank statement inflows, receipts), and verified (Yoco transactions, confirmed stokvel contributions). Each tier has a different weight, so a Yoco-verified R100 sale counts about five times more than a voice-logged R100 cash sale. Every factor is auditable and explained inside the app.",
+  },
+  {
+    question: "Is KasiKash free?",
+    answer:
+      "Yes. KasiKash is free forever for spaza owners, informal traders, and stokvel members. We monetize by selling credit intelligence to lenders — never by charging the small businesses using the app.",
+  },
+  {
+    question: "Who is KasiKash for?",
+    answer:
+      "KasiKash is for South African informal businesses that trade mostly in cash and have never been able to prove their income to a formal lender. Spaza shops, hair salons, phone-repair guys, taxi ranks, corner traders, kasi hustles — and the stokvels those business owners participate in.",
+  },
+  {
+    question: "What languages does KasiKash support?",
+    answer:
+      "KasiKash supports four South African languages: isiZulu, Sesotho, Afrikaans, and English. Voice logging works in all four so you can say things like \u201cR50 for bread\u201d in whichever language feels natural.",
+  },
+  {
+    question: "Is my business data safe with KasiKash?",
+    answer:
+      "Yes. Bank statement PDFs are parsed locally on your phone — the file itself never leaves your device. Only extracted transaction data is stored, protected by row-level security so only you can read your own records. Your Financial Passport belongs to you and is portable across lenders.",
+  },
+  {
+    question: "Does KasiKash work offline?",
+    answer:
+      "Yes. Sales you log while offline are queued on your phone and sync automatically the next time you're online. Designed for the reality of intermittent kasi mobile connectivity.",
+  },
+  {
+    question:
+      "How is KasiKash different from apps like Flash, Shop2Shop, or Lesaka?",
+    answer:
+      "Flash, Shop2Shop, and Lesaka are transaction infrastructure — they move money for informal businesses. KasiKash is credit infrastructure. We build the financial identity that turns transactions from any of those platforms (plus voice-logged cash sales, bank statements, and stokvel discipline) into an underwritable credit passport a lender can act on. We can partner with all of them, not compete.",
+  },
+];
+
+function FrequentlyAskedQuestions() {
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
+  return (
+    <Section id="faq">
+      <Reveal>
+        <Eyebrow icon={HelpCircle}>Frequently asked</Eyebrow>
+        <h2 className="font-display text-3xl md:text-5xl font-bold leading-tight tracking-tight max-w-3xl">
+          Questions we hear a lot.
+        </h2>
+        <p className="mt-4 text-white/60 text-lg max-w-2xl">
+          The short answers. Tap any question to expand. If you have
+          something we don&apos;t address here, the contact form below
+          reaches the founder directly.
+        </p>
+      </Reveal>
+
+      <div className="mt-10 flex flex-col gap-3">
+        {FAQ_ENTRIES.map((entry, i) => {
+          const isOpen = openIndex === i;
+          return (
+            <Reveal key={entry.question} delay={0.03 * i}>
+              <motion.div
+                layout
+                className="rounded-2xl bg-white/[0.02] border border-white/10 overflow-hidden"
+              >
+                <button
+                  onClick={() => setOpenIndex(isOpen ? null : i)}
+                  className="w-full flex items-center gap-3 px-5 py-4 text-left"
+                  aria-expanded={isOpen}
+                >
+                  <div className="flex-1 min-w-0 font-semibold text-white text-base">
+                    {entry.question}
+                  </div>
+                  <motion.div
+                    animate={{ rotate: isOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-white/50 shrink-0"
+                  >
+                    <ChevronDown size={18} />
+                  </motion.div>
+                </button>
+                {isOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="px-5 pb-5 text-white/75 text-sm leading-relaxed border-t border-white/5 pt-4"
+                  >
+                    {entry.answer}
+                  </motion.div>
+                )}
+              </motion.div>
+            </Reveal>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 10. Contact form
 // ---------------------------------------------------------------------------
 
 type ContactState =
@@ -1228,6 +1351,9 @@ function Footer({ onOpenApp }: { onOpenApp: () => void }) {
             className="hover:text-white transition-colors"
           >
             For lenders
+          </a>
+          <a href="#faq" className="hover:text-white transition-colors">
+            FAQ
           </a>
           <a
             href="#contact"

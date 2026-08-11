@@ -1,0 +1,32 @@
+# KasiKash robots policy (PR #30).
+#
+# Served at https://kasikash.com/robots.txt.
+#
+# Policy summary:
+#   * Marketing website at /   → indexable, encouraged
+#   * Application at /app/*    → NOT indexable
+#       The app renders user-specific state and login-gated screens
+#       that don't belong in search results. It's the same SPA
+#       bundle as the marketing page but hosted at a different path;
+#       we tell crawlers to leave it alone.
+#   * Assets under /assets/    → indexable (icons, CSS, JS bundles)
+#       These are static and don't leak sensitive data. Leaving
+#       them crawlable helps Google understand the app's PWA
+#       nature and enables image indexing for the logo.
+#
+# Sitemap:
+#   Points to the canonical sitemap.xml also served from the site
+#   root. Google reads this line and fetches the sitemap on first
+#   crawl.
+
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /app/
+
+# Extra courtesy: block cache-busted asset hashes we don't want
+# indexed as search results (they're referenced from the HTML but
+# users searching for them by name gets nothing useful).
+Disallow: /assets/*.map$
+
+Sitemap: https://kasikash.com/sitemap.xml
