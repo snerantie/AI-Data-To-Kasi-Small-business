@@ -151,6 +151,23 @@ If you're a lender, a stokvel treasurer, or a spaza owner and this sounds useful
 | Square logo (K on green tile) | **Profile picture** (Company Page logo, or your personal photo) | `public/og/kasikash-logo-400.png` (or `-1024.png`) |
 | Wide short banner | **Company Page cover photo** | `public/og/linkedin-banner-1128x191.png` |
 | Wide tall banner | **Personal Profile cover photo** | `public/og/linkedin-personal-1584x396.png` |
+| **"How to get started" poster** | **Attach to your launch feed post** as an image | Rendered live at [`/press/how-it-works`](https://kasikash.com/press/how-it-works) — screenshot it (see below) |
+
+### Screenshotting the poster
+
+The step-by-step "How to get started with KasiKash" poster (matches the numbered-steps infographic pattern most product-launch posts use on LinkedIn) is a real live page in the app, not a static PNG. That means we can edit the copy or add a step by editing `src/screens/PressHowItWorks.tsx` and re-deploying — no image editor round-trip.
+
+To turn it into a shareable image:
+
+1. On a **laptop or desktop** (mobile will crop it), open [https://kasikash.com/press/how-it-works](https://kasikash.com/press/how-it-works).
+2. Resize your browser to about 1200 px wide (or use DevTools → Device toolbar → set width to 1200).
+3. Take a **full-page screenshot**:
+   - Chrome/Edge: DevTools → three-dot menu at top-right of DevTools → **Capture full size screenshot**
+   - Firefox: three-dot menu → **Take Screenshot** → **Save full page**
+   - Safari: File → Export as PDF, then convert to PNG
+4. The output is a tall PNG (~1200 × 2400) that fits LinkedIn's portrait-image slot cleanly. If LinkedIn crops the preview in-feed, viewers tap-to-expand and see the whole thing.
+
+You can post it alongside the personal launch caption in [section 6](#6-personal-launch-post-linkedin-feed).
 
 To regenerate any of the above after editing the SVG source:
 

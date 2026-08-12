@@ -23,6 +23,12 @@ User-agent: *
 Allow: /
 Disallow: /app
 Disallow: /app/
+# /press/ contains shareable marketing infographics (LinkedIn
+# posters etc). They're intended to be screenshotted and posted
+# via social channels, not indexed by search engines — a Google
+# result linking to a bare infographic page would be confusing.
+Disallow: /press
+Disallow: /press/
 
 # Extra courtesy: block cache-busted asset hashes we don't want
 # indexed as search results (they're referenced from the HTML but

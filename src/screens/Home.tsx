@@ -24,6 +24,7 @@ import {
 import { SyncBadge } from "../components/SyncBadge";
 import { InstallSheet } from "../components/InstallSheet";
 import { useInstallPrompt } from "../hooks/useInstallPrompt";
+import { ShieldCheck } from "lucide-react";
 
 export function Home({
   lang,
@@ -80,6 +81,45 @@ export function Home({
     if (isInstalled) setInstallSheetOpen(false);
   }, [isInstalled]);
 
+  // ─── Back-up-your-account banner (PR #33) ───────────────────────
+  // Silent risk: a pilot user could log R30k of sales, clear their
+  // browser cache once, and lose everything — because they never
+  // linked an email or phone. The Settings section has the form,
+  // but nobody discovers it until it's too late. This banner
+  // surfaces the prompt WHERE users actually see it (Home) and
+  // only fires when it's a real risk:
+  //   * Cloud is configured (isCloud true — otherwise pointless)
+  //   * User isn't signed in yet
+  //   * They've done at least one piece of real activity so we're
+  //     not nagging fresh-onboarded users about backing up an
+  //     empty account
+  //   * They haven't dismissed the banner in localStorage
+  const hasRealActivity =
+    state.sales.length > 0 ||
+    state.tabs.length > 0 ||
+    (state.stokvel?.contributions.length ?? 0) > 0;
+  const isCloudMode = useStore().isCloud;
+  const isAnonymousUser = useStore().isAnonymous;
+  const [backupDismissed, setBackupDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return (
+      window.localStorage.getItem("kasikash:backup-banner-dismissed") ===
+      "1"
+    );
+  });
+  const showBackupBanner =
+    isCloudMode &&
+    isAnonymousUser &&
+    hasRealActivity &&
+    !backupDismissed;
+  const dismissBackupBanner = () => {
+    window.localStorage.setItem(
+      "kasikash:backup-banner-dismissed",
+      "1",
+    );
+    setBackupDismissed(true);
+  };
+
   const displayName = state.profile.ownerName?.trim() || "You";
   const businessName = state.profile.businessName?.trim();
 
@@ -128,6 +168,52 @@ export function Home({
           </button>
         </div>
       </div>
+
+      {/* ----- Back up your account banner (PR #33) —
+             appears ONLY for anonymous users who have real activity.
+             Silent-data-loss protection. */}
+      <AnimatePresence>
+        {showBackupBanner && (
+          <motion.div
+            key="backup-banner"
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: -8, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mb-4 rounded-2xl border border-kasi-gold/30 bg-gradient-to-br from-kasi-gold/[0.08] to-transparent overflow-hidden"
+          >
+            <div className="p-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 flex items-center justify-center text-kasi-gold shrink-0">
+                <ShieldCheck size={18} />
+              </div>
+              <button
+                onClick={() => onNavigate("settings")}
+                className="flex-1 min-w-0 text-left"
+              >
+                <div className="text-sm font-semibold text-white truncate">
+                  {tr("backupBannerTitle", lang)}
+                </div>
+                <div className="text-xs text-white/60 truncate">
+                  {tr("backupBannerSub", lang)}
+                </div>
+              </button>
+              <button
+                onClick={() => onNavigate("settings")}
+                className="shrink-0 px-3 py-1.5 rounded-full bg-kasi-gold text-bg text-xs font-semibold"
+              >
+                {tr("backupBannerAction", lang)}
+              </button>
+              <button
+                onClick={dismissBackupBanner}
+                aria-label={tr("backupBannerDismiss", lang)}
+                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:bg-white/5"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ----- Install banner (PR #29) — dismissible, appears above the hero ----- */}
       <AnimatePresence>

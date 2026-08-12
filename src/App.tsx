@@ -13,6 +13,8 @@ import { PassportPreview } from "./screens/PassportPreview";
 import { ScanReceipt } from "./screens/ScanReceipt";
 import { ImportStatement } from "./screens/ImportStatement";
 import { Landing } from "./screens/Landing";
+import { PressHowItWorks } from "./screens/PressHowItWorks";
+import { PressKasiScore } from "./screens/PressKasiScore";
 import { NotifyProvider } from "./components/NotifyProvider";
 import {
   PaymentReturn,
@@ -94,6 +96,39 @@ function isAppPath(pathname: string): boolean {
   return pathname === "/app" || pathname.startsWith("/app/");
 }
 
+/**
+ * Returns true when the current path should render a press /
+ * marketing asset (a shareable infographic-style page). Currently:
+ *   /press/how-it-works — the LinkedIn "how to get started" poster
+ * Kept separate from isAppPath because press pages render full-
+ * width and dark-themed (like Landing) but WITHOUT the marketing
+ * nav / hero / contact form — they're single-purpose visuals
+ * meant to be screenshotted.
+ */
+function isPressPath(pathname: string): boolean {
+  return (
+    pathname === "/press/how-it-works" ||
+    pathname === "/press/how-it-works/" ||
+    pathname === "/press/kasiscore" ||
+    pathname === "/press/kasiscore/"
+  );
+}
+
+/**
+ * Returns which press asset to render at the current pathname.
+ * Keeps the routing decision alongside the pathname check so a new
+ * press asset only needs one place to plug in.
+ */
+function pressComponentFor(pathname: string): React.ReactNode {
+  if (
+    pathname === "/press/kasiscore" ||
+    pathname === "/press/kasiscore/"
+  ) {
+    return <PressKasiScore />;
+  }
+  return <PressHowItWorks />;
+}
+
 export default function App() {
   const { state } = useStore();
   const [pathname, setPathname] = useState<string>(getPathname);
@@ -117,6 +152,7 @@ export default function App() {
 
   const lang: Lang = state.lang ?? "en";
   const onAppRoute = isAppPath(pathname);
+  const onPressRoute = isPressPath(pathname);
   const showNav = SCREENS_WITH_NAV.includes(screen);
   const mustOnboard = needsOnboarding(state);
 
@@ -211,6 +247,18 @@ export default function App() {
     setPendingInviteCode(null);
     clearInviteUrl();
   };
+
+  // ─────────────────────────────────────────────────────────────────
+  // Press route: single-purpose shareable infographic page.
+  //
+  // Rendered before the marketing Landing check because /press/… is
+  // a specific sub-tree we want to keep visually distinct — no
+  // marketing nav, no contact form, just the poster ready to
+  // screenshot.
+  // ─────────────────────────────────────────────────────────────────
+  if (onPressRoute) {
+    return <>{pressComponentFor(pathname)}</>;
+  }
 
   // ─────────────────────────────────────────────────────────────────
   // Website route: render the full-width marketing landing.

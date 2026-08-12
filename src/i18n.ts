@@ -697,15 +697,15 @@ export const t = {
 
   accountAnonymous: {
     en: "Save your account",
-    zu: "Gcina i-akhawunti yakho",
+    zu: "Ukulondoloza i-akhawunti yakho",
     st: "Boloka akhaonto ea hao",
-    af: "Stoor jou rekening",
+    af: "Rugsteun jou rekening",
   },
   accountAnonymousDesc: {
-    en: "Add an email so you can sign in from other phones and never lose your data.",
-    zu: "Faka i-imeyili ukuze ungene kwezinye izifonu futhi ungayilahli idatha yakho.",
-    st: "Kenya email hore u tsebe ho kena ho tsoa lifonong tse ling 'me u se ke oa lahla data.",
-    af: "Voeg 'n e-pos by sodat jy vanaf ander fone kan inteken en nooit jou data verloor nie.",
+    en: "Add an email or phone number so your business data is safe if you change phones or clear your browser.",
+    zu: "Faka i-imeyili noma inombolo yefoni ukuze idatha yakho yebhizinisi iphephile uma ushintsha izifonu noma usula isiphequluli.",
+    st: "Kenya email kapa nomoro ea mohala hore data ea khoebo ea hao e sireletsehe ha u fetola lifono kapa u hlakola sebatli.",
+    af: "Voeg 'n e-pos of foonnommer by sodat jou besigheidsdata veilig is as jy fone verander of jou blaaier uitvee.",
   },
   accountReset: {
     en: "Reset this account",
@@ -726,6 +726,131 @@ export const t = {
     af: "Ja, vee alles uit",
   },
   accountResetCancel: { en: "No, keep my data", zu: "Cha, gcina", st: "Che, boloka", af: "Nee, hou my data" },
+
+  // ---------------------------------------------------------------------
+  // Type-to-confirm reset modal (PR #33)
+  //
+  // Replaces the previous single-tap confirm with a proper modal that
+  // shows the counts of records that will be deleted and requires the
+  // user to type "DELETE" to enable the confirmation button. Prevents
+  // accidental (and unrecoverable) resets on shared / borrowed phones.
+  // ---------------------------------------------------------------------
+  accountResetModalTitle: {
+    en: "Reset this account?",
+    zu: "Setha kabusha le-akhawunti?",
+    st: "Nchafatsa akhaonto ena?",
+    af: "Herstel hierdie rekening?",
+  },
+  accountResetModalBody: {
+    en: "This will permanently delete everything on this phone. There is no undo.",
+    zu: "Lokhu kuzosula ngokugcwele konke kule foni. Akukho ndlela yokubuyisa.",
+    st: "Sena se tla hlakola tsohle foneng ena ka mokhoa o sa fetoheng. Ha ho tsela ea ho khutlisa.",
+    af: "Dit sal alles op hierdie foon permanent uitvee. Daar is geen ongedaan nie.",
+  },
+  accountResetModalSummaryTitle: {
+    en: "What gets deleted",
+    zu: "Okuzosuswa",
+    st: "Se tla hlakoloa",
+    af: "Wat uitgevee word",
+  },
+  accountResetModalSummarySales: {
+    en: "{count} logged sales",
+    zu: "{count} ukudayisa okubhalisiwe",
+    st: "{count} thekiso e ngotsoeng",
+    af: "{count} aangetekende verkope",
+  },
+  accountResetModalSummaryTabs: {
+    en: "{count} customer tabs",
+    zu: "{count} izikweletu zamakhasimende",
+    st: "{count} likoloto tsa bareki",
+    af: "{count} kliëntrekeninge",
+  },
+  accountResetModalSummaryContribs: {
+    en: "{count} stokvel contributions",
+    zu: "{count} iminikelo yestokvel",
+    st: "{count} menehelo ea stokvel",
+    af: "{count} stokvel-bydraes",
+  },
+  accountResetModalSummaryStokvel: {
+    en: "Your stokvel membership",
+    zu: "Ubulungu bakho bestokvel",
+    st: "Botho ba hao stokvel",
+    af: "Jou stokvel-lidmaatskap",
+  },
+  accountResetModalTypeToConfirm: {
+    en: "Type DELETE below to confirm",
+    zu: "Bhala DELETE ngezansi ukuqinisekisa",
+    st: "Ngola DELETE ka tlaase ho netefatsa",
+    af: "Tik DELETE hieronder om te bevestig",
+  },
+  accountResetModalConfirmButton: {
+    en: "Delete everything",
+    zu: "Sula konke",
+    st: "Hlakola tsohle",
+    af: "Vee alles uit",
+  },
+  accountResetModalCancelButton: {
+    en: "Cancel",
+    zu: "Khansela",
+    st: "Hlakola",
+    af: "Kanselleer",
+  },
+
+  // ---------------------------------------------------------------------
+  // Home "Back up your account" banner (PR #33)
+  //
+  // Shown at the top of Home for users who:
+  //   * have cloud sync configured (isCloud true)
+  //   * haven't linked an email or phone yet
+  //   * have done at least one real activity (sale/tab/contribution)
+  //   * haven't dismissed the banner (localStorage flag)
+  // Persuades them to secure their data BEFORE they lose it — most
+  // pilot users don't discover Settings until it's too late.
+  // ---------------------------------------------------------------------
+  backupBannerTitle: {
+    en: "Back up your account",
+    zu: "Londoloza i-akhawunti yakho",
+    st: "Boloka akhaonto ea hao",
+    af: "Rugsteun jou rekening",
+  },
+  backupBannerSub: {
+    en: "So your business data survives if you change phones or clear your browser.",
+    zu: "Ukuze idatha yakho yebhizinisi isinde uma ushintsha izifonu noma usula isiphequluli.",
+    st: "Hore data ea khoebo ea hao e phele ha u fetola lifono kapa u hlakola sebatli.",
+    af: "Sodat jou besigheidsdata oorleef as jy fone verander of jou blaaier uitvee.",
+  },
+  backupBannerAction: {
+    en: "Back up",
+    zu: "Londoloza",
+    st: "Boloka",
+    af: "Rugsteun",
+  },
+  backupBannerDismiss: {
+    en: "Not now",
+    zu: "Hhayi manje",
+    st: "E seng joale",
+    af: "Nie nou nie",
+  },
+
+  // ---------------------------------------------------------------------
+  // Signed-in "your account is backed up" summary (PR #33)
+  //
+  // Replaces the previous compact email + Sign out row with a proper
+  // green-tinted card that confirms the account is protected. Gives
+  // users clear positive feedback that their data is safe.
+  // ---------------------------------------------------------------------
+  accountBackedUpTitle: {
+    en: "Your account is backed up",
+    zu: "I-akhawunti yakho ilondoloziwe",
+    st: "Akhaonto ea hao e bolokehile",
+    af: "Jou rekening is gerugsteun",
+  },
+  accountBackedUpSub: {
+    en: "Sign in with the same details from any phone to restore your business data.",
+    zu: "Ngena ngemininingwane efanayo kunoma iyiphi ifoni ukubuyisa idatha yakho yebhizinisi.",
+    st: "Kena ka lintlha tse tšoanang ho tsoa foneng efe kapa efe ho khutlisa data ea khoebo ea hao.",
+    af: "Meld met dieselfde besonderhede aan vanaf enige foon om jou besigheidsdata te herstel.",
+  },
 
   // Email magic-link auth
   authSignedInAs: {
