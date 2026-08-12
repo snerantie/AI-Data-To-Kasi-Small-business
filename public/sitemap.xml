@@ -21,7 +21,10 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://kasikash.com/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <!-- lastmod bumped in PR #33 to signal a content change so
+         Google re-crawls sooner (favicon PNG + shortened FAQ #1 +
+         updated meta description). -->
+    <lastmod>2026-08-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
