@@ -6,15 +6,19 @@
     <meta name="theme-color" content="#0B0F0A" />
 
     <!-- ================================================================
-         Search-optimised meta (PR #30)
+         Search-optimised meta (PR #30, tightened in PR #33)
 
          `description` is what Google shows under the blue title in
-         search results. Written to work as a self-contained snippet
-         for someone who's Googled "KasiKash" or a related term. The
-         four SA languages are named explicitly so language-scoped
-         searches surface us.
+         search results. Held under ~155 characters (the mobile
+         truncation point) so it never cuts mid-sentence.
+
+         Google sometimes picks the FAQ text over this meta —
+         especially for a very new domain with rich structured data.
+         The FAQ #1 answer below is ALSO kept under the truncation
+         limit for the same reason: whichever Google picks, viewers
+         see a complete thought.
          ================================================================ -->
-    <meta name="description" content="Voice-first finance for South African informal businesses. Log sales, run stokvels, build a Financial Passport that lenders trust. isiZulu, Sesotho, Afrikaans, English." />
+    <meta name="description" content="A credit passport for South Africa's informal SMEs — spaza shops, salons, taxi ranks. Voice-first in isiZulu, Sesotho, Afrikaans, English. Free forever." />
     <meta name="keywords" content="informal business finance, spaza shop app, stokvel management, KasiScore, financial passport, South Africa SME credit, voice logging isiZulu, township business" />
     <meta name="author" content="Sinethemba Mvelase" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
@@ -27,7 +31,31 @@
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- ================================================================
+         Favicons — PR #33 fix
+
+         Google's search-result favicon slot requires PNG / ICO / JPG.
+         SVG is NOT reliably rendered there (documented at
+         https://developers.google.com/search/docs/appearance/favicon-in-search).
+         Symptom: our search result was showing Google's generic
+         globe icon instead of the K monogram.
+
+         Fix: reference the existing 400x400 PNG (produced by the
+         brand render pipeline in PR #31) as an alternate icon.
+         Modern browsers still prefer the sharper SVG because it
+         appears first; Google Search + Slack + Discord + Twitter
+         unfurls all fall through to the PNG.
+
+         Sizes attribute lets user agents pick the closest match to
+         the display slot (browser tab: 16-32px, phone home screen:
+         180-192px, search result: 48px). Providing "any" on the
+         SVG signals "this vector scales to any size".
+         ================================================================ -->
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="400x400" href="/og/kasikash-logo-400.png" />
+    <link rel="icon" type="image/png" sizes="1024x1024" href="/og/kasikash-logo-1024.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/og/kasikash-logo-400.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
 
     <!-- iOS PWA -->
@@ -48,17 +76,26 @@
     <meta property="og:description" content="Voice-first finance for South Africa's informal small businesses. Log sales, run stokvels, build a Financial Passport lenders trust." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://kasikash.com/" />
-    <meta property="og:image" content="https://kasikash.com/icon.svg" />
+    <!-- PR #33: prefer the PNG logo asset over the SVG for
+         WhatsApp / LinkedIn / X previews. Same reason as the
+         favicon fix: many social platforms drop or misrender SVG
+         when generating link-preview cards. The 1024x1024 PNG is
+         well above the 400x400 minimum most platforms require. -->
+    <meta property="og:image" content="https://kasikash.com/og/kasikash-logo-1024.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:alt" content="KasiKash logo — K monogram on a green tile" />
     <meta property="og:locale" content="en_ZA" />
 
     <!-- Twitter Card — kept summary (not summary_large_image) because
-         we currently only have an SVG icon, not a wide banner. If a
-         wide PNG banner is added later, upgrade this to
-         summary_large_image and add a matching twitter:image. -->
+         we currently only have a square icon, not a wide banner. If
+         a wide PNG hero is added later, upgrade this to
+         summary_large_image and add a matching wide twitter:image. -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="KasiKash — A credit passport for informal SMEs" />
     <meta name="twitter:description" content="Voice-first finance for South Africa's informal small businesses." />
-    <meta name="twitter:image" content="https://kasikash.com/icon.svg" />
+    <meta name="twitter:image" content="https://kasikash.com/og/kasikash-logo-1024.png" />
 
     <title>KasiKash — A credit passport for informal SMEs in South Africa</title>
 
@@ -97,8 +134,8 @@
       "applicationSubCategory": "Small Business Finance",
       "operatingSystem": "Web, iOS, Android",
       "description": "Voice-first finance for South Africa's informal small businesses. KasiKash turns cash sales, customer tabs, and stokvel contributions into a Financial Passport that formal lenders can trust.",
-      "image": "https://kasikash.com/icon.svg",
-      "screenshot": "https://kasikash.com/icon.svg",
+      "image": "https://kasikash.com/og/kasikash-logo-1024.png",
+      "screenshot": "https://kasikash.com/og/kasikash-logo-1024.png",
       "offers": {
         "@type": "Offer",
         "price": "0",
@@ -139,7 +176,7 @@
       "name": "KasiKash",
       "alternateName": "KasiKash Financial",
       "url": "https://kasikash.com/",
-      "logo": "https://kasikash.com/icon.svg",
+      "logo": "https://kasikash.com/og/kasikash-logo-1024.png",
       "description": "A credit passport for South Africa's informal small businesses. Voice-first, evidence-tiered financial identity for the businesses banks can't see.",
       "slogan": "A credit passport for the businesses banks can't see.",
       "founder": {
@@ -186,7 +223,7 @@
           "name": "What is KasiKash?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, hair salons, taxi ranks, kasi hustles. It turns cash sales, customer tabs, bank activity, and stokvel contributions into a Financial Passport that formal lenders can trust."
+            "text": "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, salons, taxi ranks — that turns cash sales, tabs, and stokvel contributions into a credit passport lenders trust."
           }
         },
         {

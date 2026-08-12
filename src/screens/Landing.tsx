@@ -984,9 +984,13 @@ type FaqEntry = { question: string; answer: string };
 
 const FAQ_ENTRIES: FaqEntry[] = [
   {
+    // NOTE (PR #33): kept short — under ~155 chars — because Google
+    // often picks this exact answer as the search-result description,
+    // and anything longer gets truncated mid-sentence. Must stay in
+    // sync with the FAQPage JSON-LD in index.html.
     question: "What is KasiKash?",
     answer:
-      "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, hair salons, taxi ranks, kasi hustles. It turns cash sales, customer tabs, bank activity, and stokvel contributions into a Financial Passport that formal lenders can trust.",
+      "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, salons, taxi ranks — that turns cash sales, tabs, and stokvel contributions into a credit passport lenders trust.",
   },
   {
     question: "How does the KasiScore work?",
