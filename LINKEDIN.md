@@ -151,23 +151,43 @@ If you're a lender, a stokvel treasurer, or a spaza owner and this sounds useful
 | Square logo (K on green tile) | **Profile picture** (Company Page logo, or your personal photo) | `public/og/kasikash-logo-400.png` (or `-1024.png`) |
 | Wide short banner | **Company Page cover photo** | `public/og/linkedin-banner-1128x191.png` |
 | Wide tall banner | **Personal Profile cover photo** | `public/og/linkedin-personal-1584x396.png` |
-| **"How to get started" poster** | **Attach to your launch feed post** as an image | Rendered live at [`/press/how-it-works`](https://kasikash.com/press/how-it-works) — screenshot it (see below) |
+| **Square launch poster (RECOMMENDED for LinkedIn feed)** | **Attach to your launch feed post** — square = no crop | Rendered live at [`/press/summary`](https://kasikash.com/press/summary) — screenshot at 1200x1200 |
+| **"How to get started" poster (long)** | Follow-up tap-through detail, or WhatsApp shares where portrait is fine | Rendered live at [`/press/how-it-works`](https://kasikash.com/press/how-it-works) — screenshot full page |
+| **"How the KasiScore is built" poster (long)** | Second follow-up post, ~1 week after launch | Rendered live at [`/press/kasiscore`](https://kasikash.com/press/kasiscore) — screenshot full page |
 
-### Screenshotting the poster
+### Screenshotting the posters
 
-The step-by-step "How to get started with KasiKash" poster (matches the numbered-steps infographic pattern most product-launch posts use on LinkedIn) is a real live page in the app, not a static PNG. That means we can edit the copy or add a step by editing `src/screens/PressHowItWorks.tsx` and re-deploying — no image editor round-trip.
+All three posters are live React pages, not static PNGs. That means the copy stays in sync with the design system automatically — no image-editor round-trip when we tweak wording.
 
-To turn it into a shareable image:
+#### 🟢 RECOMMENDED — square launch poster (`/press/summary`)
 
-1. On a **laptop or desktop** (mobile will crop it), open [https://kasikash.com/press/how-it-works](https://kasikash.com/press/how-it-works).
-2. Resize your browser to about 1200 px wide (or use DevTools → Device toolbar → set width to 1200).
-3. Take a **full-page screenshot**:
-   - Chrome/Edge: DevTools → three-dot menu at top-right of DevTools → **Capture full size screenshot**
-   - Firefox: three-dot menu → **Take Screenshot** → **Save full page**
-   - Safari: File → Export as PDF, then convert to PNG
-4. The output is a tall PNG (~1200 × 2400) that fits LinkedIn's portrait-image slot cleanly. If LinkedIn crops the preview in-feed, viewers tap-to-expand and see the whole thing.
+**Use this for your first LinkedIn feed post.** It's a 1200×1200 square specifically designed so LinkedIn shows all content in-feed with **no cropping**. Everything a viewer needs — headline, KasiScore dial, evidence tiers, 4 features, kasikash.com CTA, SA flag — visible at first glance.
 
-You can post it alongside the personal launch caption in [section 6](#6-personal-launch-post-linkedin-feed).
+To screenshot at the exact right size:
+
+1. On a **laptop or desktop**, open [https://kasikash.com/press/summary](https://kasikash.com/press/summary).
+2. Open DevTools (Cmd+Opt+I on Mac / F12 on Windows) → click the Device Toolbar icon (phone/tablet icon top-left of DevTools).
+3. Set **Responsive** viewport to **1200 × 1200** (type the numbers into the top-of-viewport width / height fields).
+4. Capture:
+   - **Chrome/Edge:** DevTools three-dot menu (top-right of DevTools panel) → **Capture screenshot**
+   - **Firefox:** DevTools → Responsive Design Mode → camera icon
+   - **Safari:** File → Take Screenshot → Selected Portion → drag to select the square
+5. Result: a perfect 1200×1200 PNG. Upload as the image on your LinkedIn feed post — it will render full-width, no crop.
+
+#### 🟡 Tall detail posters (`/press/how-it-works` and `/press/kasiscore`)
+
+Use these for **follow-up posts** in the days/weeks after launch when you want to dive deeper — or to attach to WhatsApp / Signal messages where portrait format works. LinkedIn will crop them in feed, but users can tap to expand.
+
+For those, use the **full-page** screenshot flow:
+
+1. Open the URL on a laptop, resize the browser to ~1200 px wide (or DevTools → Device toolbar → 1200 wide, any height).
+2. Full-page screenshot:
+   - **Chrome/Edge:** DevTools → three-dot menu inside DevTools → **Capture full size screenshot**
+   - **Firefox:** three-dot menu → **Take Screenshot** → **Save full page**
+   - **Safari:** File → Export as PDF, then convert to PNG
+3. Output: a tall portrait PNG (~1200 × 2400) that scrolls open when tapped in LinkedIn.
+
+You can pair any poster with the personal launch caption in [section 6](#6-personal-launch-post-linkedin-feed).
 
 To regenerate any of the above after editing the SVG source:
 

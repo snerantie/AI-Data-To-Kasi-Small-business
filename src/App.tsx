@@ -15,6 +15,7 @@ import { ImportStatement } from "./screens/ImportStatement";
 import { Landing } from "./screens/Landing";
 import { PressHowItWorks } from "./screens/PressHowItWorks";
 import { PressKasiScore } from "./screens/PressKasiScore";
+import { PressSummary } from "./screens/PressSummary";
 import { NotifyProvider } from "./components/NotifyProvider";
 import {
   PaymentReturn,
@@ -110,7 +111,12 @@ function isPressPath(pathname: string): boolean {
     pathname === "/press/how-it-works" ||
     pathname === "/press/how-it-works/" ||
     pathname === "/press/kasiscore" ||
-    pathname === "/press/kasiscore/"
+    pathname === "/press/kasiscore/" ||
+    // PR #34 — single square poster for LinkedIn feed. Meant to
+    // replace the tall posters as the primary "attach to a
+    // LinkedIn post" asset.
+    pathname === "/press/summary" ||
+    pathname === "/press/summary/"
   );
 }
 
@@ -125,6 +131,12 @@ function pressComponentFor(pathname: string): React.ReactNode {
     pathname === "/press/kasiscore/"
   ) {
     return <PressKasiScore />;
+  }
+  if (
+    pathname === "/press/summary" ||
+    pathname === "/press/summary/"
+  ) {
+    return <PressSummary />;
   }
   return <PressHowItWorks />;
 }
