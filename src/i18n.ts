@@ -60,6 +60,9 @@ export const t = {
   sales: { en: "Log", zu: "Ngenisa", st: "Ngola", af: "Teken" },
   tabs: { en: "Skoroskoro", zu: "Isikweletu", st: "Sekoloto", af: "Skoroskoro" },
   stokvelNav: { en: "Stokvel", zu: "Stokvel", st: "Stokvel", af: "Stokvel" },
+  // PR #35 — bottom-nav label for the Services hub (replaces the
+  // dedicated Stokvel tab; stokvel is now reached via Services).
+  servicesNav: { en: "Services", zu: "Izinsiza", st: "Litšebeletso", af: "Dienste" },
   insights: { en: "Insights", zu: "Izimpawu", st: "Tlhahiso", af: "Insigte" },
 
   // Voice / log sale
@@ -2818,6 +2821,290 @@ export const t = {
     zu: "Funda umhlahlandlela wokusetha",
     st: "Bala tataiso ea ho lokisa",
     af: "Lees die opstellingsgids",
+  },
+
+  // =====================================================================
+  // PR #35 — Services hub
+  // =====================================================================
+  servicesTitle: {
+    en: "Your services",
+    zu: "Izinsiza zakho",
+    st: "Litšebeletso tsa hao",
+    af: "Jou dienste",
+  },
+  servicesSubtitle: {
+    en: "One platform, the services you use.",
+    zu: "Inkundla eyodwa, izinsiza ozisebenzisayo.",
+    st: "Sethala se le seng, litšebeletso tseo u li sebelisang.",
+    af: "Een platform, die dienste wat jy gebruik.",
+  },
+  servicesEnter: {
+    en: "Enter",
+    zu: "Ngena",
+    st: "Kena",
+    af: "Betree",
+  },
+  servicesAddTitle: {
+    en: "Add a service",
+    zu: "Engeza insiza",
+    st: "Eketsa tšebeletso",
+    af: "Voeg 'n diens by",
+  },
+  servicesAddSubtitle: {
+    en: "Turn on more of what KasiKash can do for you.",
+    zu: "Vula okwengeziwe i-KasiKash engakwenzela kona.",
+    st: "Bula tse ling tseo KasiKash e ka u etsetsang tsona.",
+    af: "Skakel meer aan van wat KasiKash vir jou kan doen.",
+  },
+  servicesEnabled: {
+    en: "Enabled",
+    zu: "Kuvuliwe",
+    st: "E bulehile",
+    af: "Geaktiveer",
+  },
+  servicesTurnOn: {
+    en: "Turn on",
+    zu: "Vula",
+    st: "Bula",
+    af: "Skakel aan",
+  },
+
+  // Service names + descriptions
+  serviceStokvelName: {
+    en: "Stokvel",
+    zu: "Stokvel",
+    st: "Stokvel",
+    af: "Stokvel",
+  },
+  serviceStokvelDesc: {
+    en: "Save as a group. Track contributions, invite members, reach your goal.",
+    zu: "Onga niyiqembu. Landelela iminikelo, mema amalungu, ufinyelele umgomo wakho.",
+    st: "Boloka e le sehlopha. Latela menehelo, memela litho, fihlela sepheo sa hao.",
+    af: "Spaar as 'n groep. Volg bydraes, nooi lede, bereik jou doel.",
+  },
+  serviceMashonisaName: {
+    en: "Mashonisa",
+    zu: "Mashonisa",
+    st: "Mashonisa",
+    af: "Mashonisa",
+  },
+  serviceMashonisaDesc: {
+    en: "Lend money and track repayments. Build a loan-book record lenders can see.",
+    zu: "Boleka imali ulandelele ukukhokhelwa. Yakha irekhodi lezikweletu ababoleki abangayibona.",
+    st: "Adima chelete 'me u latele ho lefuwa. Aha rekoto ea mekitlane eo baadimi ba ka e bonang.",
+    af: "Leen geld uit en volg terugbetalings. Bou 'n leningsboek-rekord wat leners kan sien.",
+  },
+
+  // =====================================================================
+  // PR #35 — Stokvel sub-types
+  // =====================================================================
+  stokvelKindLabel: {
+    en: "Stokvel type",
+    zu: "Uhlobo lwestokvel",
+    st: "Mofuta oa stokvel",
+    af: "Stokvel-tipe",
+  },
+  stokvelKindGroceries: {
+    en: "Groceries",
+    zu: "Ukudla",
+    st: "Lijo",
+    af: "Kruideniersware",
+  },
+  stokvelKindGroceriesDesc: {
+    en: "Save through the year, buy in bulk in December.",
+    zu: "Onga unyaka wonke, uthenge ngobuningi ngoDisemba.",
+    st: "Boloka selemo sohle, u reke ka bongata ka Tšitoe.",
+    af: "Spaar deur die jaar, koop in massa in Desember.",
+  },
+  stokvelKindSavings: {
+    en: "Savings",
+    zu: "Imali egciniwe",
+    st: "Polokelo",
+    af: "Spaargeld",
+  },
+  stokvelKindSavingsDesc: {
+    en: "A general savings pot. Pay out when the group decides.",
+    zu: "Imbiza yokonga evamile. Khokha uma iqembu linquma.",
+    st: "Poto e akaretsang ea polokelo. Lefa ha sehlopha se etsa qeto.",
+    af: "'n Algemene spaarpot. Betaal uit wanneer die groep besluit.",
+  },
+  stokvelKindBirthdays: {
+    en: "Birthdays",
+    zu: "Izinsuku zokuzalwa",
+    st: "Matsatsi a tsoalo",
+    af: "Verjaarsdae",
+  },
+  stokvelKindBirthdaysDesc: {
+    en: "Each member gets the pot on their birthday.",
+    zu: "Ilungu ngalinye lithola imbiza ngosuku lwalo lokuzalwa.",
+    st: "Setho se seng le se seng se fumana poto ka letsatsi la sona la tsoalo.",
+    af: "Elke lid kry die pot op hul verjaarsdag.",
+  },
+
+  // =====================================================================
+  // PR #35 — Mashonisa service
+  // =====================================================================
+  mashonisaTitle: {
+    en: "Mashonisa",
+    zu: "Mashonisa",
+    st: "Mashonisa",
+    af: "Mashonisa",
+  },
+  mashonisaSubtitle: {
+    en: "Your loan book",
+    zu: "Incwadi yakho yezikweletu",
+    st: "Buka ea hao ea mekitlane",
+    af: "Jou leningsboek",
+  },
+  mashonisaOutTitle: {
+    en: "Money on loan",
+    zu: "Imali eboleka",
+    st: "Chelete e adimiloeng",
+    af: "Geld op lening",
+  },
+  mashonisaOutstandingTitle: {
+    en: "Still owed to you",
+    zu: "Okusakweletwayo",
+    st: "Se u kolotoang",
+    af: "Nog aan jou verskuldig",
+  },
+  mashonisaRepaidTitle: {
+    en: "Repaid",
+    zu: "Okukhokhiwe",
+    st: "Se lefuoeng",
+    af: "Terugbetaal",
+  },
+  mashonisaAddLoan: {
+    en: "New loan",
+    zu: "Isikweletu esisha",
+    st: "Mokitlane o mocha",
+    af: "Nuwe lening",
+  },
+  mashonisaEmptyTitle: {
+    en: "No loans yet",
+    zu: "Azikho izikweletu okwamanje",
+    st: "Ha ho mekitlane hajoale",
+    af: "Nog geen lenings nie",
+  },
+  mashonisaEmptyBody: {
+    en: "Record money you lend out. Every repayment builds a credit-worthy track record.",
+    zu: "Bhala imali oyibolekayo. Konke ukukhokhelwa kwakha irekhodi elifanelekayo lesikweletu.",
+    st: "Ngola chelete eo u e adimang. Ho lefuwa ho hong le ho hong ho aha rekoto e loketseng ea mokitlane.",
+    af: "Teken geld aan wat jy uitleen. Elke terugbetaling bou 'n kredietwaardige rekord.",
+  },
+  mashonisaBorrowerName: {
+    en: "Who did you lend to?",
+    zu: "Ubolekise bani?",
+    st: "U adimile mang?",
+    af: "Vir wie het jy geleen?",
+  },
+  mashonisaBorrowerNamePlaceholder: {
+    en: "Borrower's name",
+    zu: "Igama lombolekі",
+    st: "Lebitso la moadimi",
+    af: "Lener se naam",
+  },
+  mashonisaBorrowerPhone: {
+    en: "Phone (optional)",
+    zu: "Ifoni (okukhethwa kukho)",
+    st: "Mohala (ikhethela)",
+    af: "Foon (opsioneel)",
+  },
+  mashonisaAmountLent: {
+    en: "Amount lent (R)",
+    zu: "Imali ebolekiwe (R)",
+    st: "Chelete e adimiloeng (R)",
+    af: "Bedrag geleen (R)",
+  },
+  mashonisaInterest: {
+    en: "Interest % (optional)",
+    zu: "Inzalo % (okukhethwa kukho)",
+    st: "Tswala % (ikhethela)",
+    af: "Rente % (opsioneel)",
+  },
+  mashonisaRepaymentDate: {
+    en: "Repayment date (optional)",
+    zu: "Usuku lokukhokha (okukhethwa kukho)",
+    st: "Letsatsi la ho lefa (ikhethela)",
+    af: "Terugbetalingsdatum (opsioneel)",
+  },
+  mashonisaNotes: {
+    en: "Notes (optional)",
+    zu: "Amanothi (okukhethwa kukho)",
+    st: "Lintlha (ikhethela)",
+    af: "Notas (opsioneel)",
+  },
+  mashonisaSaveLoan: {
+    en: "Save loan",
+    zu: "Londoloza isikweletu",
+    st: "Boloka mokitlane",
+    af: "Stoor lening",
+  },
+  mashonisaRecordRepayment: {
+    en: "Record repayment",
+    zu: "Bhala ukukhokhelwa",
+    st: "Ngola tefo",
+    af: "Teken terugbetaling aan",
+  },
+  mashonisaRepaymentAmount: {
+    en: "Repayment amount (R)",
+    zu: "Imali yokukhokha (R)",
+    st: "Chelete ea tefo (R)",
+    af: "Terugbetalingsbedrag (R)",
+  },
+  mashonisaMarkDefaulted: {
+    en: "Mark as defaulted",
+    zu: "Maka njengengakhokhiwe",
+    st: "Tšoaea e le e sa lefuoang",
+    af: "Merk as wanbetaal",
+  },
+  mashonisaDeleteLoan: {
+    en: "Delete loan",
+    zu: "Susa isikweletu",
+    st: "Hlakola mokitlane",
+    af: "Vee lening uit",
+  },
+  mashonisaStatusOpen: {
+    en: "Open",
+    zu: "Kuvuliwe",
+    st: "E butsoe",
+    af: "Oop",
+  },
+  mashonisaStatusPartial: {
+    en: "Partly repaid",
+    zu: "Kukhokhwe ingxenye",
+    st: "E lefuoe karolo",
+    af: "Gedeeltelik terugbetaal",
+  },
+  mashonisaStatusRepaid: {
+    en: "Repaid",
+    zu: "Kukhokhiwe",
+    st: "E lefuoe",
+    af: "Terugbetaal",
+  },
+  mashonisaStatusDefaulted: {
+    en: "Defaulted",
+    zu: "Akukhokhiwanga",
+    st: "Ha ea lefuoa",
+    af: "Wanbetaal",
+  },
+  mashonisaOf: {
+    en: "of",
+    zu: "kwa",
+    st: "ho",
+    af: "van",
+  },
+  mashonisaDueLabel: {
+    en: "Due",
+    zu: "Kufanele ngo",
+    st: "E lokela",
+    af: "Verskuldig",
+  },
+  mashonisaCancel: {
+    en: "Cancel",
+    zu: "Khansela",
+    st: "Hlakola",
+    af: "Kanselleer",
   },
 } as const;
 

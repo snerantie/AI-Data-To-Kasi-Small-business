@@ -58,6 +58,10 @@ const emptyState = (): AppState => ({
   // this fixture whenever AppState grows a new field.
   bankStatements: [],
   bankTransactions: [],
+  // PR #35 — services + mashonisa. Score logic doesn't read these,
+  // but AppState requires them so the fixture must include them.
+  services: [{ serviceType: "stokvel", enabledAt: NOW }],
+  loans: [],
 });
 
 const makeSale = (
@@ -126,6 +130,9 @@ const stokvelWithGoal = (
 ): Stokvel => ({
   id: "s1",
   name: "Family stokvel",
+  // PR #35 — Stokvel now carries a sub-type. Default the fixture to
+  // 'savings' (the general case) since score logic ignores kind.
+  kind: "savings",
   goal,
   members: 5,
   memberships: [

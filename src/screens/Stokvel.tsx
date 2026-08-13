@@ -18,7 +18,7 @@ import {
   Landmark,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { Lang } from "../i18n";
+import type { Lang, TKey } from "../i18n";
 import { buildInviteUrl, normalizeInviteCode } from "../lib/inviteLink";
 import { tr, trParams } from "../i18n";
 import {
@@ -35,6 +35,7 @@ import type {
   ContributionMethod,
   StokvelBankAccount,
   StokvelInvite,
+  StokvelKind,
 } from "../store";
 import type { Screen } from "../App";
 
@@ -1006,11 +1007,15 @@ function CreateStokvelSheet({
   onClose: () => void;
   onSubmit: (input: {
     name: string;
+    kind: StokvelKind;
     goal: number;
     members: number;
   }) => Promise<string | null>;
 }) {
   const [name, setName] = useState("");
+  // PR #35 — stokvel sub-type. Defaults to 'savings' (the most
+  // common / general case) so a user who doesn't care just proceeds.
+  const [kind, setKind] = useState<StokvelKind>("savings");
   const [goal, setGoal] = useState(5000);
   const [members, setMembers] = useState(4);
   const [submitting, setSubmitting] = useState(false);
@@ -1023,6 +1028,7 @@ function CreateStokvelSheet({
     setError(null);
     const id = await onSubmit({
       name: clean,
+      kind,
       goal: Number(goal) || 5000,
       members: Number(members) || 1,
     });
@@ -1033,6 +1039,28 @@ function CreateStokvelSheet({
       setError("Could not create stokvel — please try again.");
     }
   };
+
+  const KINDS: {
+    value: StokvelKind;
+    labelKey: TKey;
+    descKey: TKey;
+  }[] = [
+    {
+      value: "savings",
+      labelKey: "stokvelKindSavings",
+      descKey: "stokvelKindSavingsDesc",
+    },
+    {
+      value: "groceries",
+      labelKey: "stokvelKindGroceries",
+      descKey: "stokvelKindGroceriesDesc",
+    },
+    {
+      value: "birthdays",
+      labelKey: "stokvelKindBirthdays",
+      descKey: "stokvelKindBirthdaysDesc",
+    },
+  ];
 
   return (
     <SheetShell title={tr("stokvelCreateHeader", lang)} onClose={onClose}>
@@ -1049,6 +1077,43 @@ function CreateStokvelSheet({
             maxLength={60}
             className="mt-1 w-full px-4 py-3.5 rounded-xl bg-bg-card border border-white/10 text-white text-base outline-none focus:border-kasi-green"
           />
+        </div>
+
+        {/* PR #35 — stokvel sub-type picker */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("stokvelKindLabel", lang)}
+          </label>
+          <div className="mt-1 flex flex-col gap-2">
+            {KINDS.map((k) => {
+              const selected = kind === k.value;
+              return (
+                <button
+                  key={k.value}
+                  type="button"
+                  onClick={() => setKind(k.value)}
+                  className={
+                    "text-left px-4 py-3 rounded-xl border transition-colors " +
+                    (selected
+                      ? "bg-kasi-green/10 border-kasi-green/40"
+                      : "bg-bg-card border-white/10")
+                  }
+                >
+                  <div
+                    className={
+                      "text-sm font-semibold " +
+                      (selected ? "text-kasi-green" : "text-white")
+                    }
+                  >
+                    {tr(k.labelKey, lang)}
+                  </div>
+                  <div className="text-white/50 text-xs mt-0.5 leading-relaxed">
+                    {tr(k.descKey, lang)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>

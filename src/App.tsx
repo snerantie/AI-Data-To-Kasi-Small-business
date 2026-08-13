@@ -13,6 +13,8 @@ import { PassportPreview } from "./screens/PassportPreview";
 import { ScanReceipt } from "./screens/ScanReceipt";
 import { ImportStatement } from "./screens/ImportStatement";
 import { Landing } from "./screens/Landing";
+import { Services } from "./screens/Services";
+import { Mashonisa } from "./screens/Mashonisa";
 import { PressHowItWorks } from "./screens/PressHowItWorks";
 import { PressKasiScore } from "./screens/PressKasiScore";
 import { PressSummary } from "./screens/PressSummary";
@@ -44,14 +46,24 @@ export type Screen =
   | "passport"
   | "scan"
   // New in PR #23: upload + parse bank statements.
-  | "import";
+  | "import"
+  // New in PR #35: Services hub + Mashonisa service.
+  | "services"
+  | "mashonisa";
 
+// PR #35 — the Services hub replaces the dedicated Stokvel tab in the
+// bottom nav. Stokvel + Mashonisa are reached by entering their cards
+// in the Services hub, but they KEEP the bottom nav visible (with the
+// Services item highlighted) so the user always has a way back —
+// otherwise entering a service would trap them on a nav-less screen.
 const SCREENS_WITH_NAV: Screen[] = [
   "home",
   "log",
   "tabs",
-  "stokvel",
+  "services",
   "insights",
+  "stokvel",
+  "mashonisa",
 ];
 
 /**
@@ -355,6 +367,12 @@ export default function App() {
                   )}
                   {screen === "import" && (
                     <ImportStatement lang={lang} onNavigate={setScreen} />
+                  )}
+                  {screen === "services" && (
+                    <Services lang={lang} onNavigate={setScreen} />
+                  )}
+                  {screen === "mashonisa" && (
+                    <Mashonisa lang={lang} onNavigate={setScreen} />
                   )}
                 </motion.div>
               </AnimatePresence>

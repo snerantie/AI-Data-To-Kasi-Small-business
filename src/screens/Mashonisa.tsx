@@ -1,0 +1,645 @@
+/**
+ * Mashonisa service screen (PR #35).
+ *
+ * A loan-book for informal money lenders: record loans out, log
+ * repayments, see what's still owed. Cash-native and evidence-tiered,
+ * consistent with the KasiScore credit-signal thesis — a mashonisa's
+ * repayment history is some of the strongest behavioural evidence a
+ * lender partner could want.
+ *
+ * Reachable via the Services hub (Services → Mashonisa → Enter). Only
+ * users who have enabled the mashonisa service see it; the App-level
+ * router won't route here otherwise.
+ *
+ * Kept intentionally focused: loans + repayments + status. No
+ * interest-schedule maths beyond a flat percentage, no reminders, no
+ * borrower accounts. Those can come once the pilot shows mashonisas
+ * actually use this.
+ */
+
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Check,
+  HandCoins,
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useState } from "react";
+import type { Screen } from "../App";
+import type { Lang } from "../i18n";
+import { tr } from "../i18n";
+import type { MashonisaLoan, MashonisaLoanStatus } from "../store";
+import { formatRand, useStore } from "../store";
+
+export function Mashonisa({
+  lang,
+  onNavigate,
+}: {
+  lang: Lang;
+  onNavigate: (s: Screen) => void;
+}) {
+  const {
+    state,
+    addMashonisaLoan,
+    addMashonisaRepayment,
+    setMashonisaLoanStatus,
+    removeMashonisaLoan,
+  } = useStore();
+  const loans = state.loans;
+
+  const [sheet, setSheet] = useState<
+    null | "new-loan" | { kind: "repay"; loanId: string }
+  >(null);
+
+  // -- Aggregates for the hero cards --
+  const totalOnLoan = loans
+    .filter((l) => l.status !== "repaid" && l.status !== "defaulted")
+    .reduce((sum, l) => sum + l.amountLent, 0);
+  const totalOutstanding = loans.reduce((sum, l) => {
+    if (l.status === "repaid" || l.status === "defaulted") return sum;
+    const target = l.amountLent * (1 + l.interestPercentage / 100);
+    return sum + Math.max(0, target - l.amountRepaid);
+  }, 0);
+  const totalRepaid = loans.reduce((sum, l) => sum + l.amountRepaid, 0);
+
+  return (
+    <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
+      {/* Header with back-to-services */}
+      <div className="flex items-center gap-3 mb-5">
+        <button
+          onClick={() => onNavigate("services")}
+          className="w-9 h-9 rounded-full bg-white/[0.03] border border-white/10 flex items-center justify-center text-white/70"
+          aria-label="Back"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 flex items-center justify-center text-kasi-gold">
+            <HandCoins size={18} />
+          </div>
+          <div>
+            <div className="font-display text-xl font-semibold leading-none">
+              {tr("mashonisaTitle", lang)}
+            </div>
+            <div className="text-white/50 text-xs mt-0.5">
+              {tr("mashonisaSubtitle", lang)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hero cards */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <HeroStat
+          label={tr("mashonisaOutTitle", lang)}
+          value={formatRand(totalOnLoan)}
+          accent="text-white"
+        />
+        <HeroStat
+          label={tr("mashonisaOutstandingTitle", lang)}
+          value={formatRand(totalOutstanding)}
+          accent="text-kasi-gold"
+        />
+        <HeroStat
+          label={tr("mashonisaRepaidTitle", lang)}
+          value={formatRand(totalRepaid)}
+          accent="text-kasi-green"
+        />
+      </div>
+
+      {/* New loan button */}
+      <button
+        onClick={() => setSheet("new-loan")}
+        className="w-full py-4 rounded-2xl bg-kasi-gold text-bg font-display font-bold flex items-center justify-center gap-2 shadow-gold mb-6"
+      >
+        <Plus size={18} />
+        {tr("mashonisaAddLoan", lang)}
+      </button>
+
+      {/* Loan list OR empty state */}
+      {loans.length === 0 ? (
+        <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8 flex flex-col items-center text-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-kasi-gold/10 border border-kasi-gold/25 flex items-center justify-center text-kasi-gold">
+            <HandCoins size={26} />
+          </div>
+          <div className="text-white font-semibold">
+            {tr("mashonisaEmptyTitle", lang)}
+          </div>
+          <div className="text-white/55 text-sm max-w-[260px] leading-relaxed">
+            {tr("mashonisaEmptyBody", lang)}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {loans.map((loan) => (
+            <LoanCard
+              key={loan.id}
+              loan={loan}
+              lang={lang}
+              onRepay={() =>
+                setSheet({ kind: "repay", loanId: loan.id })
+              }
+              onMarkDefaulted={() =>
+                setMashonisaLoanStatus(loan.id, "defaulted")
+              }
+              onDelete={() => removeMashonisaLoan(loan.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Sheets */}
+      <AnimatePresence>
+        {sheet === "new-loan" && (
+          <NewLoanSheet
+            lang={lang}
+            onClose={() => setSheet(null)}
+            onSave={(input) => {
+              addMashonisaLoan(input);
+              setSheet(null);
+            }}
+          />
+        )}
+        {sheet && typeof sheet === "object" && sheet.kind === "repay" && (
+          <RepaymentSheet
+            lang={lang}
+            loan={loans.find((l) => l.id === sheet.loanId) ?? null}
+            onClose={() => setSheet(null)}
+            onSave={(amount, method) => {
+              addMashonisaRepayment(sheet.loanId, { amount, method });
+              setSheet(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function HeroStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-bg-card border border-white/5 p-3">
+      <div className="text-white/50 text-[9px] uppercase tracking-wider leading-tight">
+        {label}
+      </div>
+      <div className={"font-display font-bold text-base mt-1 " + accent}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function statusMeta(status: MashonisaLoanStatus): {
+  key:
+    | "mashonisaStatusOpen"
+    | "mashonisaStatusPartial"
+    | "mashonisaStatusRepaid"
+    | "mashonisaStatusDefaulted";
+  color: string;
+  bg: string;
+} {
+  switch (status) {
+    case "repaid":
+      return {
+        key: "mashonisaStatusRepaid",
+        color: "text-kasi-green",
+        bg: "bg-kasi-green/10 border-kasi-green/30",
+      };
+    case "partial":
+      return {
+        key: "mashonisaStatusPartial",
+        color: "text-kasi-gold",
+        bg: "bg-kasi-gold/10 border-kasi-gold/30",
+      };
+    case "defaulted":
+      return {
+        key: "mashonisaStatusDefaulted",
+        color: "text-kasi-coral",
+        bg: "bg-kasi-coral/10 border-kasi-coral/30",
+      };
+    default:
+      return {
+        key: "mashonisaStatusOpen",
+        color: "text-white/70",
+        bg: "bg-white/[0.03] border-white/10",
+      };
+  }
+}
+
+function LoanCard({
+  loan,
+  lang,
+  onRepay,
+  onMarkDefaulted,
+  onDelete,
+}: {
+  loan: MashonisaLoan;
+  lang: Lang;
+  onRepay: () => void;
+  onMarkDefaulted: () => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const meta = statusMeta(loan.status);
+  const target = loan.amountLent * (1 + loan.interestPercentage / 100);
+  const outstanding = Math.max(0, target - loan.amountRepaid);
+  const progress = target > 0 ? Math.min(1, loan.amountRepaid / target) : 0;
+  const settled = loan.status === "repaid" || loan.status === "defaulted";
+
+  return (
+    <motion.div
+      layout
+      className="rounded-2xl bg-bg-card border border-white/5 overflow-hidden"
+    >
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full text-left p-4"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-white truncate">
+              {loan.borrowerName}
+            </div>
+            <div className="text-white/50 text-xs mt-0.5">
+              {formatRand(loan.amountRepaid)} {tr("mashonisaOf", lang)}{" "}
+              {formatRand(target)}
+              {loan.interestPercentage > 0 && (
+                <span className="text-white/30">
+                  {" "}
+                  · {loan.interestPercentage}%
+                </span>
+              )}
+            </div>
+          </div>
+          <div
+            className={
+              "shrink-0 text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border " +
+              meta.bg +
+              " " +
+              meta.color
+            }
+          >
+            {tr(meta.key, lang)}
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden">
+          <div
+            className={
+              "h-full rounded-full transition-all " +
+              (loan.status === "defaulted"
+                ? "bg-kasi-coral"
+                : loan.status === "repaid"
+                  ? "bg-kasi-green"
+                  : "bg-kasi-gold")
+            }
+            style={{ width: `${Math.max(3, progress * 100)}%` }}
+          />
+        </div>
+
+        {!settled && (
+          <div className="mt-2 text-xs text-white/60">
+            {tr("mashonisaOutstandingTitle", lang)}:{" "}
+            <span className="text-kasi-gold font-semibold">
+              {formatRand(outstanding)}
+            </span>
+          </div>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="px-4 pb-4 border-t border-white/5 pt-3 flex flex-col gap-2"
+          >
+            {loan.notes && (
+              <div className="text-white/60 text-xs italic">
+                {loan.notes}
+              </div>
+            )}
+            {/* Repayment history */}
+            {loan.repayments.length > 0 && (
+              <div className="flex flex-col gap-1">
+                {loan.repayments.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between text-xs text-white/60"
+                  >
+                    <span>{new Date(r.paidAt).toLocaleDateString()}</span>
+                    <span className="text-kasi-green font-mono">
+                      +{formatRand(r.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!settled && (
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={onRepay}
+                  className="flex-1 py-2.5 rounded-xl bg-kasi-green text-bg text-sm font-semibold flex items-center justify-center gap-1.5"
+                >
+                  <Check size={14} />
+                  {tr("mashonisaRecordRepayment", lang)}
+                </button>
+                <button
+                  onClick={onMarkDefaulted}
+                  className="px-3 py-2.5 rounded-xl bg-kasi-coral/10 border border-kasi-coral/30 text-kasi-coral text-xs font-medium"
+                >
+                  {tr("mashonisaMarkDefaulted", lang)}
+                </button>
+              </div>
+            )}
+            <button
+              onClick={onDelete}
+              className="mt-1 py-2 rounded-xl bg-white/[0.02] border border-white/10 text-white/50 text-xs flex items-center justify-center gap-1.5"
+            >
+              <Trash2 size={12} />
+              {tr("mashonisaDeleteLoan", lang)}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sheets
+// ---------------------------------------------------------------------------
+
+function SheetShell({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40 }}
+        animate={{ y: 0 }}
+        exit={{ y: 40 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="w-full md:max-w-md bg-bg-soft border-t md:border border-white/10 md:rounded-3xl rounded-t-3xl p-5 pb-8 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-display font-bold text-lg">{title}</div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:bg-white/5"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  inputMode,
+  type,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  inputMode?: "text" | "numeric" | "tel" | "decimal";
+  type?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[11px] uppercase tracking-wider text-white/50">
+        {label}
+      </span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={inputMode ?? "text"}
+        type={type ?? "text"}
+        className="px-4 py-3 rounded-xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-gold"
+      />
+    </label>
+  );
+}
+
+function NewLoanSheet({
+  lang,
+  onClose,
+  onSave,
+}: {
+  lang: Lang;
+  onClose: () => void;
+  onSave: (input: {
+    borrowerName: string;
+    borrowerPhone?: string;
+    amountLent: number;
+    interestPercentage?: number;
+    agreedRepaymentDate?: string;
+    notes?: string;
+  }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [amount, setAmount] = useState("");
+  const [interest, setInterest] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const amountNum = parseFloat(amount);
+  const canSubmit = name.trim().length > 0 && amountNum > 0;
+
+  return (
+    <SheetShell title={tr("mashonisaAddLoan", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <Field
+          label={tr("mashonisaBorrowerName", lang)}
+          value={name}
+          onChange={setName}
+          placeholder={tr("mashonisaBorrowerNamePlaceholder", lang)}
+        />
+        <Field
+          label={tr("mashonisaBorrowerPhone", lang)}
+          value={phone}
+          onChange={setPhone}
+          inputMode="tel"
+        />
+        <Field
+          label={tr("mashonisaAmountLent", lang)}
+          value={amount}
+          onChange={setAmount}
+          inputMode="decimal"
+          placeholder="0"
+        />
+        <Field
+          label={tr("mashonisaInterest", lang)}
+          value={interest}
+          onChange={setInterest}
+          inputMode="decimal"
+          placeholder="0"
+        />
+        <Field
+          label={tr("mashonisaRepaymentDate", lang)}
+          value={dueDate}
+          onChange={setDueDate}
+          type="date"
+        />
+        <Field
+          label={tr("mashonisaNotes", lang)}
+          value={notes}
+          onChange={setNotes}
+        />
+        <button
+          onClick={() =>
+            onSave({
+              borrowerName: name,
+              borrowerPhone: phone || undefined,
+              amountLent: amountNum,
+              interestPercentage: interest ? parseFloat(interest) : 0,
+              agreedRepaymentDate: dueDate || undefined,
+              notes: notes || undefined,
+            })
+          }
+          disabled={!canSubmit}
+          className={
+            "mt-1 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 " +
+            (canSubmit
+              ? "bg-kasi-gold text-bg shadow-gold"
+              : "bg-white/5 text-white/30 cursor-not-allowed")
+          }
+        >
+          <HandCoins size={16} />
+          {tr("mashonisaSaveLoan", lang)}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
+
+function RepaymentSheet({
+  lang,
+  loan,
+  onClose,
+  onSave,
+}: {
+  lang: Lang;
+  loan: MashonisaLoan | null;
+  onClose: () => void;
+  onSave: (
+    amount: number,
+    method: "cash" | "eft" | "payshap" | "card" | "other",
+  ) => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<
+    "cash" | "eft" | "payshap" | "card" | "other"
+  >("cash");
+  const [saving, setSaving] = useState(false);
+
+  const amountNum = parseFloat(amount);
+  const canSubmit = amountNum > 0 && !saving;
+
+  if (!loan) {
+    // Loan was deleted while the sheet was mid-open — close gracefully.
+    onClose();
+    return null;
+  }
+
+  const methods: {
+    key: "cash" | "eft" | "payshap" | "card" | "other";
+    label: string;
+  }[] = [
+    { key: "cash", label: "Cash" },
+    { key: "eft", label: "EFT" },
+    { key: "payshap", label: "PayShap" },
+    { key: "card", label: "Card" },
+    { key: "other", label: "Other" },
+  ];
+
+  return (
+    <SheetShell title={tr("mashonisaRecordRepayment", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="text-white/60 text-sm">
+          {loan.borrowerName}
+        </div>
+        <Field
+          label={tr("mashonisaRepaymentAmount", lang)}
+          value={amount}
+          onChange={setAmount}
+          inputMode="decimal"
+          placeholder="0"
+        />
+        <div className="flex flex-wrap gap-2">
+          {methods.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setMethod(m.key)}
+              className={
+                "px-3 py-2 rounded-xl text-sm font-medium border " +
+                (method === m.key
+                  ? "bg-kasi-green/15 border-kasi-green/40 text-kasi-green"
+                  : "bg-white/[0.02] border-white/10 text-white/60")
+              }
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => {
+            setSaving(true);
+            onSave(amountNum, method);
+          }}
+          disabled={!canSubmit}
+          className={
+            "mt-1 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 " +
+            (canSubmit
+              ? "bg-kasi-green text-bg shadow-glow"
+              : "bg-white/5 text-white/30 cursor-not-allowed")
+          }
+        >
+          {saving ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Check size={16} />
+          )}
+          {tr("mashonisaRecordRepayment", lang)}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
