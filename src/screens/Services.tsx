@@ -44,6 +44,7 @@ import {
   useStore,
 } from "../store";
 import { SyncBadge } from "../components/SyncBadge";
+import { AccountNudges } from "../components/AccountNudges";
 
 // Static metadata for each service. `screen` is the app Screen the
 // "Enter" button navigates to.
@@ -148,6 +149,12 @@ export function Services({
           </button>
         </div>
       </div>
+
+      {/* Backup + install nudges — on the launcher so EVERY user sees
+          them, including stokvel/mashonisa-only users who never open
+          the business Home. This is where they learn to secure their
+          data. */}
+      <AccountNudges lang={lang} onNavigate={onNavigate} />
 
       {/* Enabled services */}
       <div className="flex flex-col gap-3">
