@@ -1,14 +1,17 @@
 import { motion } from "framer-motion";
-import { Home, Mic, Users, PiggyBank, TrendingUp } from "lucide-react";
+import { Home, Mic, Users, LayoutGrid, TrendingUp } from "lucide-react";
 import type { Lang, TKey } from "../i18n";
 import { tr } from "../i18n";
 import type { Screen } from "../App";
 
+// PR #35 — the Stokvel slot became the Services hub. Stokvel is now
+// reached by entering the Stokvel service card inside Services, so
+// the nav grid gains a "Services" entry (grid icon) in its place.
 const items: { key: Screen; icon: typeof Home; label: TKey }[] = [
   { key: "home", icon: Home, label: "home" },
   { key: "log", icon: Mic, label: "sales" },
   { key: "tabs", icon: Users, label: "tabs" },
-  { key: "stokvel", icon: PiggyBank, label: "stokvelNav" },
+  { key: "services", icon: LayoutGrid, label: "servicesNav" },
   { key: "insights", icon: TrendingUp, label: "insights" },
 ];
 
@@ -25,7 +28,13 @@ export function BottomNav({
     <div className="absolute bottom-0 left-0 right-0 px-3 pb-4 pt-2 z-20">
       <div className="mx-auto max-w-md rounded-3xl bg-bg-card/90 backdrop-blur border border-white/5 flex items-center justify-around p-1.5 shadow-2xl">
         {items.map((it) => {
-          const active = screen === it.key;
+          // PR #35 — stokvel + mashonisa are sub-screens of the
+          // Services hub, so keep the Services nav item highlighted
+          // while the user is inside either of them.
+          const active =
+            screen === it.key ||
+            (it.key === "services" &&
+              (screen === "stokvel" || screen === "mashonisa"));
           const Icon = it.icon;
           return (
             <button

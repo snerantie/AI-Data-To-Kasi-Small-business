@@ -36,6 +36,16 @@ import {
   insertSale as remoteInsertSale,
   insertSales as remoteInsertSales,
   insertTab as remoteInsertTab,
+  // PR #35 — services + mashonisa remote helpers
+  fetchUserServices,
+  fetchMashonisaLoans,
+  enableUserService as remoteEnableService,
+  disableUserService as remoteDisableService,
+  insertMashonisaLoan as remoteInsertLoan,
+  updateMashonisaLoanStatus as remoteUpdateLoanStatus,
+  deleteMashonisaLoan as remoteDeleteLoan,
+  insertMashonisaRepayment as remoteInsertRepayment,
+  deleteMashonisaRepayment as remoteDeleteRepayment,
   joinStokvelByCode as remoteJoinStokvel,
   leaveStokvel as remoteLeaveStokvel,
   linkEmail as remoteLinkEmail,
@@ -206,9 +216,21 @@ export type StokvelBankAccount = {
   payshapPhone: string | null;
 };
 
+/**
+ * PR #35 — stokvel sub-types. Every stokvel picks one at creation
+ * time:
+ *   * groceries — annual food-buying stokvel (typical November payout)
+ *   * savings   — general savings group, flexible cadence
+ *   * birthdays — round-robin birthday stokvel
+ * Existing stokvels created before PR #35 are backfilled to 'savings'
+ * by migration 013.
+ */
+export type StokvelKind = "groceries" | "savings" | "birthdays";
+
 export type Stokvel = {
   id: string;
   name: string;
+  kind: StokvelKind;
   goal: number;
   members: number; // Target member count set on creation
   memberships: StokvelMember[];
@@ -277,6 +299,78 @@ export type BankTransaction = {
   createdAt: number;
 };
 
+// ---------------------------------------------------------------------------
+// Services + Mashonisa (PR #35)
+//
+// KasiKash is starting to formalise a "services" concept — each user
+// enables the services they want, and only those show up in their
+// navigation. Two services ship in this PR:
+//   * stokvel      — the savings-group feature that has been in the
+//                     app since day one, now formalised as a service
+//   * mashonisa    — new; informal money-lending loan tracker
+// See supabase/migrations/013_services_mashonisa.sql for the DB shape.
+// ---------------------------------------------------------------------------
+
+export type ServiceType = "stokvel" | "mashonisa";
+
+/** One user_services row — which services this profile has enabled. */
+export type UserService = {
+  serviceType: ServiceType;
+  enabledAt: number;
+  // Free-shape per-service preferences. Empty object by default;
+  // callers must handle missing keys gracefully.
+  config?: Record<string, unknown>;
+};
+
+export type MashonisaLoanStatus =
+  | "open"       // money is out, zero repayments received
+  | "partial"    // some repayments received, principal+interest not yet met
+  | "repaid"     // full repayment received
+  | "defaulted"; // mashonisa has given up on this loan
+
+export type MashonisaRepaymentMethod =
+  | "cash"
+  | "eft"
+  | "payshap"
+  | "card"
+  | "other";
+
+export type MashonisaRepayment = {
+  id: string;
+  loanId: string;
+  amount: number;
+  paidAt: number;
+  method: MashonisaRepaymentMethod;
+  notes?: string;
+  evidenceTier: EvidenceTier;
+};
+
+export type MashonisaLoan = {
+  id: string;
+  borrowerName: string;
+  borrowerPhone?: string;
+  amountLent: number;
+  interestPercentage: number;
+  agreedRepaymentDate?: string; // ISO YYYY-MM-DD
+  notes?: string;
+  status: MashonisaLoanStatus;
+  // Denormalised sum of repayments — kept in sync by a Postgres
+  // trigger on the mashonisa_repayments table, and by the store's
+  // add/delete repayment methods locally.
+  amountRepaid: number;
+  createdAt: number;
+  repaidAt?: number;
+  // Repayments are nested inside the loan for UI convenience. The
+  // remote hydrator flattens them from the mashonisa_repayments
+  // table back into the correct loan's `repayments` array.
+  repayments: MashonisaRepayment[];
+  // Evidence envelope — cash loans start as declared; bank-matched
+  // ones can be promoted to observed in a future PR.
+  eventType: "mashonisa_loan";
+  evidenceType?: string;
+  evidenceTier: EvidenceTier;
+};
+
 export type AppState = {
   lang: Lang | null;
   profile: Profile;
@@ -294,6 +388,9 @@ export type AppState = {
   // hydrate from bank_statements + bank_transactions in Supabase.
   bankStatements: BankStatement[];
   bankTransactions: BankTransaction[];
+  // PR #35: services + mashonisa
+  services: UserService[];
+  loans: MashonisaLoan[];
   onboarded: boolean;
 };
 
@@ -314,6 +411,14 @@ const emptyState: AppState = {
     businessName: null,
     businessType: null,
   },
+  // PR #35 — services default to just 'stokvel' locally so a fresh
+  // demo-mode user (no cloud) still sees the Stokvel service in the
+  // Services hub. Cloud users hydrate their actual services from
+  // user_services on sign-in (backfilled by migration 013).
+  services: [
+    { serviceType: "stokvel", enabledAt: Date.now() },
+  ],
+  loans: [],
   sales: [],
   expenses: [],
   tabs: [],
@@ -583,6 +688,9 @@ async function performHydrate(): Promise<void> {
       stokvelRes,
       bankStatements,
       bankTransactions,
+      // PR #35 additions
+      services,
+      loans,
     ] = await Promise.all([
       fetchProfile(uid),
       fetchSales(uid),
@@ -596,6 +704,12 @@ async function performHydrate(): Promise<void> {
       // graceful-missing-table behaviour as expenses.
       fetchBankStatements(uid),
       fetchBankTransactions(uid),
+      // PR #35 — user_services + mashonisa_loans (with nested
+      // repayments). Both tables gracefully return [] if migration
+      // 013 hasn't run yet on this project so an out-of-date
+      // Supabase instance doesn't break the app.
+      fetchUserServices(uid),
+      fetchMashonisaLoans(uid),
     ]);
 
     // Fetch payment config if a stokvel exists (needs to happen after
@@ -619,6 +733,12 @@ async function performHydrate(): Promise<void> {
       paymentConfig,
       bankStatements: bankStatements ?? state.bankStatements,
       bankTransactions: bankTransactions ?? state.bankTransactions,
+      // PR #35 — services + loans. Use fetched values if present,
+      // fall back to whatever's already in local state. A brand-new
+      // cloud user gets `stokvel` via migration 013's backfill and
+      // an empty loans array.
+      services: services.length > 0 ? services : state.services,
+      loans,
     };
 
     state = merged;
@@ -751,6 +871,9 @@ export function useStore() {
   const createStokvelAsAdmin = useCallback(
     async (input: {
       name: string;
+      // PR #35 — optional sub-type. Defaults to 'savings' in the
+      // remote layer if omitted, so pre-PR-35 callers keep working.
+      kind?: StokvelKind;
       goal: number;
       members: number;
     }): Promise<string | null> => {
@@ -1078,6 +1201,199 @@ export function useStore() {
     setState((s) => ({ tabs: [full, ...s.tabs] }));
     if (userId) sync(() => remoteInsertTab(userId!, full));
   }, []);
+
+  // -- PR #35: Services + Mashonisa ----------------------------------------
+
+  /**
+   * Turn a service on for the current user. Idempotent — enabling
+   * something already enabled is a no-op. Local-first: state
+   * updates immediately, remote sync fires in the background.
+   */
+  const enableService = useCallback(
+    async (
+      serviceType: ServiceType,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      setState((s) =>
+        s.services.some((x) => x.serviceType === serviceType)
+          ? {}
+          : {
+              services: [
+                ...s.services,
+                { serviceType, enabledAt: Date.now() },
+              ],
+            },
+      );
+      if (userId && isCloudConfigured) {
+        const result = await remoteEnableService(userId, serviceType);
+        return result;
+      }
+      return { ok: true };
+    },
+    [],
+  );
+
+  /**
+   * Turn a service off. State updates immediately. If it's the
+   * user's last service we keep at least 'stokvel' enabled locally
+   * so the app doesn't render an empty Services hub — but remote
+   * sync respects the explicit disable.
+   */
+  const disableService = useCallback(
+    async (
+      serviceType: ServiceType,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      setState((s) => ({
+        services: s.services.filter((x) => x.serviceType !== serviceType),
+      }));
+      if (userId && isCloudConfigured) {
+        return await remoteDisableService(userId, serviceType);
+      }
+      return { ok: true };
+    },
+    [],
+  );
+
+  /** Mashonisa: add a new loan (money-out event). */
+  const addMashonisaLoan = useCallback(
+    (input: {
+      borrowerName: string;
+      borrowerPhone?: string;
+      amountLent: number;
+      interestPercentage?: number;
+      agreedRepaymentDate?: string;
+      notes?: string;
+    }) => {
+      const loan: MashonisaLoan = {
+        id: crypto.randomUUID(),
+        borrowerName: input.borrowerName.trim(),
+        borrowerPhone: input.borrowerPhone?.trim() || undefined,
+        amountLent: input.amountLent,
+        interestPercentage: input.interestPercentage ?? 0,
+        agreedRepaymentDate: input.agreedRepaymentDate || undefined,
+        notes: input.notes?.trim() || undefined,
+        status: "open",
+        amountRepaid: 0,
+        createdAt: Date.now(),
+        repayments: [],
+        eventType: "mashonisa_loan",
+        evidenceType: "manual_entry",
+        evidenceTier: "declared",
+      };
+      setState((s) => ({ loans: [loan, ...s.loans] }));
+      if (userId && isCloudConfigured) {
+        sync(() => remoteInsertLoan(userId!, loan));
+      }
+      return loan;
+    },
+    [],
+  );
+
+  /** Mashonisa: manually override a loan's status (typically to
+   *  'defaulted' when the mashonisa gives up chasing). */
+  const setMashonisaLoanStatus = useCallback(
+    (loanId: string, status: MashonisaLoanStatus) => {
+      setState((s) => ({
+        loans: s.loans.map((l) =>
+          l.id === loanId ? { ...l, status } : l,
+        ),
+      }));
+      if (userId && isCloudConfigured) {
+        sync(() => remoteUpdateLoanStatus(userId!, loanId, status));
+      }
+    },
+    [],
+  );
+
+  /** Mashonisa: delete a loan (and cascades its repayments). */
+  const removeMashonisaLoan = useCallback((loanId: string) => {
+    setState((s) => ({ loans: s.loans.filter((l) => l.id !== loanId) }));
+    if (userId && isCloudConfigured) {
+      sync(() => remoteDeleteLoan(userId!, loanId));
+    }
+  }, []);
+
+  /** Mashonisa: add a repayment to an existing loan. Updates the
+   *  loan's amountRepaid + derived status locally so the UI
+   *  reflects the change immediately. The Postgres trigger keeps
+   *  the DB counter in sync on the remote side. */
+  const addMashonisaRepayment = useCallback(
+    (
+      loanId: string,
+      input: {
+        amount: number;
+        method?: MashonisaRepaymentMethod;
+        notes?: string;
+      },
+    ) => {
+      const repayment: MashonisaRepayment = {
+        id: crypto.randomUUID(),
+        loanId,
+        amount: input.amount,
+        paidAt: Date.now(),
+        method: input.method ?? "cash",
+        notes: input.notes?.trim() || undefined,
+        evidenceTier: "declared",
+      };
+      setState((s) => ({
+        loans: s.loans.map((l) => {
+          if (l.id !== loanId) return l;
+          const newTotal = l.amountRepaid + repayment.amount;
+          const target = l.amountLent * (1 + l.interestPercentage / 100);
+          const nextStatus: MashonisaLoanStatus =
+            l.status === "defaulted"
+              ? "defaulted"
+              : newTotal >= target
+                ? "repaid"
+                : "partial";
+          return {
+            ...l,
+            amountRepaid: newTotal,
+            status: nextStatus,
+            repaidAt: nextStatus === "repaid" ? Date.now() : l.repaidAt,
+            repayments: [repayment, ...l.repayments],
+          };
+        }),
+      }));
+      if (userId && isCloudConfigured) {
+        sync(() => remoteInsertRepayment(userId!, repayment));
+      }
+      return repayment;
+    },
+    [],
+  );
+
+  /** Mashonisa: remove a repayment (in case of error / adjustment). */
+  const removeMashonisaRepayment = useCallback(
+    (loanId: string, repaymentId: string) => {
+      setState((s) => ({
+        loans: s.loans.map((l) => {
+          if (l.id !== loanId) return l;
+          const removed = l.repayments.find((r) => r.id === repaymentId);
+          if (!removed) return l;
+          const newTotal = Math.max(0, l.amountRepaid - removed.amount);
+          const target = l.amountLent * (1 + l.interestPercentage / 100);
+          const nextStatus: MashonisaLoanStatus =
+            l.status === "defaulted"
+              ? "defaulted"
+              : newTotal >= target
+                ? "repaid"
+                : newTotal > 0
+                  ? "partial"
+                  : "open";
+          return {
+            ...l,
+            amountRepaid: newTotal,
+            status: nextStatus,
+            repayments: l.repayments.filter((r) => r.id !== repaymentId),
+          };
+        }),
+      }));
+      if (userId && isCloudConfigured) {
+        sync(() => remoteDeleteRepayment(userId!, repaymentId));
+      }
+    },
+    [],
+  );
 
   const markTabPaid = useCallback((id: string) => {
     setState((s) => ({
@@ -1508,6 +1824,14 @@ export function useStore() {
     markTabPaid,
     addContribution,
     startContribution,
+    // PR #35 — services + mashonisa
+    enableService,
+    disableService,
+    addMashonisaLoan,
+    setMashonisaLoanStatus,
+    removeMashonisaLoan,
+    addMashonisaRepayment,
+    removeMashonisaRepayment,
     // payments
     savePaymentConfig,
     refreshFromRemote,

@@ -1011,7 +1011,7 @@ export async function fetchUserPrimaryStokvel(
       supabase
         .from("stokvels")
         .select(
-          "id, name, goal, members, bank_name, bank_account_holder, bank_account_number, bank_branch_code, payshap_phone",
+          "id, name, kind, goal, members, bank_name, bank_account_holder, bank_account_number, bank_branch_code, payshap_phone",
         )
         .eq("id", stokvelId)
         .single(),
@@ -1046,6 +1046,16 @@ export async function fetchUserPrimaryStokvel(
   const stokvel: Stokvel = {
     id: skRow.id,
     name: skRow.name,
+    // PR #35: existing stokvels created before this migration were
+    // backfilled to 'savings'; new stokvels always have a kind. If
+    // for some reason the field is missing we fall back to
+    // 'savings' rather than throwing.
+    kind:
+      (skRow as { kind?: string }).kind === "groceries"
+        ? "groceries"
+        : (skRow as { kind?: string }).kind === "birthdays"
+          ? "birthdays"
+          : "savings",
     goal:
       typeof skRow.goal === "string" ? parseFloat(skRow.goal) : skRow.goal,
     members: skRow.members,
@@ -1060,7 +1070,7 @@ export async function fetchUserPrimaryStokvel(
 
 export async function createStokvel(
   _userId: string,
-  s: { name: string; goal: number; members: number },
+  s: { name: string; kind?: string; goal: number; members: number },
 ): Promise<string | null> {
   if (!supabase) return null;
   // We call a SECURITY DEFINER RPC instead of INSERT-ing directly because
@@ -1079,8 +1089,29 @@ export async function createStokvel(
     console.warn("[kasikash] createStokvel:", error.message);
     return null;
   }
+  const newId = typeof data === "string" ? data : null;
+  // PR #35: the RPC doesn't yet accept a kind parameter (would need
+  // its own migration + fn signature change). Set kind via a second
+  // UPDATE from the client, protected by RLS on stokvels — only the
+  // creator (now the admin) can update it. If kind is omitted or
+  // 'savings' we skip the second call since 'savings' is the DB
+  // default.
+  if (newId && s.kind && s.kind !== "savings") {
+    const { error: kindError } = await supabase
+      .from("stokvels")
+      .update({ kind: s.kind })
+      .eq("id", newId);
+    if (kindError) {
+      console.warn(
+        "[kasikash] createStokvel kind update:",
+        kindError.message,
+      );
+      // Non-fatal — the stokvel exists, it just defaults to 'savings'
+      // which the user can change later.
+    }
+  }
   // The DB trigger auto-adds the creator as an admin membership.
-  return typeof data === "string" ? data : null;
+  return newId;
 }
 
 export async function updateStokvel(
@@ -1312,4 +1343,295 @@ export async function leaveStokvel(
     .eq("user_id", userId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+
+// ---------------------------------------------------------------------------
+// PR #35 — Services + Mashonisa remote helpers
+//
+// user_services       — which services each profile has enabled
+// mashonisa_loans     — one row per loan given out
+// mashonisa_repayments — one row per repayment received
+// ---------------------------------------------------------------------------
+
+import type {
+  UserService,
+  MashonisaLoan,
+  MashonisaRepayment,
+  MashonisaLoanStatus,
+  MashonisaRepaymentMethod,
+  ServiceType,
+} from "../store";
+
+type UserServiceRow = {
+  owner_id: string;
+  service_type: string;
+  enabled_at: string;
+  config: Record<string, unknown> | null;
+};
+
+type MashonisaLoanRow = {
+  id: string;
+  owner_id: string;
+  borrower_name: string;
+  borrower_phone: string | null;
+  amount_lent: string | number;
+  interest_percentage: string | number | null;
+  agreed_repayment_date: string | null;
+  notes: string | null;
+  status: string;
+  amount_repaid: string | number | null;
+  created_at: string;
+  repaid_at: string | null;
+  event_type: string;
+  evidence_type: string | null;
+  evidence_tier: string;
+};
+
+type MashonisaRepaymentRow = {
+  id: string;
+  loan_id: string;
+  owner_id: string;
+  amount: string | number;
+  paid_at: string;
+  method: string;
+  notes: string | null;
+  evidence_tier: string;
+};
+
+function toNum(v: string | number | null | undefined): number {
+  if (v === null || v === undefined) return 0;
+  return typeof v === "string" ? parseFloat(v) : v;
+}
+
+function rowToUserService(r: UserServiceRow): UserService {
+  return {
+    serviceType: r.service_type as ServiceType,
+    enabledAt: new Date(r.enabled_at).getTime(),
+    config: r.config ?? {},
+  };
+}
+
+function rowToLoan(
+  r: MashonisaLoanRow,
+  repayments: MashonisaRepayment[],
+): MashonisaLoan {
+  return {
+    id: r.id,
+    borrowerName: r.borrower_name,
+    borrowerPhone: r.borrower_phone ?? undefined,
+    amountLent: toNum(r.amount_lent),
+    interestPercentage: toNum(r.interest_percentage),
+    agreedRepaymentDate: r.agreed_repayment_date ?? undefined,
+    notes: r.notes ?? undefined,
+    status: r.status as MashonisaLoanStatus,
+    amountRepaid: toNum(r.amount_repaid),
+    createdAt: new Date(r.created_at).getTime(),
+    repaidAt: r.repaid_at ? new Date(r.repaid_at).getTime() : undefined,
+    repayments,
+    eventType: "mashonisa_loan",
+    evidenceType: r.evidence_type ?? undefined,
+    evidenceTier: (r.evidence_tier as EvidenceTier) ?? "declared",
+  };
+}
+
+function rowToRepayment(r: MashonisaRepaymentRow): MashonisaRepayment {
+  return {
+    id: r.id,
+    loanId: r.loan_id,
+    amount: toNum(r.amount),
+    paidAt: new Date(r.paid_at).getTime(),
+    method: r.method as MashonisaRepaymentMethod,
+    notes: r.notes ?? undefined,
+    evidenceTier: (r.evidence_tier as EvidenceTier) ?? "declared",
+  };
+}
+
+// ---------- user_services ----------
+
+export async function fetchUserServices(
+  userId: string,
+): Promise<UserService[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("user_services")
+    .select("owner_id, service_type, enabled_at, config")
+    .eq("owner_id", userId);
+  if (error) {
+    console.warn("[kasikash] fetchUserServices:", error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => rowToUserService(r as UserServiceRow));
+}
+
+export async function enableUserService(
+  userId: string,
+  serviceType: ServiceType,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  // Upsert — if the row already exists we just refresh the row.
+  const { error } = await supabase
+    .from("user_services")
+    .upsert(
+      { owner_id: userId, service_type: serviceType },
+      { onConflict: "owner_id,service_type" },
+    );
+  if (error) {
+    console.warn("[kasikash] enableUserService:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+export async function disableUserService(
+  userId: string,
+  serviceType: ServiceType,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase
+    .from("user_services")
+    .delete()
+    .eq("owner_id", userId)
+    .eq("service_type", serviceType);
+  if (error) {
+    console.warn("[kasikash] disableUserService:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+// ---------- mashonisa loans + repayments ----------
+
+/**
+ * Fetch all of the user's loans + their repayments. Repayments are
+ * nested into each loan on the way out so the client's UI can
+ * iterate loans.repayments without a second join.
+ */
+export async function fetchMashonisaLoans(
+  userId: string,
+): Promise<MashonisaLoan[]> {
+  if (!supabase) return [];
+  const [{ data: loanRows, error: loanErr }, { data: repayRows, error: repayErr }] =
+    await Promise.all([
+      supabase
+        .from("mashonisa_loans")
+        .select(
+          "id, owner_id, borrower_name, borrower_phone, amount_lent, interest_percentage, agreed_repayment_date, notes, status, amount_repaid, created_at, repaid_at, event_type, evidence_type, evidence_tier",
+        )
+        .eq("owner_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("mashonisa_repayments")
+        .select(
+          "id, loan_id, owner_id, amount, paid_at, method, notes, evidence_tier",
+        )
+        .eq("owner_id", userId)
+        .order("paid_at", { ascending: false })
+        .limit(2000),
+    ]);
+  if (loanErr) {
+    console.warn("[kasikash] fetchMashonisaLoans loans:", loanErr.message);
+    return [];
+  }
+  if (repayErr) {
+    console.warn(
+      "[kasikash] fetchMashonisaLoans repayments:",
+      repayErr.message,
+    );
+    // Non-fatal — return loans with empty repayment arrays.
+  }
+  const repaymentsByLoan = new Map<string, MashonisaRepayment[]>();
+  for (const r of (repayRows ?? []) as MashonisaRepaymentRow[]) {
+    const list = repaymentsByLoan.get(r.loan_id) ?? [];
+    list.push(rowToRepayment(r));
+    repaymentsByLoan.set(r.loan_id, list);
+  }
+  return ((loanRows ?? []) as MashonisaLoanRow[]).map((r) =>
+    rowToLoan(r, repaymentsByLoan.get(r.id) ?? []),
+  );
+}
+
+export async function insertMashonisaLoan(
+  userId: string,
+  loan: MashonisaLoan,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from("mashonisa_loans").insert({
+    id: loan.id,
+    owner_id: userId,
+    borrower_name: loan.borrowerName,
+    borrower_phone: loan.borrowerPhone ?? null,
+    amount_lent: loan.amountLent,
+    interest_percentage: loan.interestPercentage,
+    agreed_repayment_date: loan.agreedRepaymentDate ?? null,
+    notes: loan.notes ?? null,
+    status: loan.status,
+    amount_repaid: 0,
+    event_type: "mashonisa_loan",
+    evidence_type: loan.evidenceType ?? "manual_entry",
+    evidence_tier: loan.evidenceTier,
+    created_at: new Date(loan.createdAt).toISOString(),
+  });
+  if (error) console.warn("[kasikash] insertMashonisaLoan:", error.message);
+}
+
+export async function updateMashonisaLoanStatus(
+  _userId: string,
+  loanId: string,
+  status: MashonisaLoanStatus,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("mashonisa_loans")
+    .update({ status })
+    .eq("id", loanId);
+  if (error)
+    console.warn("[kasikash] updateMashonisaLoanStatus:", error.message);
+}
+
+export async function deleteMashonisaLoan(
+  _userId: string,
+  loanId: string,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("mashonisa_loans")
+    .delete()
+    .eq("id", loanId);
+  if (error) console.warn("[kasikash] deleteMashonisaLoan:", error.message);
+}
+
+export async function insertMashonisaRepayment(
+  userId: string,
+  repayment: MashonisaRepayment,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("mashonisa_repayments")
+    .insert({
+      id: repayment.id,
+      loan_id: repayment.loanId,
+      owner_id: userId,
+      amount: repayment.amount,
+      paid_at: new Date(repayment.paidAt).toISOString(),
+      method: repayment.method,
+      notes: repayment.notes ?? null,
+      evidence_tier: repayment.evidenceTier,
+    });
+  if (error)
+    console.warn("[kasikash] insertMashonisaRepayment:", error.message);
+}
+
+export async function deleteMashonisaRepayment(
+  _userId: string,
+  repaymentId: string,
+): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("mashonisa_repayments")
+    .delete()
+    .eq("id", repaymentId);
+  if (error)
+    console.warn("[kasikash] deleteMashonisaRepayment:", error.message);
 }
