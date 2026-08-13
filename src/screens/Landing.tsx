@@ -235,22 +235,22 @@ function Hero({ onOpenApp }: { onOpenApp: () => void }) {
         <Reveal>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-kasi-gold/[0.08] border border-kasi-gold/30 text-kasi-gold text-xs uppercase tracking-[0.15em] mb-8">
             <Sparkles size={12} />
-            A credit passport for informal SMEs
+            Stokvels, mashonisa &amp; a credit passport
           </div>
         </Reveal>
         <Reveal delay={0.05}>
           <h1 className="font-display text-4xl md:text-6xl lg:text-7xl font-bold leading-[1.05] tracking-tight max-w-4xl">
-            A credit passport for the businesses{" "}
+            A credit passport for the money{" "}
             <span className="text-kasi-green">banks can&apos;t see.</span>
           </h1>
         </Reveal>
         <Reveal delay={0.15}>
           <p className="mt-6 text-lg md:text-xl text-white/70 max-w-2xl leading-relaxed">
-            KasiKash turns kasi hustle — cash sales, tabs, stokvel
-            contributions, bank activity — into observable evidence a
-            formal lender can trust. We&apos;re building the layer that
-            makes South Africa&apos;s informal economy underwritable
-            for the first time.
+            KasiKash gives South Africa&apos;s stokvels and mashonisa
+            the tools to run contributions, payouts and loans — and
+            turns that track record into observable evidence a formal
+            lender can trust. We&apos;re building the layer that makes
+            the kasi economy underwritable for the first time.
           </p>
         </Reveal>
         <Reveal delay={0.25}>
@@ -314,47 +314,47 @@ function InvisibleEconomy() {
       <div className="mt-10 grid md:grid-cols-2 gap-x-14 gap-y-6 text-white/80 text-lg leading-relaxed max-w-4xl">
         <Reveal delay={0.1}>
           <p>
-            South Africa has roughly{" "}
+            More than{" "}
             <span className="text-white font-semibold">
-              two million informal businesses
-            </span>
-            . Spaza shops, kasi hustles, corner traders, hair salons,
-            taxi ranks. Together they turn over an estimated R350–R450
-            billion a year — comparable to the country&apos;s largest
-            listed retailers.
+              eleven million South Africans
+            </span>{" "}
+            save through stokvels — an estimated R40+ billion a year,
+            pooled for groceries, savings, birthdays and burial.
+            Millions more borrow from a mashonisa when the month runs
+            short.
           </p>
         </Reveal>
         <Reveal delay={0.2}>
           <p>
-            But almost none of them can borrow R5,000 from a formal
-            lender. Not because they&apos;re bad borrowers — because
-            they&apos;re{" "}
+            But almost none of that discipline counts when they need
+            to borrow R5,000 from a formal lender. Not because
+            they&apos;re bad borrowers — because they&apos;re{" "}
             <span className="text-white font-semibold">invisible</span>.
           </p>
         </Reveal>
         <Reveal delay={0.3}>
           <p>
-            Bank statements show only the digital slice of their
-            income. Self-declared turnover on a loan application form
-            is unverifiable. Formal accounting is rare. The evidence
-            that a business is real and consistent is trapped in the
-            owner&apos;s head — and stays there.
+            A stokvel contribution paid on the same day every month
+            for ten years is about the clearest proof of reliability
+            there is. A repaid mashonisa loan is a credit history. But
+            it lives in a paper book or a WhatsApp group — never in a
+            form a bank can read.
           </p>
         </Reveal>
         <Reveal delay={0.4}>
           <p>
             Meanwhile the person with a formal payroll gets a R50,000
-            credit card. Not because they&apos;re more creditworthy
-            than a spaza owner turning over R30,000 a month in cash —
-            because one of them is <em>visible</em> to the system, and
-            the other one isn&apos;t.
+            credit card. Not because they&apos;re more reliable than a
+            woman who&apos;s never missed a contribution in fifteen
+            years — because one of them is <em>visible</em> to the
+            system, and the other one isn&apos;t.
           </p>
         </Reveal>
         <Reveal delay={0.5} className="md:col-span-2">
           <p className="text-white text-xl md:text-2xl font-display leading-snug pt-4 border-t border-white/10">
-            This is the informal economy&apos;s underwriting problem in
-            one sentence. And it&apos;s the only problem KasiKash
-            exists to solve.
+            This is the kasi economy&apos;s underwriting problem in one
+            sentence. And it&apos;s the only problem KasiKash exists to
+            solve.
           </p>
         </Reveal>
       </div>
@@ -383,26 +383,27 @@ function FinancialPassport() {
               &quot;does this business have a formal record?&quot;, we
               ask a better question:{" "}
               <span className="text-white font-semibold">
-                what can we actually observe about this business over
+                what can we actually observe about this person over
                 time?
               </span>
             </p>
           </Reveal>
           <Reveal delay={0.2}>
             <p>
-              Voice-logged sales become declared evidence. Bank
-              statement inflows become observed evidence. Yoco
-              transactions and matched supplier receipts become
-              verified evidence. Stokvel discipline is a behavioural
-              signal in its own right.
+              A contribution you record yourself becomes declared
+              evidence. A bank statement inflow that matches it
+              becomes observed evidence. A confirmed stokvel
+              contribution — or a repaid mashonisa loan, matched to an
+              actual payment — becomes verified evidence.
             </p>
           </Reveal>
           <Reveal delay={0.3}>
             <p>
-              Each of these has a different weight in the underwriting
-              decision. A declared cash sale is not the same as a
-              bank-matched EFT — and we don&apos;t pretend it is. What
-              emerges is a Financial Passport the business owner{" "}
+              Each of these carries a different weight in the
+              underwriting decision. A contribution you typed in
+              yourself is not the same as one confirmed by a payment —
+              and we don&apos;t pretend it is. What emerges is a
+              Financial Passport the person{" "}
               <span className="text-white font-semibold">owns</span>.
               Not a bank&apos;s opinion of them. Not a credit
               bureau&apos;s file. A living, portable document of their
@@ -430,8 +431,8 @@ function FinancialPassport() {
 const HOW_STEPS = [
   {
     icon: Mic,
-    title: "Voice-first logging",
-    body: "Say &ldquo;R50 for bread&rdquo; in isiZulu, Sesotho, Afrikaans, or English. The sale is logged. No forms, no typing, no keyboards to fight with. The app was designed for people who&rsquo;ve never written their income down before.",
+    title: "Run it in your language",
+    body: "Record a stokvel contribution or a loan repayment by voice, in isiZulu, Sesotho, Afrikaans, or English. No forms, no spreadsheets, no keyboards to fight with. Built for people who&rsquo;ve always kept the books in their head or a paper notebook.",
     accent: "text-kasi-green",
     bg: "bg-kasi-green/10",
     border: "border-kasi-green/25",
@@ -439,7 +440,7 @@ const HOW_STEPS = [
   {
     icon: Landmark,
     title: "Evidence layered on top",
-    body: "Import a bank PDF, scan a supplier receipt, connect Yoco. Each layer thickens the passport without pretending anything false. Cash sales stay honest — they don&rsquo;t magically become verified income just because they exist.",
+    body: "Import a bank PDF or match a contribution to a real payment. Each layer thickens the passport without pretending anything false. A contribution you typed in stays honest — it doesn&rsquo;t become verified income just because it exists.",
     accent: "text-kasi-gold",
     bg: "bg-kasi-gold/10",
     border: "border-kasi-gold/25",
@@ -447,7 +448,7 @@ const HOW_STEPS = [
   {
     icon: PiggyBank,
     title: "The KasiScore",
-    body: "A single number, 300&ndash;850, built transparently from the declared / observed / verified evidence mix. Improves with real behaviour — not with form-filling. Every factor is auditable and explained in the app.",
+    body: "A single number, 300&ndash;850, built transparently from the declared / observed / verified evidence mix. Improves with real behaviour — paying your stokvel, repaying a loan — not with form-filling. Every factor is auditable and explained in the app.",
     accent: "text-kasi-coral",
     bg: "bg-kasi-coral/10",
     border: "border-kasi-coral/25",
@@ -496,7 +497,7 @@ function HowItWorks() {
 // 6. Interactive KasiScore — the centerpiece
 // ---------------------------------------------------------------------------
 
-type SignalKey = "sales" | "bank" | "stokvel";
+type SignalKey = "activity" | "bank" | "confirmed";
 
 /**
  * Illustrative score model — deliberately NOT the real
@@ -506,26 +507,26 @@ type SignalKey = "sales" | "bank" | "stokvel";
  * uses richer signals, and works from actual user state.
  *
  * Chosen so the progression tells a clear story:
- *   base only         → 300  Building     (empty state)
- *   + declared sales  → 385  Building
- *   + bank statement  → 505  Fair
- *   + stokvel + bank  → 585  Fair
- *   + all three       → 645  Good
+ *   base only            → 300  Building   (empty state)
+ *   + recorded activity  → 385  Building
+ *   + bank statement     → 505  Fair
+ *   + confirmed + bank   → 585  Fair
+ *   + all three          → 645  Good
  */
 const SIGNAL_WEIGHTS: Record<SignalKey, number> = {
-  sales: 85, // 20 voice-logged sales → contribution consistency + sales_activity
+  activity: 85, // 3 months of self-recorded contributions/loans → consistency
   bank: 120, // R25k observed inflows over 3 months → evidence_confidence + volume
-  stokvel: 140, // 4 confirmed contributions → biggest single factor
+  confirmed: 140, // confirmed contributions + a repaid loan → biggest single factor
 };
 
 const SIGNAL_META: Record<
   SignalKey,
   { icon: typeof Mic; title: string; body: string; tier: string }
 > = {
-  sales: {
+  activity: {
     icon: Mic,
-    title: "Log 20 sales",
-    body: "Voice-recorded, in-language, over the last 30 days.",
+    title: "Record 3 months of activity",
+    body: "Contributions and loan payments, recorded in your language.",
     tier: "declared",
   },
   bank: {
@@ -534,10 +535,10 @@ const SIGNAL_META: Record<
     body: "R25,000 in observed inflows, 17 distinct counterparties.",
     tier: "observed",
   },
-  stokvel: {
+  confirmed: {
     icon: PiggyBank,
-    title: "Confirm stokvel contributions",
-    body: "Four weeks of confirmed monthly contributions.",
+    title: "Confirm contributions & repayments",
+    body: "Four confirmed monthly contributions, matched to payments.",
     tier: "verified",
   },
 };
@@ -551,16 +552,16 @@ function tierLabel(score: number): { label: string; color: string } {
 
 function InteractiveKasiScore() {
   const [signals, setSignals] = useState<Record<SignalKey, boolean>>({
-    sales: false,
+    activity: false,
     bank: false,
-    stokvel: false,
+    confirmed: false,
   });
 
   const score = useMemo(() => {
     let s = 300; // SCORE_MIN, same floor as production
-    if (signals.sales) s += SIGNAL_WEIGHTS.sales;
+    if (signals.activity) s += SIGNAL_WEIGHTS.activity;
     if (signals.bank) s += SIGNAL_WEIGHTS.bank;
-    if (signals.stokvel) s += SIGNAL_WEIGHTS.stokvel;
+    if (signals.confirmed) s += SIGNAL_WEIGHTS.confirmed;
     return s;
   }, [signals]);
 
@@ -664,7 +665,7 @@ function InteractiveKasiScore() {
                 <div
                   className={
                     "px-2 py-1 rounded-full " +
-                    (signals.sales
+                    (signals.activity
                       ? "bg-white/10 text-white"
                       : "bg-white/[0.03] text-white/30")
                   }
@@ -684,7 +685,7 @@ function InteractiveKasiScore() {
                 <div
                   className={
                     "px-2 py-1 rounded-full " +
-                    (signals.stokvel
+                    (signals.confirmed
                       ? "bg-kasi-green/10 text-kasi-green"
                       : "bg-white/[0.03] text-white/30")
                   }
@@ -776,8 +777,8 @@ const TIERS = [
     key: "declared",
     weight: "0.2×",
     title: "Declared",
-    example: "R100 sale, logged by voice.",
-    body: "The owner said it happened. That&rsquo;s a real signal — but it&rsquo;s the weakest kind, because we can&rsquo;t independently corroborate it. Every voice-logged cash sale sits here.",
+    example: "A R100 contribution, recorded by the member.",
+    body: "The member said it happened. That&rsquo;s a real signal — but it&rsquo;s the weakest kind, because we can&rsquo;t independently corroborate it. Every self-recorded contribution or loan sits here.",
     color: "text-white",
     ring: "border-white/20",
     bg: "bg-white/[0.03]",
@@ -787,7 +788,7 @@ const TIERS = [
     weight: "0.7×",
     title: "Observed",
     example: "R100 EFT inflow on a bank statement.",
-    body: "A real digital artefact from a trusted-enough source. Bank statement lines, imported supplier receipts, own-record transactions. We can see it happened, even if only one party is attesting.",
+    body: "A real digital artefact from a trusted-enough source. Bank statement lines, matched EFTs, own-record payments. We can see it happened, even if only one party is attesting.",
     color: "text-kasi-gold",
     ring: "border-kasi-gold/40",
     bg: "bg-kasi-gold/[0.06]",
@@ -796,8 +797,8 @@ const TIERS = [
     key: "verified",
     weight: "1.0×",
     title: "Verified",
-    example: "R100 Yoco card payment webhook.",
-    body: "Independent third-party confirmation. A Yoco transaction. A bank webhook. A confirmed stokvel contribution matched to a payment. This is the credit-grade evidence a lender can act on.",
+    example: "A R100 contribution, confirmed by the group.",
+    body: "Independent third-party confirmation. A confirmed stokvel contribution matched to a payment. A repaid mashonisa loan. A bank webhook. This is the credit-grade evidence a lender can act on.",
     color: "text-kasi-green",
     ring: "border-kasi-green/40",
     bg: "bg-kasi-green/[0.06]",
@@ -869,8 +870,8 @@ function EvidenceTiers() {
             The load-bearing rule:
           </span>{" "}
           a bank statement line saying &ldquo;R5,000 from S. Dlamini&rdquo;
-          is <em>never</em> auto-promoted to a customer sale. It stays
-          as an observed inflow with an unknown counterparty. The
+          is <em>never</em> auto-promoted to a confirmed contribution. It
+          stays as an observed inflow with an unknown counterparty. The
           system is deliberately incapable of manufacturing certainty
           it doesn&apos;t have.
         </div>
@@ -897,11 +898,11 @@ function ForFinancialInstitutions() {
           <div className="md:col-span-3 space-y-5 text-white/80 text-lg leading-relaxed">
             <Reveal delay={0.1}>
               <p>
-                If you underwrite loans for small businesses in South
-                Africa, you already know the pain: telling a real
-                R30k-a-month spaza from a form-filler is the
-                difference between a healthy portfolio and a book of
-                write-offs.
+                If you lend to individuals in South Africa&apos;s kasi
+                economy, you already know the pain: telling a member
+                who&apos;s paid her stokvel for ten years from a
+                first-time applicant with no record is the difference
+                between a healthy portfolio and a book of write-offs.
               </p>
             </Reveal>
             <Reveal delay={0.2}>
@@ -916,8 +917,8 @@ function ForFinancialInstitutions() {
                     <span className="text-white font-semibold">
                       Observed evidence
                     </span>{" "}
-                    — bank inflows, receipt scans, Yoco activity —
-                    aggregated per business over time.
+                    — contributions, loan repayments, and bank inflows
+                    — aggregated per person over time.
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -930,8 +931,8 @@ function ForFinancialInstitutions() {
                       Multi-signal risk assessment
                     </span>{" "}
                     — behaviour and consistency, not just balance.
-                    Counterparty diversity, cash-deposit cadence,
-                    stokvel discipline, tab repayment.
+                    Contribution consistency, repayment history,
+                    savings cadence, group standing.
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -941,10 +942,11 @@ function ForFinancialInstitutions() {
                   />
                   <span>
                     <span className="text-white font-semibold">
-                      A pipeline of qualified informal-SME borrowers
+                      A pipeline of qualified borrowers
                     </span>{" "}
-                    — eventually, once we&apos;ve validated the score
-                    against real repayment behaviour.
+                    — with a proven saving and repayment record, once
+                    we&apos;ve validated the score against real
+                    repayment behaviour.
                   </span>
                 </li>
               </ul>
@@ -990,43 +992,43 @@ const FAQ_ENTRIES: FaqEntry[] = [
     // sync with the FAQPage JSON-LD in index.html.
     question: "What is KasiKash?",
     answer:
-      "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, salons, taxi ranks — that turns cash sales, tabs, and stokvel contributions into a credit passport lenders trust.",
+      "KasiKash is a money app for South Africa's stokvels and mashonisa lenders that turns contributions, payouts and loan repayments into a credit passport lenders trust.",
   },
   {
     question: "How does the KasiScore work?",
     answer:
-      "The KasiScore is a 300–850 credit signal built transparently from three tiers of evidence: declared (self-reported sales), observed (bank statement inflows, receipts), and verified (Yoco transactions, confirmed stokvel contributions). Each tier has a different weight, so a Yoco-verified R100 sale counts about five times more than a voice-logged R100 cash sale. Every factor is auditable and explained inside the app.",
+      "The KasiScore is a 300-850 credit signal built transparently from your track record — stokvel contributions paid on time, loan repayments, and other verifiable financial activity. Verified evidence, like a confirmed contribution or repayment, counts far more than anything self-declared, and every factor is explained inside the app.",
   },
   {
     question: "Is KasiKash free?",
     answer:
-      "Yes. KasiKash is free forever for spaza owners, informal traders, and stokvel members. We monetize by selling credit intelligence to lenders — never by charging the small businesses using the app.",
+      "Yes. KasiKash is free for stokvel members, savings and burial-society groups, and mashonisa lenders. We monetize by offering credit intelligence to lenders — never by charging the people using the app.",
   },
   {
     question: "Who is KasiKash for?",
     answer:
-      "KasiKash is for South African informal businesses that trade mostly in cash and have never been able to prove their income to a formal lender. Spaza shops, hair salons, phone-repair guys, taxi ranks, corner traders, kasi hustles — and the stokvels those business owners participate in.",
+      "KasiKash is for South Africa's community money systems: stokvel and savings-group members, burial societies, and mashonisa (neighbourhood lenders) — the people who save and lend outside the formal banking system and have never been able to prove that discipline to a bank.",
   },
   {
     question: "What languages does KasiKash support?",
     answer:
-      "KasiKash supports four South African languages: isiZulu, Sesotho, Afrikaans, and English. Voice logging works in all four so you can say things like \u201cR50 for bread\u201d in whichever language feels natural.",
+      "KasiKash supports four South African languages: isiZulu, Sesotho, Afrikaans, and English, so you can run your stokvel or lending book in whichever language feels natural.",
   },
   {
     question: "Is my business data safe with KasiKash?",
     answer:
-      "Yes. Bank statement PDFs are parsed locally on your phone — the file itself never leaves your device. Only extracted transaction data is stored, protected by row-level security so only you can read your own records. Your Financial Passport belongs to you and is portable across lenders.",
+      "Yes. Your records are protected by row-level security so only you and the people in your group can read them. Any bank statements you add are parsed privately, and your Financial Passport belongs to you and is portable across lenders.",
   },
   {
     question: "Does KasiKash work offline?",
     answer:
-      "Yes. Sales you log while offline are queued on your phone and sync automatically the next time you're online. Designed for the reality of intermittent kasi mobile connectivity.",
+      "Yes. Contributions and loan records you capture while offline are queued on your phone and sync automatically the next time you're online. Designed for the reality of intermittent kasi mobile connectivity.",
   },
   {
     question:
-      "How is KasiKash different from apps like Flash, Shop2Shop, or Lesaka?",
+      "How is KasiKash different from a WhatsApp group or a paper stokvel book?",
     answer:
-      "Flash, Shop2Shop, and Lesaka are transaction infrastructure — they move money for informal businesses. KasiKash is credit infrastructure. We build the financial identity that turns transactions from any of those platforms (plus voice-logged cash sales, bank statements, and stokvel discipline) into an underwritable credit passport a lender can act on. We can partner with all of them, not compete.",
+      "A WhatsApp group or paper book records who paid — but that record can't be verified or turned into credit. KasiKash keeps the same contributions and loans in a structured, tamper-evident way, then converts that discipline into a credit passport a lender can act on. The trust your stokvel already runs on finally counts toward real financial access.",
   },
 ];
 
@@ -1327,7 +1329,7 @@ function Footer({ onOpenApp }: { onOpenApp: () => void }) {
           <div>
             <div className="font-display font-bold">KasiKash</div>
             <div className="text-white/40 text-xs">
-              A credit passport for informal SMEs.
+              A credit passport for stokvels &amp; mashonisa.
             </div>
           </div>
         </div>
