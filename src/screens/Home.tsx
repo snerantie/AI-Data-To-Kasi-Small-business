@@ -1,5 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import {
   FileUp,
   Mic,
@@ -7,8 +6,6 @@ import {
   UserPlus,
   TrendingUp,
   Settings as SettingsIcon,
-  Smartphone,
-  X,
 } from "lucide-react";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
@@ -22,9 +19,7 @@ import {
   kasiScore,
 } from "../store";
 import { SyncBadge } from "../components/SyncBadge";
-import { InstallSheet } from "../components/InstallSheet";
-import { useInstallPrompt } from "../hooks/useInstallPrompt";
-import { ShieldCheck } from "lucide-react";
+import { AccountNudges } from "../components/AccountNudges";
 
 export function Home({
   lang,
@@ -41,84 +36,10 @@ export function Home({
 
   const recent = state.sales.slice(0, 4);
 
-  // ─── PWA install banner (PR #29) ────────────────────────────────
-  // Small dismissible card that nudges the user to save the app to
-  // their home screen. Only shows when:
-  //   * The browser hasn't been marked "installed" (standalone mode)
-  //   * The user hasn't previously dismissed the banner in
-  //     localStorage (persistent across sessions)
-  //   * The current platform actually supports install (any mobile;
-  //     hides on desktop because Home is a mobile-first screen and
-  //     desktop users are unlikely to install)
-  // Tapping the banner opens the InstallSheet with platform-
-  // appropriate instructions.
-  const { platform, isInstalled } = useInstallPrompt();
-  const [bannerDismissed, setBannerDismissed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.localStorage.getItem("kasikash:install-banner-dismissed") === "1";
-  });
-  const [installSheetOpen, setInstallSheetOpen] = useState(false);
-
-  // Show the banner only for mobile-capable platforms where install
-  // is a realistic prospect. Desktop users generally don't add web
-  // apps to their home screen — they already have bookmarks.
-  const showInstallBanner =
-    !isInstalled &&
-    !bannerDismissed &&
-    (platform === "android-chrome" ||
-      platform === "ios-safari" ||
-      platform === "other-mobile");
-
-  const dismissBanner = () => {
-    window.localStorage.setItem("kasikash:install-banner-dismissed", "1");
-    setBannerDismissed(true);
-  };
-
-  // Close the sheet automatically if the user installs (via any
-  // path) so we don't leave a stale modal open behind the newly-
-  // launched PWA.
-  useEffect(() => {
-    if (isInstalled) setInstallSheetOpen(false);
-  }, [isInstalled]);
-
-  // ─── Back-up-your-account banner (PR #33) ───────────────────────
-  // Silent risk: a pilot user could log R30k of sales, clear their
-  // browser cache once, and lose everything — because they never
-  // linked an email or phone. The Settings section has the form,
-  // but nobody discovers it until it's too late. This banner
-  // surfaces the prompt WHERE users actually see it (Home) and
-  // only fires when it's a real risk:
-  //   * Cloud is configured (isCloud true — otherwise pointless)
-  //   * User isn't signed in yet
-  //   * They've done at least one piece of real activity so we're
-  //     not nagging fresh-onboarded users about backing up an
-  //     empty account
-  //   * They haven't dismissed the banner in localStorage
-  const hasRealActivity =
-    state.sales.length > 0 ||
-    state.tabs.length > 0 ||
-    (state.stokvel?.contributions.length ?? 0) > 0;
-  const isCloudMode = useStore().isCloud;
-  const isAnonymousUser = useStore().isAnonymous;
-  const [backupDismissed, setBackupDismissed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return (
-      window.localStorage.getItem("kasikash:backup-banner-dismissed") ===
-      "1"
-    );
-  });
-  const showBackupBanner =
-    isCloudMode &&
-    isAnonymousUser &&
-    hasRealActivity &&
-    !backupDismissed;
-  const dismissBackupBanner = () => {
-    window.localStorage.setItem(
-      "kasikash:backup-banner-dismissed",
-      "1",
-    );
-    setBackupDismissed(true);
-  };
+  // PR #37 — the install + backup nudge banners now live in a shared
+  // <AccountNudges> component (rendered below), so they also appear
+  // on the Services launcher for stokvel/mashonisa-only users who
+  // never open this business Home.
 
   const displayName = state.profile.ownerName?.trim() || "You";
   const businessName = state.profile.businessName?.trim();
@@ -169,95 +90,8 @@ export function Home({
         </div>
       </div>
 
-      {/* ----- Back up your account banner (PR #33) —
-             appears ONLY for anonymous users who have real activity.
-             Silent-data-loss protection. */}
-      <AnimatePresence>
-        {showBackupBanner && (
-          <motion.div
-            key="backup-banner"
-            initial={{ opacity: 0, y: -8, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: "auto" }}
-            exit={{ opacity: 0, y: -8, height: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mb-4 rounded-2xl border border-kasi-gold/30 bg-gradient-to-br from-kasi-gold/[0.08] to-transparent overflow-hidden"
-          >
-            <div className="p-3 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 flex items-center justify-center text-kasi-gold shrink-0">
-                <ShieldCheck size={18} />
-              </div>
-              <button
-                onClick={() => onNavigate("settings")}
-                className="flex-1 min-w-0 text-left"
-              >
-                <div className="text-sm font-semibold text-white truncate">
-                  {tr("backupBannerTitle", lang)}
-                </div>
-                <div className="text-xs text-white/60 truncate">
-                  {tr("backupBannerSub", lang)}
-                </div>
-              </button>
-              <button
-                onClick={() => onNavigate("settings")}
-                className="shrink-0 px-3 py-1.5 rounded-full bg-kasi-gold text-bg text-xs font-semibold"
-              >
-                {tr("backupBannerAction", lang)}
-              </button>
-              <button
-                onClick={dismissBackupBanner}
-                aria-label={tr("backupBannerDismiss", lang)}
-                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:bg-white/5"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ----- Install banner (PR #29) — dismissible, appears above the hero ----- */}
-      <AnimatePresence>
-        {showInstallBanner && (
-          <motion.div
-            key="install-banner"
-            initial={{ opacity: 0, y: -8, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: "auto" }}
-            exit={{ opacity: 0, y: -8, height: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mb-4 rounded-2xl border border-kasi-green/25 bg-gradient-to-br from-kasi-green/[0.08] to-transparent overflow-hidden"
-          >
-            <div className="p-3 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center text-kasi-green shrink-0">
-                <Smartphone size={18} />
-              </div>
-              <button
-                onClick={() => setInstallSheetOpen(true)}
-                className="flex-1 min-w-0 text-left"
-              >
-                <div className="text-sm font-semibold text-white truncate">
-                  {tr("installBannerTitle", lang)}
-                </div>
-                <div className="text-xs text-white/60 truncate">
-                  {tr("installBannerSub", lang)}
-                </div>
-              </button>
-              <button
-                onClick={() => setInstallSheetOpen(true)}
-                className="shrink-0 px-3 py-1.5 rounded-full bg-kasi-green text-bg text-xs font-semibold"
-              >
-                {tr("installBannerAction", lang)}
-              </button>
-              <button
-                onClick={dismissBanner}
-                aria-label={tr("installBannerDismiss", lang)}
-                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:bg-white/5"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Backup + install nudge banners (shared component). */}
+      <AccountNudges lang={lang} onNavigate={onNavigate} />
 
       {/* ----- Hero: today's takings ----- */}
       <motion.div
@@ -413,16 +247,6 @@ export function Home({
           </div>
         )}
       </div>
-      {/* PR #29 — install sheet, mounted at the end so its fixed
-          backdrop sits above every other Home surface. */}
-      <AnimatePresence>
-        {installSheetOpen && (
-          <InstallSheet
-            lang={lang}
-            onClose={() => setInstallSheetOpen(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
