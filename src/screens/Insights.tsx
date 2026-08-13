@@ -1,11 +1,14 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   FileText,
+  FileUp,
   Info,
   Lightbulb,
+  ScanLine,
   Sparkles,
   TrendingUp,
   Trophy,
@@ -98,15 +101,28 @@ export function Insights({
   const scoreLabel = tr(tierI18nKey(detail.tier), lang);
 
   return (
-    <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
-      <div className="mb-4">
-        <div className="text-white/60 text-xs uppercase tracking-wider">
-          {tr("insights", lang)}
+    <div className="h-full overflow-y-auto pb-12 px-5 pt-6">
+      {/* Back to the Services launcher — the app's home base now that
+          the business bottom nav is gone (PR #44). */}
+      <div className="flex items-start gap-3 mb-4">
+        <button
+          onClick={() => onNavigate("services")}
+          aria-label={tr("servicesNav", lang)}
+          className="mt-1 p-2 -ml-2 rounded-full text-white/70 hover:text-white"
+        >
+          <ArrowLeft size={22} />
+        </button>
+        <div className="min-w-0">
+          <div className="text-white/60 text-xs uppercase tracking-wider">
+            {tr("insights", lang)}
+          </div>
+          <div className="font-display text-2xl font-semibold">
+            {tr("creditScore", lang)}
+          </div>
+          <div className="text-sm text-white/60 mt-0.5">
+            {tr("creditSub", lang)}
+          </div>
         </div>
-        <div className="font-display text-2xl font-semibold">
-          {tr("creditScore", lang)}
-        </div>
-        <div className="text-sm text-white/60 mt-0.5">{tr("creditSub", lang)}</div>
       </div>
 
       {/* Circular score OR empty-state prompt.
@@ -129,7 +145,7 @@ export function Insights({
             </div>
           </div>
           <button
-            onClick={() => onNavigate("log")}
+            onClick={() => onNavigate("services")}
             className="mt-1 px-5 py-2.5 rounded-full bg-kasi-green text-bg text-sm font-semibold flex items-center gap-2"
           >
             {tr("scoreEmptyCta", lang)}
@@ -167,6 +183,32 @@ export function Insights({
           <ChevronRight size={20} className="text-kasi-gold" />
         </motion.button>
       )}
+
+      {/* Strengthen your passport — add observed evidence (bank
+          statement inflows, receipts) that lifts the score. Re-homed
+          here from the removed business dashboard (PR #44). */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <button
+          onClick={() => onNavigate("import")}
+          className="flex flex-col gap-2 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-left"
+        >
+          <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 text-kasi-gold flex items-center justify-center">
+            <FileUp size={18} />
+          </div>
+          <div className="text-sm font-semibold">
+            {tr("importStatementCard", lang)}
+          </div>
+        </button>
+        <button
+          onClick={() => onNavigate("scan")}
+          className="flex flex-col gap-2 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-left"
+        >
+          <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 text-kasi-gold flex items-center justify-center">
+            <ScanLine size={18} />
+          </div>
+          <div className="text-sm font-semibold">{tr("scanReceipt", lang)}</div>
+        </button>
+      </div>
 
       {/* Score breakdown */}
       <div className="mt-6">

@@ -115,7 +115,7 @@ export function PassportPreview({
               {tr("scoreEmptyBody", lang)}
             </div>
             <button
-              onClick={() => onNavigate("log")}
+              onClick={() => onNavigate("services")}
               className="mt-1 self-start px-4 py-2 rounded-full bg-kasi-green text-bg text-xs font-semibold"
             >
               {tr("scoreEmptyCta", lang)}

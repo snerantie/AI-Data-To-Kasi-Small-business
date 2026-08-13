@@ -1,9 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { BottomNav } from "./components/BottomNav";
-import { Home } from "./screens/Home";
-import { LogSale } from "./screens/LogSale";
-import { Tabs } from "./screens/Tabs";
 import { Insights } from "./screens/Insights";
 import { Onboarding } from "./screens/Onboarding";
 import { Stokvel } from "./screens/Stokvel";
@@ -37,9 +33,6 @@ type PaymentReturnState = {
 } | null;
 
 export type Screen =
-  | "home"
-  | "log"
-  | "tabs"
   | "stokvel"
   | "insights"
   | "settings"
@@ -51,25 +44,10 @@ export type Screen =
   | "services"
   | "mashonisa";
 
-// PR #36 — navigation is now service-scoped.
-//
-// The Services launcher is the landing screen (the app's "home
-// base"), NOT a bottom-nav tab. From it the user enters a service.
-//
-// The bottom nav belongs to the BUSINESS service only — it's the
-// Home(takings) / Log / Skoroskoro / Insights cluster. A user who
-// only runs a stokvel or a mashonisa loan book never sees that nav,
-// and never gets dropped into a "Today's takings" screen.
-//
-// Stokvel + Mashonisa are single full-screen services reached from
-// the launcher; each has its own back-to-launcher control, so they
-// don't need (or show) the business bottom nav.
-const SCREENS_WITH_NAV: Screen[] = [
-  "home",
-  "log",
-  "tabs",
-  "insights",
-];
+// PR #44 — the business bottom nav is gone (Home/Log/Skoroskoro were
+// removed with the food service). The Services launcher is the app's
+// home base; every screen is reached from it and returns to it via
+// its own back control. There is no persistent bottom nav.
 
 /**
  * PR #28 — path-based split between the marketing website and the app.
@@ -184,7 +162,6 @@ export default function App() {
   const lang: Lang = state.lang ?? "en";
   const onAppRoute = isAppPath(pathname);
   const onPressRoute = isPressPath(pathname);
-  const showNav = SCREENS_WITH_NAV.includes(screen);
   const mustOnboard = needsOnboarding(state);
 
   // ─────────────────────────────────────────────────────────────────
@@ -345,13 +322,6 @@ export default function App() {
                   exit={{ opacity: 0, x: -12 }}
                   transition={{ duration: 0.22 }}
                 >
-                  {screen === "home" && (
-                    <Home lang={lang} onNavigate={setScreen} />
-                  )}
-                  {screen === "log" && (
-                    <LogSale lang={lang} onNavigate={setScreen} />
-                  )}
-                  {screen === "tabs" && <Tabs lang={lang} />}
                   {screen === "stokvel" && (
                     <Stokvel
                       lang={lang}
@@ -383,9 +353,6 @@ export default function App() {
                   )}
                 </motion.div>
               </AnimatePresence>
-              {showNav && (
-                <BottomNav screen={screen} onNavigate={setScreen} lang={lang} />
-              )}
             </motion.div>
           )}
         </AnimatePresence>

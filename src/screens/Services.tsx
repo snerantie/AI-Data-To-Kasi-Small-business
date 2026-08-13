@@ -26,12 +26,12 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Check,
+  FileText,
   HandCoins,
   PiggyBank,
   Plus,
   Settings as SettingsIcon,
   Sparkles,
-  Store,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -47,10 +47,16 @@ import {
 import { SyncBadge } from "../components/SyncBadge";
 import { AccountNudges } from "../components/AccountNudges";
 
+// The food/business service was removed (PR #44). `business` still
+// exists in the ServiceType union (store + data model, kept for any
+// grandfathered rows) but is intentionally absent from the launcher
+// metadata below, so it can never be shown or entered.
+type OfferedService = Exclude<ServiceType, "business">;
+
 // Static metadata for each service. `screen` is the app Screen the
 // "Enter" button navigates to.
 const SERVICE_META: Record<
-  ServiceType,
+  OfferedService,
   {
     icon: typeof PiggyBank;
     nameKey: TKey;
@@ -82,21 +88,10 @@ const SERVICE_META: Record<
     bg: "from-kasi-gold/[0.08] to-transparent",
     iconBg: "bg-kasi-gold/15 border-kasi-gold/30 text-kasi-gold",
   },
-  business: {
-    icon: Store,
-    nameKey: "serviceBusinessName",
-    descKey: "serviceBusinessDesc",
-    screen: "home",
-    accent: "text-kasi-coral",
-    ring: "border-kasi-coral/30",
-    bg: "from-kasi-coral/[0.08] to-transparent",
-    iconBg: "bg-kasi-coral/15 border-kasi-coral/30 text-kasi-coral",
-  },
 };
 
-// Order services are shown in the launcher: business first (if
-// enabled), then the financial services.
-const ALL_SERVICES: ServiceType[] = ["business", "stokvel", "mashonisa"];
+// Order services are shown in the launcher.
+const ALL_SERVICES: OfferedService[] = ["stokvel", "mashonisa"];
 
 export function Services({
   lang,
@@ -114,16 +109,11 @@ export function Services({
   const [managing, setManaging] = useState(false);
 
   const enabledTypes = new Set(state.services.map((s) => s.serviceType));
-  // PR #39 — the food/business service is SHELVED. KasiKash is focused
-  // on the financial services (stokvels + mashonisa). We hide business
-  // from the launcher for EVERYONE — new and existing users alike — by
-  // dropping it from the offered set. We deliberately do NOT force-
-  // disable it: the row stays in state.services and in the cloud
-  // (migration 014), so the whole food side is fully reversible — just
-  // remove the `!== "business"` filter to bring it back, code intact.
-  const OFFERED_SERVICES = ALL_SERVICES.filter((s) => s !== "business");
-  const enabled = OFFERED_SERVICES.filter((s) => enabledTypes.has(s));
-  const available = OFFERED_SERVICES.filter((s) => !enabledTypes.has(s));
+  // Only the financial services are offered. A grandfathered
+  // `business` row in state.services simply never matches ALL_SERVICES,
+  // so it can't appear here.
+  const enabled = ALL_SERVICES.filter((s) => enabledTypes.has(s));
+  const available = ALL_SERVICES.filter((s) => !enabledTypes.has(s));
 
   const handleEnable = async (serviceType: ServiceType) => {
     setEnabling(serviceType);
@@ -274,6 +264,36 @@ export function Services({
           );
         })}
       </div>
+
+      {/* Credit passport — the KasiScore + Financial Passport. It's
+          cross-service (built from all your activity), so it lives on
+          the launcher rather than inside one service. Re-homed here
+          when the business dashboard was removed (PR #44). */}
+      <motion.button
+        layout
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onNavigate("insights")}
+        aria-label={tr("creditScore", lang)}
+        className="w-full text-left mt-3 rounded-3xl border border-kasi-gold/40 p-5 bg-gradient-to-br from-kasi-gold/[0.10] to-transparent"
+      >
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 bg-kasi-gold/15 border-kasi-gold/30 text-kasi-gold">
+            <FileText size={22} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display font-bold text-lg text-white">
+              {tr("creditScore", lang)}
+            </div>
+            <div className="text-white/60 text-xs mt-1 leading-relaxed">
+              {tr("creditSub", lang)}
+            </div>
+          </div>
+          <div className="shrink-0 self-center flex items-center gap-1 text-sm font-semibold text-kasi-gold">
+            {tr("servicesEnter", lang)}
+            <ArrowRight size={14} />
+          </div>
+        </div>
+      </motion.button>
 
       {/* Available (not-yet-enabled) services */}
       {available.length > 0 && (

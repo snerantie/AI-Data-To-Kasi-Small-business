@@ -160,7 +160,7 @@ export function ImportStatement({
       {/* Header */}
       <div className="flex items-center gap-3 px-5 pt-6 pb-4 border-b border-white/5">
         <button
-          onClick={() => onNavigate("home")}
+          onClick={() => onNavigate("insights")}
           className="p-2 -ml-2 rounded-full text-white/70 hover:text-white"
         >
           <ArrowLeft size={22} />
@@ -204,7 +204,7 @@ export function ImportStatement({
             bank={phase.bank}
             preview={phase.previewTx}
             onImportAnother={startOver}
-            onHome={() => onNavigate("home")}
+            onHome={() => onNavigate("insights")}
           />
         )}
       </div>
