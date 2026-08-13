@@ -114,8 +114,16 @@ export function Services({
   const [managing, setManaging] = useState(false);
 
   const enabledTypes = new Set(state.services.map((s) => s.serviceType));
-  const enabled = ALL_SERVICES.filter((s) => enabledTypes.has(s));
-  const available = ALL_SERVICES.filter((s) => !enabledTypes.has(s));
+  // PR #39 — the food/business service is SHELVED. KasiKash is focused
+  // on the financial services (stokvels + mashonisa). We hide business
+  // from the launcher for EVERYONE — new and existing users alike — by
+  // dropping it from the offered set. We deliberately do NOT force-
+  // disable it: the row stays in state.services and in the cloud
+  // (migration 014), so the whole food side is fully reversible — just
+  // remove the `!== "business"` filter to bring it back, code intact.
+  const OFFERED_SERVICES = ALL_SERVICES.filter((s) => s !== "business");
+  const enabled = OFFERED_SERVICES.filter((s) => enabledTypes.has(s));
+  const available = OFFERED_SERVICES.filter((s) => !enabledTypes.has(s));
 
   const handleEnable = async (serviceType: ServiceType) => {
     setEnabling(serviceType);
