@@ -16,6 +16,7 @@ import {
   Info,
   Zap,
   Landmark,
+  ArrowLeft,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang, TKey } from "../i18n";
@@ -40,6 +41,51 @@ import type {
 import type { Screen } from "../App";
 
 const QUICK_AMOUNTS = [50, 100, 250, 500];
+
+/**
+ * PR #37 — per-kind framing for the Stokvel screen. The underlying
+ * mechanics (contribute toward a pooled fund) are identical across
+ * kinds, but the labels change so a burial society reads as a burial
+ * society and a birthday stokvel reads as a birthday stokvel:
+ *
+ *   labelKey    — the eyebrow above the group name ("Burial society")
+ *   savedKey    — what the pooled total is called ("Fund" for burial,
+ *                  "Saved" for savings, "Pot" for birthdays)
+ *   goalKey     — what the target is called ("Cover target" for
+ *                  burial, "Goal" otherwise)
+ */
+function stokvelKindMeta(kind: StokvelKind): {
+  labelKey: TKey;
+  savedKey: TKey;
+  goalKey: TKey;
+} {
+  switch (kind) {
+    case "burial":
+      return {
+        labelKey: "stokvelKindBurial",
+        savedKey: "stokvelFundLabel",
+        goalKey: "stokvelCoverLabel",
+      };
+    case "birthdays":
+      return {
+        labelKey: "stokvelKindBirthdays",
+        savedKey: "stokvelPotLabel",
+        goalKey: "stokvelGoal",
+      };
+    case "groceries":
+      return {
+        labelKey: "stokvelKindGroceries",
+        savedKey: "stokvelSaved",
+        goalKey: "stokvelGoal",
+      };
+    default:
+      return {
+        labelKey: "stokvelKindSavings",
+        savedKey: "stokvelSaved",
+        goalKey: "stokvelGoal",
+      };
+  }
+}
 
 type Sheet =
   | null
@@ -72,11 +118,7 @@ export function Stokvel(props: {
   pendingInviteCode?: string | null;
   onInviteConsumed?: () => void;
 }) {
-  const { lang } = props;
-  // onNavigate is accepted for API symmetry with the other screens
-  // (App.tsx passes it uniformly) but this screen currently
-  // navigates via internal sheets rather than parent-driven route
-  // changes, so we don't consume it here.
+  const { lang, onNavigate } = props;
   const pendingInviteCode = props.pendingInviteCode ?? null;
   const onInviteConsumed = props.onInviteConsumed;
   const {
@@ -360,14 +402,32 @@ export function Stokvel(props: {
     return a.joinedAt - b.joinedAt;
   });
 
+  // PR #37 — the label + icon shown in the header reflect the
+  // stokvel's kind, so a burial society reads as a burial society
+  // and a birthday stokvel reads as a birthday stokvel — not all
+  // just "Stokvel". Mechanics are identical; the framing differs.
+  const kindMeta = stokvelKindMeta(stokvel.kind);
+
   return (
     <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
+      {/* Back to the Services launcher — PR #37 fix. Entering a
+          service must always offer a way back to the menu of
+          services; previously the Stokvel screen stranded the user
+          (no bottom nav, no back button). */}
+      <button
+        onClick={() => onNavigate("services")}
+        className="mb-4 flex items-center gap-1.5 text-white/60 text-sm"
+      >
+        <ArrowLeft size={16} />
+        {tr("backToServices", lang)}
+      </button>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5">
         <div className="min-w-0">
           <div className="text-white/60 text-xs uppercase tracking-wider flex items-center gap-1.5">
             <PiggyBank size={14} className="text-kasi-gold" />
-            {tr("stokvelSub", lang)}
+            {tr(kindMeta.labelKey, lang)}
           </div>
           <div className="font-display text-2xl font-semibold mt-1 truncate">
             {stokvel.name}
@@ -395,7 +455,7 @@ export function Stokvel(props: {
         <div className="relative">
           <div className="flex items-baseline justify-between mb-2">
             <div className="text-xs uppercase tracking-widest text-white/60">
-              {tr("stokvelSaved", lang)}
+              {tr(kindMeta.savedKey, lang)}
             </div>
             <div className="text-xs text-white/50 flex items-center gap-1">
               <Users size={12} />

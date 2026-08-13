@@ -3060,6 +3060,31 @@ export const t = {
     st: "Litho li kenya menehelo hammoho ho lefella litšenyehelo tsa lepato.",
     af: "Lede dra saam by om begrafniskoste te dek.",
   },
+  // PR #37 — per-kind framing on the Stokvel screen
+  stokvelFundLabel: {
+    en: "Fund",
+    zu: "Isikhwama",
+    st: "Letlole",
+    af: "Fonds",
+  },
+  stokvelPotLabel: {
+    en: "Pot",
+    zu: "Imbiza",
+    st: "Poto",
+    af: "Pot",
+  },
+  stokvelCoverLabel: {
+    en: "Cover target",
+    zu: "Umgomo wesibhelu",
+    st: "Sepheo sa tšireletso",
+    af: "Dekkingsteiken",
+  },
+  backToServices: {
+    en: "Services",
+    zu: "Izinsiza",
+    st: "Litšebeletso",
+    af: "Dienste",
+  },
 
   // =====================================================================
   // PR #35 — Mashonisa service

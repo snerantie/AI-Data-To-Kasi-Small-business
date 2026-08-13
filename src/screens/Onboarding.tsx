@@ -91,7 +91,11 @@ export function Onboarding() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const total = 4;
+  // PR #37 — the flow is 3 steps (language, name, services) for
+  // business/mashonisa-only users, and 4 (+ stokvel setup) only when
+  // a stokvel/burial group is chosen. No more redundant "you're all
+  // set" summary step.
+  const total = wantsStokvelService ? 4 : 3;
 
   const canProceed = () => {
     if (step === 0) return true;
@@ -135,7 +139,19 @@ export function Onboarding() {
       setProfile({ ownerName: ownerName.trim() });
       setStep(2);
     } else if (step === 2) {
-      setStep(3);
+      // If a stokvel/burial group was chosen, go to its setup step.
+      // Otherwise onboarding is done — finish straight from here.
+      if (wantsStokvelService) {
+        setStep(3);
+      } else {
+        setError(null);
+        setSubmitting(true);
+        try {
+          await applyAndFinish();
+        } finally {
+          setSubmitting(false);
+        }
+      }
     } else if (step === 3) {
       setError(null);
       setSubmitting(true);
@@ -286,14 +302,6 @@ export function Onboarding() {
             {step === 3 && wantsStokvelService && stokvelMode === "skip" && (
               <StokvelSkipStep lang={lang} />
             )}
-            {step === 3 && !wantsStokvelService && (
-              <ReadyStep
-                lang={lang}
-                spaza={pickSpaza}
-                food={pickFood}
-                mashonisa={pickMashonisa}
-              />
-            )}
             {error && (
               <div className="text-kasi-coral text-sm">{error}</div>
             )}
@@ -333,7 +341,7 @@ export function Onboarding() {
                 <Loader2 size={16} className="animate-spin" />
                 {tr("stokvelCreatingProgress", lang)}
               </>
-            ) : step === 3 ? (
+            ) : step === 3 || (step === 2 && !wantsStokvelService) ? (
               <>
                 {tr("onbFinish", lang)}
                 <Check size={18} />
@@ -587,51 +595,7 @@ function ServiceOption({
   );
 }
 
-/**
- * Final step for users who did NOT pick the stokvel service (which
- * has its own setup sub-flow). Confirms the services they'll see.
- */
-function ReadyStep({
-  lang,
-  spaza,
-  food,
-  mashonisa,
-}: {
-  lang: Lang;
-  spaza: boolean;
-  food: boolean;
-  mashonisa: boolean;
-}) {
-  const rows: { icon: string; label: string }[] = [];
-  if (spaza) rows.push({ icon: "🏪", label: tr("onbServiceSpaza", lang) });
-  if (food) rows.push({ icon: "🍲", label: tr("onbServiceFood", lang) });
-  if (mashonisa)
-    rows.push({ icon: "💰", label: tr("onbServiceMashonisa", lang) });
-  return (
-    <>
-      <div>
-        <h2 className="font-display text-2xl font-semibold">
-          {tr("onbReadyTitle", lang)}
-        </h2>
-        <p className="text-white/60 text-sm mt-1">
-          {tr("onbReadySubtitle", lang)}
-        </p>
-      </div>
-      <div className="flex flex-col gap-2">
-        {rows.map((r) => (
-          <div
-            key={r.label}
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/25"
-          >
-            <span className="text-xl">{r.icon}</span>
-            <span className="font-medium">{r.label}</span>
-            <Check size={16} className="ml-auto text-kasi-green" />
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
+
 
 function StokvelChoiceStep({
   lang,
