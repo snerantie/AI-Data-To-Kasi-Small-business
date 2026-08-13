@@ -104,6 +104,19 @@ export function Settings({
     }
   };
 
+  // PR #37 — Settings is now service-aware. Each user only sees the
+  // sections relevant to the services they actually use, so a
+  // mashonisa/stokvel-only user never wades through business
+  // settings, and a spaza owner never sees stokvel banking. This is
+  // the core "keep it simple like other apps" simplification —
+  // fewer, relevant sections per user instead of one long list of
+  // everything.
+  const serviceTypes = new Set(
+    state.services.map((svc) => svc.serviceType),
+  );
+  const hasBusiness = serviceTypes.has("business");
+  const hasStokvel = serviceTypes.has("stokvel");
+
   // -- Stokvel (admin only) --
   const canEditStokvel = state.stokvel?.role === "admin";
   const commitStokvelName = (v: string) => {
@@ -203,7 +216,8 @@ export function Settings({
           </div>
         </Section>
 
-        {/* ---- Business ---- */}
+        {/* ---- Business (only for users with the business service) ---- */}
+        {hasBusiness && (
         <Section
           icon={Store}
           title={tr("sectionBusiness", lang)}
@@ -241,6 +255,7 @@ export function Settings({
             {saved === "bizType" && <SavedBadge />}
           </div>
         </Section>
+        )}
 
         {/* ---- Install on this phone (PR #29) ----
              Permanent access point for the install flow. The Home
@@ -255,7 +270,8 @@ export function Settings({
           <InstallSettingsBlock lang={lang} />
         </Section>
 
-        {/* ---- Stokvel ---- */}
+        {/* ---- Stokvel (only for users with the stokvel service) ---- */}
+        {hasStokvel && (
         <Section
           icon={PiggyBank}
           title={tr("sectionStokvel", lang)}
@@ -341,6 +357,7 @@ export function Settings({
             </div>
           )}
         </Section>
+        )}
 
         {/* ---- Stokvel banking (admin only, only if stokvel exists) ----
              This section is the new default way to accept

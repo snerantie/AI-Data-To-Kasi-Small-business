@@ -62,6 +62,8 @@ const emptyState = (): AppState => ({
   // but AppState requires them so the fixture must include them.
   services: [{ serviceType: "stokvel", enabledAt: NOW }],
   loans: [],
+  // PR #36 — mashonisa receiving banking (null = not set up).
+  mashonisaBanking: null,
 });
 
 const makeSale = (

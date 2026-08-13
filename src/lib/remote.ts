@@ -1055,7 +1055,9 @@ export async function fetchUserPrimaryStokvel(
         ? "groceries"
         : (skRow as { kind?: string }).kind === "birthdays"
           ? "birthdays"
-          : "savings",
+          : (skRow as { kind?: string }).kind === "burial"
+            ? "burial"
+            : "savings",
     goal:
       typeof skRow.goal === "string" ? parseFloat(skRow.goal) : skRow.goal,
     members: skRow.members,
@@ -1634,4 +1636,79 @@ export async function deleteMashonisaRepayment(
     .eq("id", repaymentId);
   if (error)
     console.warn("[kasikash] deleteMashonisaRepayment:", error.message);
+}
+
+
+// ---------------------------------------------------------------------------
+// PR #36 — Mashonisa receiving-banking (mashonisa_banking table)
+//
+// One row per lender. Lets borrowers pay loans back via the app —
+// the lender stores where to pay once, each loan surfaces it.
+// ---------------------------------------------------------------------------
+
+import type { MashonisaBanking } from "../store";
+
+type MashonisaBankingRow = {
+  owner_id: string;
+  bank_name: string | null;
+  account_holder: string | null;
+  account_number: string | null;
+  branch_code: string | null;
+  payshap_phone: string | null;
+};
+
+export async function fetchMashonisaBanking(
+  userId: string,
+): Promise<MashonisaBanking | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("mashonisa_banking")
+    .select(
+      "owner_id, bank_name, account_holder, account_number, branch_code, payshap_phone",
+    )
+    .eq("owner_id", userId)
+    .maybeSingle();
+  if (error) {
+    console.warn("[kasikash] fetchMashonisaBanking:", error.message);
+    return null;
+  }
+  if (!data) return null;
+  const r = data as MashonisaBankingRow;
+  return {
+    bankName: r.bank_name,
+    accountHolder: r.account_holder,
+    accountNumber: r.account_number,
+    branchCode: r.branch_code,
+    payshapPhone: r.payshap_phone,
+  };
+}
+
+export async function saveMashonisaBanking(
+  userId: string,
+  banking: {
+    bankName: string;
+    accountHolder: string;
+    accountNumber: string;
+    branchCode: string;
+    payshapPhone: string;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase.from("mashonisa_banking").upsert(
+    {
+      owner_id: userId,
+      bank_name: banking.bankName || null,
+      account_holder: banking.accountHolder || null,
+      account_number: banking.accountNumber || null,
+      branch_code: banking.branchCode || null,
+      payshap_phone: banking.payshapPhone || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "owner_id" },
+  );
+  if (error) {
+    console.warn("[kasikash] saveMashonisaBanking:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }

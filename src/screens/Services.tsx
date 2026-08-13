@@ -29,14 +29,21 @@ import {
   HandCoins,
   PiggyBank,
   Plus,
+  Settings as SettingsIcon,
   Sparkles,
+  Store,
 } from "lucide-react";
 import { useState } from "react";
 import type { Screen } from "../App";
 import type { Lang, TKey } from "../i18n";
 import { tr } from "../i18n";
 import type { ServiceType } from "../store";
-import { formatRand, useStore } from "../store";
+import {
+  formatRand,
+  sumSalesToday,
+  useStore,
+} from "../store";
+import { SyncBadge } from "../components/SyncBadge";
 
 // Static metadata for each service. `screen` is the app Screen the
 // "Enter" button navigates to.
@@ -73,9 +80,21 @@ const SERVICE_META: Record<
     bg: "from-kasi-gold/[0.08] to-transparent",
     iconBg: "bg-kasi-gold/15 border-kasi-gold/30 text-kasi-gold",
   },
+  business: {
+    icon: Store,
+    nameKey: "serviceBusinessName",
+    descKey: "serviceBusinessDesc",
+    screen: "home",
+    accent: "text-kasi-coral",
+    ring: "border-kasi-coral/30",
+    bg: "from-kasi-coral/[0.08] to-transparent",
+    iconBg: "bg-kasi-coral/15 border-kasi-coral/30 text-kasi-coral",
+  },
 };
 
-const ALL_SERVICES: ServiceType[] = ["stokvel", "mashonisa"];
+// Order services are shown in the launcher: business first (if
+// enabled), then the financial services.
+const ALL_SERVICES: ServiceType[] = ["business", "stokvel", "mashonisa"];
 
 export function Services({
   lang,
@@ -84,7 +103,7 @@ export function Services({
   lang: Lang;
   onNavigate: (s: Screen) => void;
 }) {
-  const { state, enableService } = useStore();
+  const { state, syncStatus, enableService } = useStore();
   const [enabling, setEnabling] = useState<ServiceType | null>(null);
 
   const enabledTypes = new Set(state.services.map((s) => s.serviceType));
@@ -97,17 +116,36 @@ export function Services({
     setEnabling(null);
   };
 
+  const ownerName = state.profile.ownerName?.trim();
+
   return (
-    <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
-      <div className="mb-6">
-        <div className="text-white/60 text-xs uppercase tracking-wider">
-          {tr("servicesNav", lang)}
+    <div className="h-full overflow-y-auto pb-28 px-5 pt-8">
+      {/* Header — greeting + sync badge + settings gear. This is the
+          app's landing screen now, so the settings entry point lives
+          here (it used to be on the business Home). */}
+      <div className="flex items-start justify-between mb-6">
+        <div className="min-w-0">
+          {ownerName && (
+            <div className="text-white/60 text-sm">
+              {tr("greeting", lang)}
+            </div>
+          )}
+          <div className="font-display text-2xl font-bold leading-tight truncate">
+            {ownerName || tr("servicesTitle", lang)}
+          </div>
+          <div className="text-sm text-white/55 mt-0.5">
+            {tr("servicesSubtitle", lang)}
+          </div>
         </div>
-        <div className="font-display text-2xl font-semibold">
-          {tr("servicesTitle", lang)}
-        </div>
-        <div className="text-sm text-white/60 mt-0.5">
-          {tr("servicesSubtitle", lang)}
+        <div className="flex items-center gap-2 shrink-0">
+          <SyncBadge status={syncStatus} />
+          <button
+            onClick={() => onNavigate("settings")}
+            aria-label={tr("settingsTitle", lang)}
+            className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-white/70"
+          >
+            <SettingsIcon size={18} />
+          </button>
         </div>
       </div>
 
@@ -248,6 +286,11 @@ function serviceSummary(
       return sum + Math.max(0, target - l.amountRepaid);
     }, 0);
     return `${tr("mashonisaOutstandingTitle", lang)}: ${formatRand(outstanding)}`;
+  }
+  if (type === "business") {
+    const today = sumSalesToday(state.sales);
+    if (today <= 0) return null;
+    return `${tr("todayEarnings", lang)}: ${formatRand(today)}`;
   }
   return null;
 }
