@@ -6,7 +6,8 @@
     <meta name="theme-color" content="#0B0F0A" />
 
     <!-- ================================================================
-         Search-optimised meta (PR #30, tightened in PR #33)
+         Search-optimised meta (PR #30, tightened in PR #33, refocused
+         on stokvels + mashonisa in PR #40)
 
          `description` is what Google shows under the blue title in
          search results. Held under ~155 characters (the mobile
@@ -18,8 +19,8 @@
          limit for the same reason: whichever Google picks, viewers
          see a complete thought.
          ================================================================ -->
-    <meta name="description" content="A credit passport for South Africa's informal SMEs — spaza shops, salons, taxi ranks. Voice-first in isiZulu, Sesotho, Afrikaans, English. Free forever." />
-    <meta name="keywords" content="informal business finance, spaza shop app, stokvel management, KasiScore, financial passport, South Africa SME credit, voice logging isiZulu, township business" />
+    <meta name="description" content="Money tools for South Africa's stokvels and mashonisa — manage contributions, payouts and loans, and build a credit passport that lenders trust." />
+    <meta name="keywords" content="stokvel app, stokvel management, burial society app, savings group, mashonisa app, informal lending, credit passport, KasiScore, financial inclusion South Africa, township finance" />
     <meta name="author" content="Sinethemba Mvelase" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
 
@@ -72,8 +73,8 @@
          Using kasikash.com (the canonical domain) rather than the
          Vercel URL so previews stay stable across deploys. -->
     <meta property="og:site_name" content="KasiKash" />
-    <meta property="og:title" content="KasiKash — A credit passport for informal SMEs" />
-    <meta property="og:description" content="Voice-first finance for South Africa's informal small businesses. Log sales, run stokvels, build a Financial Passport lenders trust." />
+    <meta property="og:title" content="KasiKash — Stokvel & mashonisa money app + credit passport" />
+    <meta property="og:description" content="Money tools for South Africa's stokvels and mashonisa. Run contributions, payouts and loans — and build a credit passport that lenders trust." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://kasikash.com/" />
     <!-- PR #33: prefer the PNG logo asset over the SVG for
@@ -93,14 +94,14 @@
          a wide PNG hero is added later, upgrade this to
          summary_large_image and add a matching wide twitter:image. -->
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="KasiKash — A credit passport for informal SMEs" />
-    <meta name="twitter:description" content="Voice-first finance for South Africa's informal small businesses." />
+    <meta name="twitter:title" content="KasiKash — Stokvel & mashonisa money app + credit passport" />
+    <meta name="twitter:description" content="Money tools for South Africa's stokvels and mashonisa lenders — and a credit passport their track record earns." />
     <meta name="twitter:image" content="https://kasikash.com/og/kasikash-logo-1024.png" />
 
-    <title>KasiKash — A credit passport for informal SMEs in South Africa</title>
+    <title>KasiKash — Stokvel & mashonisa money app + credit passport (South Africa)</title>
 
     <!-- ================================================================
-         Structured data (JSON-LD) — PR #30
+         Structured data (JSON-LD) — PR #30, refocused in PR #40
 
          These blocks tell Google (and Bing, and DuckDuckGo, and every
          other crawler that respects schema.org) what KasiKash IS.
@@ -117,9 +118,10 @@
            3. FAQPage              → expandable Q&A rows underneath
                                      the main search result
 
-         Copy is kept in-sync with the visible Landing page copy.
-         Google penalises inconsistency between structured data and
-         page content — see the visible FAQ section in Landing.tsx.
+         Copy leads with the stokvel + mashonisa focus (the food /
+         business service is shelved). The credit-passport + KasiScore
+         thesis is unchanged — it now draws evidence from saving and
+         repayment discipline rather than shop sales.
          ================================================================ -->
 
     <script type="application/ld+json">
@@ -131,9 +133,9 @@
       "url": "https://kasikash.com/",
       "installUrl": "https://kasikash.com/app/",
       "applicationCategory": "FinanceApplication",
-      "applicationSubCategory": "Small Business Finance",
+      "applicationSubCategory": "Stokvel & Lending Management",
       "operatingSystem": "Web, iOS, Android",
-      "description": "Voice-first finance for South Africa's informal small businesses. KasiKash turns cash sales, customer tabs, and stokvel contributions into a Financial Passport that formal lenders can trust.",
+      "description": "Money tools for South Africa's stokvels and mashonisa lenders. KasiKash runs contributions, payouts and loans, and turns that saving and repayment track record into a Financial Passport that formal lenders can trust.",
       "image": "https://kasikash.com/og/kasikash-logo-1024.png",
       "screenshot": "https://kasikash.com/og/kasikash-logo-1024.png",
       "offers": {
@@ -149,18 +151,19 @@
       },
       "inLanguage": ["en", "zu", "st", "af"],
       "featureList": [
-        "Voice-first sales logging in four SA languages",
-        "Bank statement PDF / CSV parsing (local, private)",
-        "Stokvel management with contribution tracking",
-        "Customer tab tracking and repayment history",
-        "Financial Passport for informal-SME credit access",
+        "Stokvel contribution and payout tracking",
+        "Member management and shared savings goals",
+        "Savings, grocery and burial-society groups",
+        "Mashonisa loan and borrower management",
+        "Loan repayment tracking and history",
+        "Financial Passport for community-based credit access",
         "KasiScore credit signal (300-850 scale)",
-        "Receipt scanning for supplier expenses",
+        "Four SA languages: isiZulu, Sesotho, Afrikaans, English",
         "Works offline; syncs when back online"
       ],
       "audience": {
         "@type": "Audience",
-        "audienceType": "Informal small business owners",
+        "audienceType": "Stokvel members and community lenders",
         "geographicArea": {
           "@type": "Country",
           "name": "South Africa"
@@ -177,8 +180,8 @@
       "alternateName": "KasiKash Financial",
       "url": "https://kasikash.com/",
       "logo": "https://kasikash.com/og/kasikash-logo-1024.png",
-      "description": "A credit passport for South Africa's informal small businesses. Voice-first, evidence-tiered financial identity for the businesses banks can't see.",
-      "slogan": "A credit passport for the businesses banks can't see.",
+      "description": "A money app and credit passport for South Africa's stokvels and mashonisa lenders — an evidence-based financial identity for the community money systems the banks can't see.",
+      "slogan": "A credit passport for the money the banks can't see.",
       "founder": {
         "@type": "Person",
         "name": "Sinethemba Mvelase",
@@ -196,12 +199,12 @@
         "name": "South Africa"
       },
       "knowsAbout": [
-        "Financial inclusion",
-        "Informal economy underwriting",
-        "Township small business finance",
-        "Alternative credit scoring",
         "Stokvel management",
-        "Voice-first mobile apps",
+        "Savings groups and burial societies",
+        "Mashonisa and informal lending",
+        "Financial inclusion",
+        "Alternative credit scoring",
+        "Community finance",
         "Multi-language fintech (isiZulu, Sesotho, Afrikaans)"
       ],
       "contactPoint": {
@@ -223,7 +226,7 @@
           "name": "What is KasiKash?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "KasiKash is a voice-first finance app for South Africa's informal small businesses — spaza shops, salons, taxi ranks — that turns cash sales, tabs, and stokvel contributions into a credit passport lenders trust."
+            "text": "KasiKash is a money app for South Africa's stokvels and mashonisa lenders that turns contributions, payouts and loan repayments into a credit passport lenders trust."
           }
         },
         {
@@ -231,7 +234,7 @@
           "name": "How does the KasiScore work?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The KasiScore is a 300-850 credit signal built transparently from three tiers of evidence: declared (self-reported sales), observed (bank statement inflows, receipts), and verified (Yoco transactions, confirmed stokvel contributions). Each tier has a different weight, so a Yoco-verified R100 sale counts about five times more than a voice-logged R100 cash sale. Every factor is auditable and explained inside the app."
+            "text": "The KasiScore is a 300-850 credit signal built transparently from your track record — stokvel contributions paid on time, loan repayments, and other verifiable financial activity. Verified evidence, like a confirmed contribution or repayment, counts far more than anything self-declared, and every factor is explained inside the app."
           }
         },
         {
@@ -239,7 +242,7 @@
           "name": "Is KasiKash free?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. KasiKash is free forever for spaza owners, informal traders, and stokvel members. We monetize by selling credit intelligence to lenders — never by charging the small businesses using the app."
+            "text": "Yes. KasiKash is free for stokvel members, savings and burial-society groups, and mashonisa lenders. We monetize by offering credit intelligence to lenders — never by charging the people using the app."
           }
         },
         {
@@ -247,7 +250,7 @@
           "name": "Who is KasiKash for?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "KasiKash is for South African informal businesses that trade mostly in cash and have never been able to prove their income to a formal lender. Spaza shops, hair salons, phone-repair guys, taxi ranks, corner traders, kasi hustles — and the stokvels those business owners participate in."
+            "text": "KasiKash is for South Africa's community money systems: stokvel and savings-group members, burial societies, and mashonisa (neighbourhood lenders) — the people who save and lend outside the formal banking system and have never been able to prove that discipline to a bank."
           }
         },
         {
@@ -255,15 +258,15 @@
           "name": "What languages does KasiKash support?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "KasiKash supports four South African languages: isiZulu, Sesotho, Afrikaans, and English. Voice logging works in all four so you can say things like 'R50 for bread' in whichever language feels natural."
+            "text": "KasiKash supports four South African languages: isiZulu, Sesotho, Afrikaans, and English, so you can run your stokvel or lending book in whichever language feels natural."
           }
         },
         {
           "@type": "Question",
-          "name": "Is my business data safe with KasiKash?",
+          "name": "Is my data safe with KasiKash?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Bank statement PDFs are parsed locally on your phone — the file itself never leaves your device. Only extracted transaction data is stored, protected by row-level security so only you can read your own records. Your Financial Passport belongs to you and is portable across lenders."
+            "text": "Yes. Your records are protected by row-level security so only you and the people in your group can read them. Any bank statements you add are parsed privately, and your Financial Passport belongs to you and is portable across lenders."
           }
         },
         {
@@ -271,15 +274,15 @@
           "name": "Does KasiKash work offline?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Sales you log while offline are queued on your phone and sync automatically the next time you're online. Designed for the reality of intermittent kasi mobile connectivity."
+            "text": "Yes. Contributions and loan records you capture while offline are queued on your phone and sync automatically the next time you're online. Designed for the reality of intermittent kasi mobile connectivity."
           }
         },
         {
           "@type": "Question",
-          "name": "How is KasiKash different from apps like Flash, Shop2Shop, or Lesaka?",
+          "name": "How is KasiKash different from a WhatsApp group or a paper stokvel book?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Flash, Shop2Shop, and Lesaka are transaction infrastructure — they move money for informal businesses. KasiKash is credit infrastructure. We build the financial identity that turns transactions from any of those platforms (plus voice-logged cash sales, bank statements, and stokvel discipline) into an underwritable credit passport a lender can act on. We can partner with all of them, not compete."
+            "text": "A WhatsApp group or paper book records who paid — but that record can't be verified or turned into credit. KasiKash keeps the same contributions and loans in a structured, tamper-evident way, then converts that discipline into a credit passport a lender can act on. The trust your stokvel already runs on finally counts toward real financial access."
           }
         }
       ]
