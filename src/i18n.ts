@@ -756,6 +756,17 @@ export const t = {
   // ---------------------------------------------------------------------
   settingsTitle: { en: "Settings", zu: "Amasethingi", st: "Litlhophiso", af: "Instellings" },
 
+  // PR #38 — read-only-until-Edit pattern for the business/stokvel
+  // detail sections (was always-editable, which looked unprofessional).
+  settingsEditBtn: { en: "Edit", zu: "Hlela", st: "Fetola", af: "Wysig" },
+  settingsDoneBtn: { en: "Done", zu: "Kwenziwe", st: "E entsoe", af: "Klaar" },
+  settingsNotSet: {
+    en: "Not set",
+    zu: "Akusethiwe",
+    st: "Ha e a behoa",
+    af: "Nie gestel nie",
+  },
+
   sectionProfile: { en: "You", zu: "Wena", st: "Uena", af: "Jy" },
   sectionBusiness: {
     en: "Your business",
@@ -2961,6 +2972,25 @@ export const t = {
     zu: "Vula",
     st: "Bula",
     af: "Skakel aan",
+  },
+  // PR #38 — manage mode (remove a service you don't use)
+  servicesManage: {
+    en: "Manage",
+    zu: "Phatha",
+    st: "Laola",
+    af: "Bestuur",
+  },
+  servicesDone: {
+    en: "Done",
+    zu: "Kwenziwe",
+    st: "Ho felile",
+    af: "Klaar",
+  },
+  servicesRemove: {
+    en: "Remove",
+    zu: "Susa",
+    st: "Tlosa",
+    af: "Verwyder",
   },
 
   // Service names + descriptions

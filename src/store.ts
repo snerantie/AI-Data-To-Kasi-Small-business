@@ -1321,15 +1321,30 @@ export function useStore() {
       });
       if (userId && isCloudConfigured) {
         const target = new Set(unique);
-        // Enable additions.
+        // IMPORTANT (bug fix): these remote writes are AWAITED, not
+        // fire-and-forget. Onboarding calls createStokvelAsAdmin
+        // first, which triggers a hydrate that overwrites local
+        // `services` with whatever the cloud currently holds — and
+        // for an existing user the cloud may still carry a
+        // `business` row backfilled by migration 014. If the
+        // enable/disable here were fire-and-forget, a subsequent
+        // hydrate (realtime sub, auth event) could race ahead of the
+        // DELETE and resurrect `business`, dropping a stokvel-only
+        // user onto the takings dashboard. Awaiting the DB writes
+        // makes the cloud authoritative before we move on.
+        const ops: Promise<unknown>[] = [];
         for (const t of unique) {
-          sync(() => remoteEnableService(userId!, t));
+          ops.push(remoteEnableService(userId!, t));
         }
-        // Remove ones no longer wanted.
         for (const t of Array.from(prev)) {
           if (!target.has(t)) {
-            sync(() => remoteDisableService(userId!, t));
+            ops.push(remoteDisableService(userId!, t));
           }
+        }
+        try {
+          await Promise.all(ops);
+        } catch (err) {
+          console.warn("[kasikash] setEnabledServices sync:", err);
         }
       }
     },

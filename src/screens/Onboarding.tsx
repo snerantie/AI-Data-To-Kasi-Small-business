@@ -115,11 +115,14 @@ export function Onboarding() {
   };
 
   // Apply the service selection + business profile, then complete
-  // onboarding. Called from the final step.
-  const applyAndFinish = async () => {
-    // Persist business profile (type + name fallback) only if a
-    // business service was chosen; otherwise clear it so a
-    // stokvel/mashonisa-only user isn't tagged as a business.
+  // onboarding. Persists the profile + the exact chosen service set
+  // to the cloud (awaited). MUST run BEFORE createStokvelAsAdmin so
+  // that the stokvel-create hydrate reads the correct, authoritative
+  // service set from the cloud — otherwise a stale `business` row
+  // (backfilled by migration 014 for existing users) gets pulled
+  // back into local state and drops a stokvel-only user onto the
+  // takings dashboard.
+  const applyServiceSelection = async () => {
     setProfile({
       businessType: chosenBusinessType,
       businessName: businessChosen
@@ -127,7 +130,6 @@ export function Onboarding() {
         : null,
     });
     await setEnabledServices(chosenServices);
-    finishOnboarding();
   };
 
   const next = async () => {
@@ -147,7 +149,8 @@ export function Onboarding() {
         setError(null);
         setSubmitting(true);
         try {
-          await applyAndFinish();
+          await applyServiceSelection();
+          finishOnboarding();
         } finally {
           setSubmitting(false);
         }
@@ -156,6 +159,9 @@ export function Onboarding() {
       setError(null);
       setSubmitting(true);
       try {
+        // Persist the chosen services FIRST so the subsequent
+        // stokvel-create hydrate reads the authoritative cloud set.
+        await applyServiceSelection();
         // Stokvel setup only runs if the user picked the stokvel
         // service AND chose create/join (not skip).
         if (wantsStokvelService && stokvelMode === "create") {
@@ -185,7 +191,7 @@ export function Onboarding() {
             return;
           }
         }
-        await applyAndFinish();
+        finishOnboarding();
       } finally {
         setSubmitting(false);
       }
