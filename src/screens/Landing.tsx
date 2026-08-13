@@ -281,7 +281,7 @@ function Hero({ onOpenApp }: { onOpenApp: () => void }) {
           <div className="mt-14 flex flex-wrap items-center gap-x-8 gap-y-3 text-white/50 text-sm">
             <div className="flex items-center gap-2">
               <CircleCheck size={14} className="text-kasi-green" />
-              Voice-first, four languages
+              Voice-first, five languages
             </div>
             <div className="flex items-center gap-2">
               <CircleCheck size={14} className="text-kasi-green" />
@@ -432,7 +432,7 @@ const HOW_STEPS = [
   {
     icon: Mic,
     title: "Run it in your language",
-    body: "Record a stokvel contribution or a loan repayment by voice, in isiZulu, Sesotho, Afrikaans, or English. No forms, no spreadsheets, no keyboards to fight with. Built for people who&rsquo;ve always kept the books in their head or a paper notebook.",
+    body: "Record a stokvel contribution or a loan repayment by voice, in isiZulu, Sesotho, Afrikaans, English, or Tshivenḓa. No forms, no spreadsheets, no keyboards to fight with. Built for people who&rsquo;ve always kept the books in their head or a paper notebook.",
     accent: "text-kasi-green",
     bg: "bg-kasi-green/10",
     border: "border-kasi-green/25",
@@ -1012,7 +1012,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
   {
     question: "What languages does KasiKash support?",
     answer:
-      "KasiKash supports four South African languages: isiZulu, Sesotho, Afrikaans, and English, so you can run your stokvel or lending book in whichever language feels natural.",
+      "KasiKash supports five South African languages: isiZulu, Sesotho, Afrikaans, English, and Tshivenḓa, so you can run your stokvel or lending book in whichever language feels natural.",
   },
   {
     question: "Is my business data safe with KasiKash?",
