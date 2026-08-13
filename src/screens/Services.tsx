@@ -32,6 +32,7 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Store,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import type { Screen } from "../App";
@@ -104,8 +105,13 @@ export function Services({
   lang: Lang;
   onNavigate: (s: Screen) => void;
 }) {
-  const { state, syncStatus, enableService } = useStore();
+  const { state, syncStatus, enableService, disableService } = useStore();
   const [enabling, setEnabling] = useState<ServiceType | null>(null);
+  // PR #38 — "manage" mode lets the user REMOVE a service they don't
+  // use. This is how, e.g., an existing user whose `business` service
+  // was auto-backfilled can drop it so they stop seeing the takings
+  // dashboard card.
+  const [managing, setManaging] = useState(false);
 
   const enabledTypes = new Set(state.services.map((s) => s.serviceType));
   const enabled = ALL_SERVICES.filter((s) => enabledTypes.has(s));
@@ -115,6 +121,14 @@ export function Services({
     setEnabling(serviceType);
     await enableService(serviceType);
     setEnabling(null);
+  };
+
+  const handleDisable = async (serviceType: ServiceType) => {
+    await disableService(serviceType);
+    // If that was the last enabled service the Manage toggle vanishes,
+    // so drop out of manage mode to avoid a stuck state. `enabled` is
+    // captured at render time — length 1 means we just removed the last.
+    if (enabled.length <= 1) setManaging(false);
   };
 
   const ownerName = state.profile.ownerName?.trim();
@@ -150,6 +164,22 @@ export function Services({
         </div>
       </div>
 
+      {/* Manage toggle — lets the user remove services they don't use.
+          Only shown when they have at least one service to manage. */}
+      {enabled.length > 0 && (
+        <div className="flex justify-end -mt-2 mb-3">
+          <button
+            onClick={() => setManaging((v) => !v)}
+            className={
+              "text-sm font-medium " +
+              (managing ? "text-kasi-green" : "text-white/50")
+            }
+          >
+            {managing ? tr("servicesDone", lang) : tr("servicesManage", lang)}
+          </button>
+        </div>
+      )}
+
       {/* Backup + install nudges — on the launcher so EVERY user sees
           them, including stokvel/mashonisa-only users who never open
           the business Home. This is where they learn to secure their
@@ -167,12 +197,19 @@ export function Services({
               key={type}
               layout
               whileTap={{ scale: 0.98 }}
-              onClick={() => onNavigate(meta.screen)}
+              onClick={() =>
+                managing ? handleDisable(type) : onNavigate(meta.screen)
+              }
+              aria-label={
+                managing
+                  ? `${tr("servicesRemove", lang)} ${tr(meta.nameKey, lang)}`
+                  : `${tr("servicesEnter", lang)} ${tr(meta.nameKey, lang)}`
+              }
               className={
                 "w-full text-left rounded-3xl border p-5 bg-gradient-to-br " +
-                meta.ring +
-                " " +
-                meta.bg
+                (managing
+                  ? "border-kasi-coral/40 from-kasi-coral/[0.06] to-transparent"
+                  : meta.ring + " " + meta.bg)
               }
             >
               <div className="flex items-start gap-4">
@@ -203,15 +240,27 @@ export function Services({
                     </div>
                   )}
                 </div>
-                <div
-                  className={
-                    "shrink-0 self-center flex items-center gap-1 text-sm font-semibold " +
-                    meta.accent
-                  }
-                >
-                  {tr("servicesEnter", lang)}
-                  <ArrowRight size={14} />
-                </div>
+                {managing ? (
+                  <div className="shrink-0 self-center flex items-center gap-1 text-sm font-semibold text-kasi-coral">
+                    <span
+                      className="w-8 h-8 rounded-full bg-kasi-coral/15 border border-kasi-coral/30 flex items-center justify-center"
+                      aria-hidden
+                    >
+                      <X size={16} />
+                    </span>
+                    {tr("servicesRemove", lang)}
+                  </div>
+                ) : (
+                  <div
+                    className={
+                      "shrink-0 self-center flex items-center gap-1 text-sm font-semibold " +
+                      meta.accent
+                    }
+                  >
+                    {tr("servicesEnter", lang)}
+                    <ArrowRight size={14} />
+                  </div>
+                )}
               </div>
             </motion.button>
           );

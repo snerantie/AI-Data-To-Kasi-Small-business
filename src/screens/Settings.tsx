@@ -68,6 +68,13 @@ export function Settings({
   const [saved, setSaved] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  // PR #38 — business & stokvel details are shown READ-ONLY by
+  // default and only become editable when the user deliberately taps
+  // "Edit". Always-on input fields made Settings look unfinished /
+  // unprofessional; this matches the standard "view value, tap to
+  // change" pattern of iOS/Android settings.
+  const [editBusiness, setEditBusiness] = useState(false);
+  const [editStokvel, setEditStokvel] = useState(false);
 
   const flashSaved = (key: string) => {
     setSaved(key);
@@ -223,37 +230,68 @@ export function Settings({
           title={tr("sectionBusiness", lang)}
           accent="gold"
         >
-          <Field
-            label={tr("onbBusinessNameLabel", lang)}
-            value={state.profile.businessName ?? ""}
-            onCommit={commitBusinessName}
-            saved={saved === "bizName"}
-          />
-          <div className="mt-3">
-            <div className="text-[11px] uppercase tracking-wider text-white/50 mb-1.5">
-              {tr("onbBusinessTypeLabel", lang)}
+          {!editBusiness ? (
+            // Read-only summary + a deliberate Edit affordance.
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-base font-medium truncate">
+                  {state.profile.businessName?.trim() ||
+                    tr("settingsNotSet", lang)}
+                </div>
+                <div className="text-white/50 text-sm mt-0.5">
+                  {state.profile.businessType
+                    ? tr(bizKey(state.profile.businessType), lang)
+                    : tr("settingsNotSet", lang)}
+                </div>
+              </div>
+              <button
+                onClick={() => setEditBusiness(true)}
+                className="shrink-0 text-sm font-medium text-kasi-gold"
+              >
+                {tr("settingsEditBtn", lang)}
+              </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {BUSINESS_TYPES.map((b) => {
-                const active = state.profile.businessType === b;
-                return (
-                  <button
-                    key={b}
-                    onClick={() => commitBusinessType(b)}
-                    className={
-                      "py-2 rounded-xl text-xs font-medium transition-colors " +
-                      (active
-                        ? "bg-kasi-gold text-bg"
-                        : "bg-bg-card border border-white/5 text-white/70")
-                    }
-                  >
-                    {tr(bizKey(b), lang)}
-                  </button>
-                );
-              })}
-            </div>
-            {saved === "bizType" && <SavedBadge />}
-          </div>
+          ) : (
+            <>
+              <Field
+                label={tr("onbBusinessNameLabel", lang)}
+                value={state.profile.businessName ?? ""}
+                onCommit={commitBusinessName}
+                saved={saved === "bizName"}
+              />
+              <div className="mt-3">
+                <div className="text-[11px] uppercase tracking-wider text-white/50 mb-1.5">
+                  {tr("onbBusinessTypeLabel", lang)}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {BUSINESS_TYPES.map((b) => {
+                    const active = state.profile.businessType === b;
+                    return (
+                      <button
+                        key={b}
+                        onClick={() => commitBusinessType(b)}
+                        className={
+                          "py-2 rounded-xl text-xs font-medium transition-colors " +
+                          (active
+                            ? "bg-kasi-gold text-bg"
+                            : "bg-bg-card border border-white/5 text-white/70")
+                        }
+                      >
+                        {tr(bizKey(b), lang)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {saved === "bizType" && <SavedBadge />}
+              </div>
+              <button
+                onClick={() => setEditBusiness(false)}
+                className="mt-4 w-full py-2.5 rounded-xl bg-bg-card border border-white/10 text-white/80 text-sm font-medium"
+              >
+                {tr("settingsDoneBtn", lang)}
+              </button>
+            </>
+          )}
         </Section>
         )}
 
@@ -289,7 +327,7 @@ export function Settings({
                 {tr("stokvelNav", lang)} →
               </button>
             </div>
-          ) : canEditStokvel ? (
+          ) : canEditStokvel && editStokvel ? (
             <>
               <Field
                 label={tr("onbStokvelNameLabel", lang)}
@@ -313,15 +351,35 @@ export function Settings({
                   min={1}
                 />
               </div>
-              <div className="mt-3 text-xs text-white/50">
-                Goal:{" "}
-                <span className="text-kasi-gold font-semibold">
-                  {formatRand(state.stokvel.goal)}
-                </span>{" "}
-                &middot; {state.stokvel.memberships.length}/{state.stokvel.members}{" "}
-                {tr("stokvelMembers", lang)}
-              </div>
+              <button
+                onClick={() => setEditStokvel(false)}
+                className="mt-4 w-full py-2.5 rounded-xl bg-bg-card border border-white/10 text-white/80 text-sm font-medium"
+              >
+                {tr("settingsDoneBtn", lang)}
+              </button>
             </>
+          ) : canEditStokvel ? (
+            // Admin read-only summary + Edit affordance.
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-base font-medium truncate">
+                  {state.stokvel.name}
+                </div>
+                <div className="text-white/50 text-sm mt-0.5">
+                  <span className="text-kasi-gold font-semibold">
+                    {formatRand(state.stokvel.goal)}
+                  </span>{" "}
+                  &middot; {state.stokvel.memberships.length}/
+                  {state.stokvel.members} {tr("stokvelMembers", lang)}
+                </div>
+              </div>
+              <button
+                onClick={() => setEditStokvel(true)}
+                className="shrink-0 text-sm font-medium text-kasi-gold"
+              >
+                {tr("settingsEditBtn", lang)}
+              </button>
+            </div>
           ) : (
             // Non-admin (regular member): read-only view
             <div className="flex flex-col gap-2">
