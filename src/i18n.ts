@@ -401,10 +401,11 @@ export const t = {
   // Insights
   creditScore: { en: "KasiScore", zu: "i-KasiScore", st: "KasiScore", af: "KasiScore" },
   creditSub: {
-    en: "Your business's financial passport",
-    zu: "Ipasi yezimali yebhizinisi lakho",
-    st: "Pasa ea lichelete tsa khoebo ea hao",
-    af: "Jou besigheid se finansiële paspoort",
+    en: "Your financial passport",
+    zu: "Ipasi yakho yezimali",
+    st: "Pasa ea hao ea lichelete",
+    af: "Jou finansiële paspoort",
+    ve: "Phasiphoto yaṋu ya masheleni",
   },
   weekProfit: {
     en: "This week's profit",
@@ -2460,10 +2461,11 @@ export const t = {
     af: "Teken 'n verkoop aan, voeg 'n kliëntrekening by, of sluit by 'n stokvel aan — elke werklike aksie begin jou bewyse bou.",
   },
   scoreEmptyCta: {
-    en: "Log your first sale",
-    zu: "Bhalisa ukuthengisa kwakho kokuqala",
-    st: "Ngola thekiso ea hao ea pele",
-    af: "Teken jou eerste verkoop aan",
+    en: "Get started",
+    zu: "Qalisa",
+    st: "Qala",
+    af: "Kom aan die gang",
+    ve: "Thomani",
   },
   pdfNoScoreYet: {
     en: "Not enough activity yet. The KasiScore will appear once real business events have been logged (sales, expenses, contributions, or bank activity).",
