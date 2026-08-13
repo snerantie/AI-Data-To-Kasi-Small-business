@@ -12,9 +12,10 @@ import {
 import type { ServiceType, StokvelKind } from "../store";
 import { useStore } from "../store";
 import type { Lang } from "../i18n";
-import { LANGS, tr, trParams } from "../i18n";
+import { tr, trParams } from "../i18n";
 import { normalizeInviteCode } from "../lib/inviteLink";
 import { Logo } from "../components/Logo";
+import { LanguageSelect } from "../components/LanguageSelect";
 
 type Step = 0 | 1 | 2 | 3;
 
@@ -366,47 +367,7 @@ function LanguageStep({
           {tr("onbChooseLang", lang)}
         </h2>
       </div>
-      <div className="flex flex-col gap-3">
-        {LANGS.map((l) => {
-          const active = pick === l.code;
-          return (
-            <motion.button
-              key={l.code}
-              onClick={() => setPick(l.code)}
-              whileTap={{ scale: 0.98 }}
-              className={
-                "w-full flex items-center justify-between px-5 py-4 rounded-2xl border transition-all " +
-                (active
-                  ? "bg-kasi-green/15 border-kasi-green shadow-glow"
-                  : "bg-bg-card border-white/5 hover:border-white/10")
-              }
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={
-                    "w-10 h-10 rounded-xl flex items-center justify-center font-display font-bold text-sm " +
-                    (active
-                      ? "bg-kasi-green text-bg"
-                      : "bg-white/5 text-white/70")
-                  }
-                >
-                  {l.flag}
-                </div>
-                <div className="text-left">
-                  <div className="font-medium">{l.native}</div>
-                  <div className="text-xs text-white/50">{l.label}</div>
-                </div>
-              </div>
-              <div
-                className={
-                  "w-5 h-5 rounded-full border-2 " +
-                  (active ? "border-kasi-green bg-kasi-green" : "border-white/20")
-                }
-              />
-            </motion.button>
-          );
-        })}
-      </div>
+      <LanguageSelect value={pick} onChange={setPick} />
     </>
   );
 }
