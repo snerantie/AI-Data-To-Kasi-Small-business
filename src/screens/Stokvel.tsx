@@ -1060,6 +1060,11 @@ function CreateStokvelSheet({
       labelKey: "stokvelKindBirthdays",
       descKey: "stokvelKindBirthdaysDesc",
     },
+    {
+      value: "burial",
+      labelKey: "stokvelKindBurial",
+      descKey: "stokvelKindBurialDesc",
+    },
   ];
 
   return (

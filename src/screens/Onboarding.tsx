@@ -9,7 +9,7 @@ import {
   KeyRound,
   SkipForward,
 } from "lucide-react";
-import type { BusinessType, ServiceType } from "../store";
+import type { BusinessType, ServiceType, StokvelKind } from "../store";
 import { useStore } from "../store";
 import type { Lang } from "../i18n";
 import { LANGS, tr, trParams } from "../i18n";
@@ -52,6 +52,17 @@ export function Onboarding() {
   const [pickFood, setPickFood] = useState(false);
   const [pickMashonisa, setPickMashonisa] = useState(false);
   const [pickStokvel, setPickStokvel] = useState(false);
+  // PR #37 — burial society is a stokvel kind, so picking it enables
+  // the stokvel service and seeds the group's kind to 'burial'.
+  const [pickBurial, setPickBurial] = useState(false);
+
+  // Either a regular stokvel or a burial society uses the stokvel
+  // service + setup flow.
+  const wantsStokvelService = pickStokvel || pickBurial;
+  // Which kind to seed the onboarding stokvel creation with. Burial
+  // wins only when the user picked burial but NOT a regular stokvel.
+  const onboardingStokvelKind: StokvelKind =
+    pickBurial && !pickStokvel ? "burial" : "savings";
 
   const businessChosen = pickSpaza || pickFood;
   // If both business options are picked we record 'spaza' as the
@@ -65,7 +76,7 @@ export function Onboarding() {
   const chosenServices: ServiceType[] = [
     ...(businessChosen ? (["business"] as ServiceType[]) : []),
     ...(pickMashonisa ? (["mashonisa"] as ServiceType[]) : []),
-    ...(pickStokvel ? (["stokvel"] as ServiceType[]) : []),
+    ...(wantsStokvelService ? (["stokvel"] as ServiceType[]) : []),
   ];
   const anyServiceChosen = chosenServices.length > 0;
 
@@ -88,9 +99,9 @@ export function Onboarding() {
     // Step 2 — must pick at least one service.
     if (step === 2) return anyServiceChosen;
     if (step === 3) {
-      // If the user didn't choose the stokvel service, step 3 is a
+      // If the user didn't choose a stokvel/burial group, step 3 is a
       // simple "you're all set" summary — always proceedable.
-      if (!pickStokvel) return true;
+      if (!wantsStokvelService) return true;
       if (stokvelMode === "choose") return false;
       if (stokvelMode === "skip") return true;
       if (stokvelMode === "create") return stokvelName.trim().length >= 1;
@@ -131,9 +142,10 @@ export function Onboarding() {
       try {
         // Stokvel setup only runs if the user picked the stokvel
         // service AND chose create/join (not skip).
-        if (pickStokvel && stokvelMode === "create") {
+        if (wantsStokvelService && stokvelMode === "create") {
           const id = await createStokvelAsAdmin({
             name: stokvelName.trim(),
+            kind: onboardingStokvelKind,
             goal: Number(stokvelGoal) || 5000,
             members: Number(stokvelMembers) || 1,
           });
@@ -141,7 +153,7 @@ export function Onboarding() {
             setError("Could not create stokvel — please try again.");
             return;
           }
-        } else if (pickStokvel && stokvelMode === "join") {
+        } else if (wantsStokvelService && stokvelMode === "join") {
           const canonical = normalizeInviteCode(joinCode);
           if (!canonical) {
             setError(tr("stokvelJoinInvalid", lang));
@@ -165,7 +177,7 @@ export function Onboarding() {
   };
 
   const back = () => {
-    if (step === 3 && pickStokvel && stokvelMode !== "choose") {
+    if (step === 3 && wantsStokvelService && stokvelMode !== "choose") {
       // On the stokvel setup sub-step, "Back" first returns to the
       // choice screen.
       setStokvelMode("choose");
@@ -238,12 +250,14 @@ export function Onboarding() {
                 setPickMashonisa={setPickMashonisa}
                 pickStokvel={pickStokvel}
                 setPickStokvel={setPickStokvel}
+                pickBurial={pickBurial}
+                setPickBurial={setPickBurial}
               />
             )}
             {/* Step 3 — stokvel setup ONLY if the user picked the
                 stokvel service; otherwise a simple "you're set"
                 summary of the services they chose. */}
-            {step === 3 && pickStokvel && stokvelMode === "choose" && (
+            {step === 3 && wantsStokvelService && stokvelMode === "choose" && (
               <StokvelChoiceStep
                 lang={lang}
                 onPickCreate={() => setStokvelMode("create")}
@@ -251,7 +265,7 @@ export function Onboarding() {
                 onPickSkip={() => setStokvelMode("skip")}
               />
             )}
-            {step === 3 && pickStokvel && stokvelMode === "create" && (
+            {step === 3 && wantsStokvelService && stokvelMode === "create" && (
               <StokvelCreateStep
                 name={stokvelName}
                 setName={setStokvelName}
@@ -262,17 +276,17 @@ export function Onboarding() {
                 lang={lang}
               />
             )}
-            {step === 3 && pickStokvel && stokvelMode === "join" && (
+            {step === 3 && wantsStokvelService && stokvelMode === "join" && (
               <StokvelJoinStep
                 code={joinCode}
                 setCode={setJoinCode}
                 lang={lang}
               />
             )}
-            {step === 3 && pickStokvel && stokvelMode === "skip" && (
+            {step === 3 && wantsStokvelService && stokvelMode === "skip" && (
               <StokvelSkipStep lang={lang} />
             )}
-            {step === 3 && !pickStokvel && (
+            {step === 3 && !wantsStokvelService && (
               <ReadyStep
                 lang={lang}
                 spaza={pickSpaza}
@@ -303,7 +317,7 @@ export function Onboarding() {
         {/* On the stokvel "choose" sub-step, the choice buttons ARE the
             primary action; we don't show a Next button. Otherwise show
             Next/Finish. */}
-        {!(step === 3 && pickStokvel && stokvelMode === "choose") && (
+        {!(step === 3 && wantsStokvelService && stokvelMode === "choose") && (
           <button
             onClick={next}
             disabled={!canProceed() || submitting}
@@ -447,6 +461,8 @@ function ServicesStep({
   setPickMashonisa,
   pickStokvel,
   setPickStokvel,
+  pickBurial,
+  setPickBurial,
 }: {
   lang: Lang;
   pickSpaza: boolean;
@@ -457,6 +473,8 @@ function ServicesStep({
   setPickMashonisa: (v: boolean) => void;
   pickStokvel: boolean;
   setPickStokvel: (v: boolean) => void;
+  pickBurial: boolean;
+  setPickBurial: (v: boolean) => void;
 }) {
   return (
     <>
@@ -502,9 +520,8 @@ function ServicesStep({
           icon="🕊️"
           title={tr("onbServiceBurial", lang)}
           desc={tr("onbServiceBurialDesc", lang)}
-          selected={false}
-          onToggle={() => {}}
-          comingSoon={tr("onbComingSoon", lang)}
+          selected={pickBurial}
+          onToggle={() => setPickBurial(!pickBurial)}
         />
       </div>
     </>

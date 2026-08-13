@@ -3047,6 +3047,19 @@ export const t = {
     st: "Setho se seng le se seng se fumana poto ka letsatsi la sona la tsoalo.",
     af: "Elke lid kry die pot op hul verjaarsdag.",
   },
+  // PR #37 — burial society as a stokvel kind
+  stokvelKindBurial: {
+    en: "Burial society",
+    zu: "Umgcwabo",
+    st: "Mokgatlo oa lepato",
+    af: "Begrafnisvereniging",
+  },
+  stokvelKindBurialDesc: {
+    en: "Members contribute together to cover funeral costs.",
+    zu: "Amalungu anikela ndawonye ukukhokhela izindleko zomngcwabo.",
+    st: "Litho li kenya menehelo hammoho ho lefella litšenyehelo tsa lepato.",
+    af: "Lede dra saam by om begrafniskoste te dek.",
+  },
 
   // =====================================================================
   // PR #35 — Mashonisa service

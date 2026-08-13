@@ -1055,7 +1055,9 @@ export async function fetchUserPrimaryStokvel(
         ? "groceries"
         : (skRow as { kind?: string }).kind === "birthdays"
           ? "birthdays"
-          : "savings",
+          : (skRow as { kind?: string }).kind === "burial"
+            ? "burial"
+            : "savings",
     goal:
       typeof skRow.goal === "string" ? parseFloat(skRow.goal) : skRow.goal,
     members: skRow.members,

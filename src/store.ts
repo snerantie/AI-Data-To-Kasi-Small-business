@@ -228,7 +228,10 @@ export type StokvelBankAccount = {
  * Existing stokvels created before PR #35 are backfilled to 'savings'
  * by migration 013.
  */
-export type StokvelKind = "groceries" | "savings" | "birthdays";
+// PR #37 — 'burial' is a burial society: same mechanics as a stokvel
+// (members, contributions, pooled fund, admin), so it's modelled as a
+// fourth stokvel kind rather than a separate service.
+export type StokvelKind = "groceries" | "savings" | "birthdays" | "burial";
 
 export type Stokvel = {
   id: string;
