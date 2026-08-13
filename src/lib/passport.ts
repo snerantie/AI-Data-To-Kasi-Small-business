@@ -67,6 +67,7 @@ const formatDate = (ts: number, lang: Lang) => {
     zu: "zu-ZA",
     st: "st-ZA",
     af: "af-ZA",
+    ve: "ve-ZA",
   };
   try {
     return d.toLocaleDateString(localeMap[lang], {

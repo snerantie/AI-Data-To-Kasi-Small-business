@@ -1,11 +1,13 @@
-// Multilingual copy for KasiKash. English (en), isiZulu (zu), Sesotho (st), Afrikaans (af).
-export type Lang = "en" | "zu" | "st" | "af";
+// Multilingual copy for KasiKash. English (en), isiZulu (zu), Sesotho (st),
+// Afrikaans (af), Tshivenḓa (ve).
+export type Lang = "en" | "zu" | "st" | "af" | "ve";
 
 export const LANGS: { code: Lang; label: string; native: string; flag: string }[] = [
   { code: "en", label: "English", native: "English", flag: "EN" },
   { code: "zu", label: "isiZulu", native: "isiZulu", flag: "ZU" },
   { code: "st", label: "Sesotho", native: "Sesotho", flag: "ST" },
   { code: "af", label: "Afrikaans", native: "Afrikaans", flag: "AF" },
+  { code: "ve", label: "Venda", native: "Tshivenḓa", flag: "VE" },
 ];
 
 export const t = {
@@ -19,7 +21,7 @@ export const t = {
   },
 
   // Home
-  greeting: { en: "Sawubona,", zu: "Sawubona,", st: "Dumela,", af: "Hallo," },
+  greeting: { en: "Sawubona,", zu: "Sawubona,", st: "Dumela,", af: "Hallo,", ve: "Ndaa," },
   todayEarnings: {
     en: "Today's takings",
     zu: "Imali yanamuhla",
@@ -56,13 +58,13 @@ export const t = {
   },
 
   // Bottom nav
-  home: { en: "Home", zu: "Ikhaya", st: "Lehae", af: "Tuis" },
+  home: { en: "Home", zu: "Ikhaya", st: "Lehae", af: "Tuis", ve: "Hayani" },
   sales: { en: "Log", zu: "Ngenisa", st: "Ngola", af: "Teken" },
   tabs: { en: "Skoroskoro", zu: "Isikweletu", st: "Sekoloto", af: "Skoroskoro" },
   stokvelNav: { en: "Stokvel", zu: "Stokvel", st: "Stokvel", af: "Stokvel" },
   // PR #35 — bottom-nav label for the Services hub (replaces the
   // dedicated Stokvel tab; stokvel is now reached via Services).
-  servicesNav: { en: "Services", zu: "Izinsiza", st: "Litšebeletso", af: "Dienste" },
+  servicesNav: { en: "Services", zu: "Izinsiza", st: "Litšebeletso", af: "Dienste", ve: "Tshumelo" },
   insights: { en: "Insights", zu: "Izimpawu", st: "Tlhahiso", af: "Insigte" },
 
   // Voice / log sale
@@ -85,7 +87,7 @@ export const t = {
   item: { en: "Item", zu: "Into", st: "Ntho", af: "Item" },
   qty: { en: "Qty", zu: "Inani", st: "Palo", af: "Aantal" },
   price: { en: "Price (R)", zu: "Intengo (R)", st: "Theko (R)", af: "Prys (R)" },
-  save: { en: "Save", zu: "Londoloza", st: "Boloka", af: "Stoor" },
+  save: { en: "Save", zu: "Londoloza", st: "Boloka", af: "Stoor", ve: "Vhulunga" },
 
   voiceUnavailableTitle: {
     en: "Voice isn't available on this phone",
@@ -518,30 +520,35 @@ export const t = {
     zu: "Khetha ulimi lwakho",
     st: "Khetha puo ea hao",
     af: "Kies jou taal",
+    ve: "Khethani luambo lwaṋu",
   },
   onbStepOf: {
     en: "Step {step} of {total}",
     zu: "Isinyathelo {step} sika-{total}",
     st: "Mohato {step} oa {total}",
     af: "Stap {step} van {total}",
+    ve: "Vhukando {step} kha {total}",
   },
   onbNameTitle: {
     en: "What should we call you?",
     zu: "Kufanele sikubize ngani?",
     st: "Re u bitse mang?",
     af: "Hoe moet ons jou noem?",
+    ve: "Ri ni vhidze hani?",
   },
   onbNameSubtitle: {
     en: "This is the name that appears on your dashboard.",
     zu: "Leli igama elivela kudashibhodi yakho.",
     st: "Lena ke lebitso le hlahang letlapeng la hao.",
     af: "Hierdie is die naam wat op jou dashboard verskyn.",
+    ve: "Heḽi ndi dzina ḽine ḽa ḓo vhonala kha dashboard yaṋu.",
   },
   onbNamePlaceholder: {
     en: "e.g. Nomsa",
     zu: "isb. Nomsa",
     st: "mohlala Nomsa",
     af: "bv. Nomsa",
+    ve: "tsumbo. Nomsa",
   },
   onbBusinessTitle: {
     en: "Tell us about your business",
@@ -593,12 +600,14 @@ export const t = {
     zu: "Usebenzisela ini i-KasiKash?",
     st: "U sebelisa KasiKash bakeng sa eng?",
     af: "Waarvoor gebruik jy KasiKash?",
+    ve: "Ni shumisa KasiKash u itela mini?",
   },
   onbServicesSubtitle: {
     en: "Pick everything that fits. You'll only see what you choose.",
     zu: "Khetha konke okufanele. Uzobona kuphela lokho okukhethayo.",
     st: "Kgetha tsohle tse loketseng. U tla bona feela seo u se khethang.",
     af: "Kies alles wat pas. Jy sien net wat jy kies.",
+    ve: "Khethani zwoṱhe zwine zwa ni fanela. Ni ḓo vhona zwe na khetha fhedzi.",
   },
   onbServiceSpaza: {
     en: "Spaza shop",
@@ -635,6 +644,7 @@ export const t = {
     zu: "Boleka imali, ulandelele ukukhokhelwa",
     st: "Adima chelete, latela litefo",
     af: "Leen geld uit, volg terugbetalings",
+    ve: "Adzimani tshelede, ni tevhele mbadelo",
   },
   onbServiceStokvel: {
     en: "Stokvel",
@@ -647,18 +657,21 @@ export const t = {
     zu: "Istokvel sokudla, sokonga noma sosuku lokuzalwa",
     st: "Stokvel ea lijo, polokelo kapa letsatsi la tsoalo",
     af: "Kruideniers-, spaar- of verjaarsdag-stokvel",
+    ve: "Stokvel ya zwiḽiwa, u vhulunga kana ḓuvha ḽa mabebo",
   },
   onbServiceBurial: {
     en: "Burial society",
     zu: "Umgcwabo",
     st: "Mokgatlo oa lepato",
     af: "Begrafnisvereniging",
+    ve: "Tshangano tsha mbulungo",
   },
   onbServiceBurialDesc: {
     en: "Members, contributions, claims",
     zu: "Amalungu, iminikelo, izimangalo",
     st: "Litho, menehelo, litleliso",
     af: "Lede, bydraes, eise",
+    ve: "Miraḓo, minikelo na khumbelo",
   },
   onbComingSoon: {
     en: "Coming soon",
@@ -671,12 +684,14 @@ export const t = {
     zu: "Usukulungele",
     st: "U se u loketse",
     af: "Jy is reg",
+    ve: "No no lugela",
   },
   onbReadySubtitle: {
     en: "Here's what you'll see in KasiKash:",
     zu: "Nakhu ozokubona ku-KasiKash:",
     st: "Sena ke seo u tla se bona ho KasiKash:",
     af: "Hier is wat jy in KasiKash sal sien:",
+    ve: "Hezwi ndi zwine na ḓo zwi vhona kha KasiKash:",
   },
 
   onbStokvelTitle: {
@@ -684,48 +699,56 @@ export const t = {
     zu: "Istokvel sakho",
     st: "Stokvel ea hao",
     af: "Jou stokvel",
+    ve: "Stokvel yaṋu",
   },
   onbStokvelSubtitle: {
     en: "Create a new one or join with a code. You can also skip and set it up later.",
     zu: "Yakha entsha noma joyina ngekhodi. Ungakushiya futhi ukusetha kamuva.",
     st: "Iketsetse e ncha kapa kena ka khoutu. U ka boela u tlōla u lokise hamorao.",
     af: "Skep 'n nuwe een of sluit aan met 'n kode. Jy kan dit ook oorslaan en later opstel.",
+    ve: "Itani ntswa kana ni dzhene nga khoudu. Ni nga fhira, na i dzudzanya nga murahu.",
   },
   onbStokvelChoiceCreate: {
     en: "Create a new stokvel",
     zu: "Yakha istokvel esisha",
     st: "Iketsetse stokvel e ncha",
     af: "Skep 'n nuwe stokvel",
+    ve: "Ita stokvel ntswa",
   },
   onbStokvelChoiceJoin: {
     en: "Join with a code",
     zu: "Joyina ngekhodi",
     st: "Kena ka khoutu",
     af: "Sluit aan met 'n kode",
+    ve: "Dzhena nga khoudu",
   },
   onbStokvelChoiceSkip: {
     en: "Skip for now",
     zu: "Kweqe okwamanje",
     st: "Tlōla hona joale",
     af: "Slaan nou oor",
+    ve: "Fhira zwino",
   },
   onbStokvelNameLabel: {
     en: "Stokvel name",
     zu: "Igama lestokvel",
     st: "Lebitso la stokvel",
     af: "Stokvel-naam",
+    ve: "Dzina ḽa stokvel",
   },
   onbStokvelNamePlaceholder: {
     en: "e.g. Ma-Nomsa Stokvel",
     zu: "isb. Ma-Nomsa Stokvel",
     st: "mohlala Ma-Nomsa Stokvel",
     af: "bv. Ma-Nomsa Stokvel",
+    ve: "tsumbo. Ma-Nomsa Stokvel",
   },
   onbStokvelGoalLabel: {
     en: "Savings goal (R)",
     zu: "Umgomo wokonga (R)",
     st: "Sepheo sa polokelo (R)",
     af: "Spaardoel (R)",
+    ve: "Tshipikwa tsha u vhulunga (R)",
   },
   onbStokvelMembersLabel: {
     en: "Expected members",
@@ -758,8 +781,8 @@ export const t = {
 
   // PR #38 — read-only-until-Edit pattern for the business/stokvel
   // detail sections (was always-editable, which looked unprofessional).
-  settingsEditBtn: { en: "Edit", zu: "Hlela", st: "Fetola", af: "Wysig" },
-  settingsDoneBtn: { en: "Done", zu: "Kwenziwe", st: "E entsoe", af: "Klaar" },
+  settingsEditBtn: { en: "Edit", zu: "Hlela", st: "Fetola", af: "Wysig", ve: "Lulamisa" },
+  settingsDoneBtn: { en: "Done", zu: "Kwenziwe", st: "E entsoe", af: "Klaar", ve: "Zwo fhela" },
   settingsNotSet: {
     en: "Not set",
     zu: "Akusethiwe",
@@ -788,7 +811,7 @@ export const t = {
     st: "Lebitso la hao",
     af: "Jou naam",
   },
-  settingsLanguageLabel: { en: "Language", zu: "Ulimi", st: "Puo", af: "Taal" },
+  settingsLanguageLabel: { en: "Language", zu: "Ulimi", st: "Puo", af: "Taal", ve: "Luambo" },
   settingsSaved: { en: "Saved ✓", zu: "Kugcinwe ✓", st: "E bolokiloe ✓", af: "Gestoor ✓" },
   settingsStokvelMemberOnly: {
     en: "Only the admin can edit stokvel details.",
@@ -2936,42 +2959,49 @@ export const t = {
     zu: "Izinsiza zakho",
     st: "Litšebeletso tsa hao",
     af: "Jou dienste",
+    ve: "Tshumelo dzaṋu",
   },
   servicesSubtitle: {
     en: "One platform, the services you use.",
     zu: "Inkundla eyodwa, izinsiza ozisebenzisayo.",
     st: "Sethala se le seng, litšebeletso tseo u li sebelisang.",
     af: "Een platform, die dienste wat jy gebruik.",
+    ve: "Fhethu huthihi, tshumelo dzine na dzi shumisa.",
   },
   servicesEnter: {
     en: "Enter",
     zu: "Ngena",
     st: "Kena",
     af: "Betree",
+    ve: "Dzhena",
   },
   servicesAddTitle: {
     en: "Add a service",
     zu: "Engeza insiza",
     st: "Eketsa tšebeletso",
     af: "Voeg 'n diens by",
+    ve: "Engedzani tshumelo",
   },
   servicesAddSubtitle: {
     en: "Turn on more of what KasiKash can do for you.",
     zu: "Vula okwengeziwe i-KasiKash engakwenzela kona.",
     st: "Bula tse ling tseo KasiKash e ka u etsetsang tsona.",
     af: "Skakel meer aan van wat KasiKash vir jou kan doen.",
+    ve: "Vulani zwinzhi zwine KasiKash ya nga ni itela.",
   },
   servicesEnabled: {
     en: "Enabled",
     zu: "Kuvuliwe",
     st: "E bulehile",
     af: "Geaktiveer",
+    ve: "Zwo vulwa",
   },
   servicesTurnOn: {
     en: "Turn on",
     zu: "Vula",
     st: "Bula",
     af: "Skakel aan",
+    ve: "Vulani",
   },
   // PR #38 — manage mode (remove a service you don't use)
   servicesManage: {
@@ -2979,18 +3009,21 @@ export const t = {
     zu: "Phatha",
     st: "Laola",
     af: "Bestuur",
+    ve: "Langa",
   },
   servicesDone: {
     en: "Done",
     zu: "Kwenziwe",
     st: "Ho felile",
     af: "Klaar",
+    ve: "Zwo fhela",
   },
   servicesRemove: {
     en: "Remove",
     zu: "Susa",
     st: "Tlosa",
     af: "Verwyder",
+    ve: "Bvisa",
   },
 
   // Service names + descriptions
@@ -3005,6 +3038,7 @@ export const t = {
     zu: "Onga niyiqembu. Landelela iminikelo, mema amalungu, ufinyelele umgomo wakho.",
     st: "Boloka e le sehlopha. Latela menehelo, memela litho, fihlela sepheo sa hao.",
     af: "Spaar as 'n groep. Volg bydraes, nooi lede, bereik jou doel.",
+    ve: "Vhulungani sa tshigwada. Tevhelani minikelo, rambani miraḓo, swikelelani tshipikwa tshaṋu.",
   },
   serviceMashonisaName: {
     en: "Mashonisa",
@@ -3017,6 +3051,7 @@ export const t = {
     zu: "Boleka imali ulandelele ukukhokhelwa. Yakha irekhodi lezikweletu ababoleki abangayibona.",
     st: "Adima chelete 'me u latele ho lefuwa. Aha rekoto ea mekitlane eo baadimi ba ka e bonang.",
     af: "Leen geld uit en volg terugbetalings. Bou 'n leningsboek-rekord wat leners kan sien.",
+    ve: "Adzimani tshelede ni tevhele mbadelo. Fhaṱani rekhodo ya zwikolodo ine vhaadzimi vha nga i vhona.",
   },
   // PR #36 — the business (sales/takings) service card
   serviceBusinessName: {
@@ -3342,7 +3377,12 @@ export const t = {
 export type TKey = keyof typeof t;
 
 export function tr(key: TKey, lang: Lang): string {
-  const entry = t[key];
+  // Every entry is authored in English; the other languages are filled
+  // in progressively. Any string not yet translated into the requested
+  // language (e.g. a Tshivenḓa string still pending) falls back to
+  // English so the UI is never blank. The cast lets us index by a Lang
+  // the literal entry object may not yet include a key for.
+  const entry = t[key] as Partial<Record<Lang, string>> & { en: string };
   return entry[lang] ?? entry.en;
 }
 

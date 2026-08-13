@@ -28,10 +28,11 @@ import {
 } from "lucide-react";
 import type { Screen } from "../App";
 import type { Lang, TKey } from "../i18n";
-import { LANGS, tr, trParams } from "../i18n";
+import { tr, trParams } from "../i18n";
 import type { BusinessType } from "../store";
 import { formatRand, useStore } from "../store";
 import { InstallSheet } from "../components/InstallSheet";
+import { LanguageSelect } from "../components/LanguageSelect";
 import { useInstallPrompt } from "../hooks/useInstallPrompt";
 
 const BUSINESS_TYPES: BusinessType[] = [
@@ -195,30 +196,10 @@ export function Settings({
             <div className="text-[11px] uppercase tracking-wider text-white/50 mb-1.5">
               {tr("settingsLanguageLabel", lang)}
             </div>
-            {/* 2-column grid: fits any even number of supported languages
-                cleanly (currently 4: en / zu / st / af). If we ever add a
-                5th, revisit — grid-cols-2 with an odd count leaves one
-                item spanning slightly wider on the last row, which is
-                still nicer than the orphan we'd get from grid-cols-3. */}
-            <div className="grid grid-cols-2 gap-2">
-              {LANGS.map((l) => {
-                const active = state.lang === l.code;
-                return (
-                  <button
-                    key={l.code}
-                    onClick={() => commitLang(l.code)}
-                    className={
-                      "py-2.5 rounded-xl text-sm font-medium transition-colors " +
-                      (active
-                        ? "bg-kasi-green text-bg"
-                        : "bg-bg-card border border-white/5 text-white/70")
-                    }
-                  >
-                    {l.native}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Language picker — a dropdown so the list scales cleanly
+                as we add languages (now 5: en / zu / st / af / ve) and
+                uses the phone's native picker on mobile. */}
+            <LanguageSelect value={state.lang ?? "en"} onChange={commitLang} />
             {saved === "lang" && <SavedBadge />}
           </div>
         </Section>
