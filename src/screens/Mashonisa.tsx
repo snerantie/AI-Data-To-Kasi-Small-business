@@ -21,7 +21,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   Check,
+  Copy,
   HandCoins,
+  Landmark,
   Loader2,
   Plus,
   Trash2,
@@ -31,7 +33,11 @@ import { useState } from "react";
 import type { Screen } from "../App";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
-import type { MashonisaLoan, MashonisaLoanStatus } from "../store";
+import type {
+  MashonisaBanking,
+  MashonisaLoan,
+  MashonisaLoanStatus,
+} from "../store";
 import { formatRand, useStore } from "../store";
 
 export function Mashonisa({
@@ -47,11 +53,21 @@ export function Mashonisa({
     addMashonisaRepayment,
     setMashonisaLoanStatus,
     removeMashonisaLoan,
+    saveMashonisaBankingDetails,
   } = useStore();
   const loans = state.loans;
+  const banking = state.mashonisaBanking;
+  const hasBanking = Boolean(
+    banking &&
+      (banking.accountNumber || banking.payshapPhone) &&
+      banking.bankName,
+  );
 
   const [sheet, setSheet] = useState<
-    null | "new-loan" | { kind: "repay"; loanId: string }
+    | null
+    | "new-loan"
+    | "banking"
+    | { kind: "repay"; loanId: string }
   >(null);
 
   // -- Aggregates for the hero cards --
@@ -110,6 +126,49 @@ export function Mashonisa({
         />
       </div>
 
+      {/* Banking setup prompt / summary (PR #36).
+          Borrowers pay loans back via the app using these details.
+          Empty-state nudge when not set up; compact summary + edit
+          once configured. */}
+      {!hasBanking ? (
+        <button
+          onClick={() => setSheet("banking")}
+          className="w-full mb-4 flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/30 text-left"
+        >
+          <div className="w-10 h-10 rounded-xl bg-kasi-green/15 border border-kasi-green/30 flex items-center justify-center text-kasi-green shrink-0">
+            <Landmark size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-white text-sm">
+              {tr("mashonisaBankingEmptyTitle", lang)}
+            </div>
+            <div className="text-white/60 text-xs mt-0.5 leading-relaxed">
+              {tr("mashonisaBankingEmptyBody", lang)}
+            </div>
+          </div>
+          <span className="text-kasi-green shrink-0 self-center">→</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setSheet("banking")}
+          className="w-full mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/[0.02] border border-white/10 text-left"
+        >
+          <Landmark size={16} className="text-kasi-green shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-white text-sm font-medium truncate">
+              {banking?.bankName}
+              {banking?.accountNumber ? ` · ${banking.accountNumber}` : ""}
+            </div>
+            <div className="text-white/40 text-[11px]">
+              {tr("mashonisaBankingConfigured", lang)}
+            </div>
+          </div>
+          <span className="text-white/40 text-xs shrink-0">
+            {tr("payUpdateKey", lang)}
+          </span>
+        </button>
+      )}
+
       {/* New loan button */}
       <button
         onClick={() => setSheet("new-loan")}
@@ -163,10 +222,19 @@ export function Mashonisa({
             }}
           />
         )}
+        {sheet === "banking" && (
+          <BankingSheet
+            lang={lang}
+            existing={banking}
+            onClose={() => setSheet(null)}
+            onSave={saveMashonisaBankingDetails}
+          />
+        )}
         {sheet && typeof sheet === "object" && sheet.kind === "repay" && (
           <RepaymentSheet
             lang={lang}
             loan={loans.find((l) => l.id === sheet.loanId) ?? null}
+            banking={hasBanking ? banking : null}
             onClose={() => setSheet(null)}
             onSave={(amount, method) => {
               addMashonisaRepayment(sheet.loanId, { amount, method });
@@ -553,11 +621,13 @@ function NewLoanSheet({
 function RepaymentSheet({
   lang,
   loan,
+  banking,
   onClose,
   onSave,
 }: {
   lang: Lang;
   loan: MashonisaLoan | null;
+  banking: MashonisaBanking | null;
   onClose: () => void;
   onSave: (
     amount: number,
@@ -567,8 +637,9 @@ function RepaymentSheet({
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<
     "cash" | "eft" | "payshap" | "card" | "other"
-  >("cash");
+  >(banking ? "eft" : "cash");
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const amountNum = parseFloat(amount);
   const canSubmit = amountNum > 0 && !saving;
@@ -578,6 +649,16 @@ function RepaymentSheet({
     onClose();
     return null;
   }
+
+  const copy = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      window.setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // Clipboard blocked — silently ignore; the value is visible.
+    }
+  };
 
   const methods: {
     key: "cash" | "eft" | "payshap" | "card" | "other";
@@ -596,6 +677,58 @@ function RepaymentSheet({
         <div className="text-white/60 text-sm">
           {loan.borrowerName}
         </div>
+
+        {/* Pay-here panel — where the borrower should send the money.
+            Only shown when the lender has set up banking. The
+            borrower reference is the loan's borrower name so the
+            lender can match the incoming payment. */}
+        {banking && (
+          <div className="rounded-2xl border border-kasi-green/30 bg-gradient-to-br from-kasi-green/[0.08] to-transparent p-4">
+            <div className="flex items-center gap-2 text-kasi-green text-xs font-semibold uppercase tracking-wider mb-2">
+              <Landmark size={13} />
+              {tr("mashonisaPayHereTitle", lang)}
+            </div>
+            <div className="text-white/60 text-xs mb-3 leading-relaxed">
+              {tr("mashonisaPayHereBody", lang)}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {banking.payshapPhone && (
+                <PayRow
+                  label={tr("bankPayshapPhone", lang)}
+                  value={banking.payshapPhone}
+                  onCopy={() =>
+                    copy("payshap", banking.payshapPhone as string)
+                  }
+                  copied={copied === "payshap"}
+                />
+              )}
+              {banking.bankName && (
+                <PayRow label={tr("bankName", lang)} value={banking.bankName} />
+              )}
+              {banking.accountNumber && (
+                <PayRow
+                  label={tr("bankAccountNumber", lang)}
+                  value={banking.accountNumber}
+                  onCopy={() =>
+                    copy("acc", banking.accountNumber as string)
+                  }
+                  copied={copied === "acc"}
+                />
+              )}
+              {banking.branchCode && (
+                <PayRow
+                  label={tr("bankBranchCode", lang)}
+                  value={banking.branchCode}
+                />
+              )}
+              <PayRow
+                label={tr("mashonisaPayReference", lang)}
+                value={loan.borrowerName}
+              />
+            </div>
+          </div>
+        )}
+
         <Field
           label={tr("mashonisaRepaymentAmount", lang)}
           value={amount}
@@ -638,6 +771,170 @@ function RepaymentSheet({
             <Check size={16} />
           )}
           {tr("mashonisaRecordRepayment", lang)}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// PayRow — one label/value line in the "pay here" panel, with an
+// optional copy-to-clipboard button.
+// ---------------------------------------------------------------------------
+
+function PayRow({
+  label,
+  value,
+  onCopy,
+  copied,
+}: {
+  label: string;
+  value: string;
+  onCopy?: () => void;
+  copied?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-white/45 text-[10px] uppercase tracking-wider">
+          {label}
+        </div>
+        <div className="text-white text-sm font-mono truncate">{value}</div>
+      </div>
+      {onCopy && (
+        <button
+          onClick={onCopy}
+          className="shrink-0 flex items-center gap-1 text-[11px] text-kasi-green"
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BankingSheet — set the lender's receiving bank / PayShap details so
+// borrowers can pay loans back via the app. Reuses the same field
+// shape as the stokvel banking form. Saves through the store's
+// saveMashonisaBankingDetails (local-first + remote upsert).
+// ---------------------------------------------------------------------------
+
+function BankingSheet({
+  lang,
+  existing,
+  onClose,
+  onSave,
+}: {
+  lang: Lang;
+  existing: MashonisaBanking | null;
+  onClose: () => void;
+  onSave: (banking: {
+    bankName: string;
+    accountHolder: string;
+    accountNumber: string;
+    branchCode: string;
+    payshapPhone: string;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+}) {
+  const [bankName, setBankName] = useState(existing?.bankName ?? "");
+  const [accountHolder, setAccountHolder] = useState(
+    existing?.accountHolder ?? "",
+  );
+  const [accountNumber, setAccountNumber] = useState(
+    existing?.accountNumber ?? "",
+  );
+  const [branchCode, setBranchCode] = useState(existing?.branchCode ?? "");
+  const [payshapPhone, setPayshapPhone] = useState(
+    existing?.payshapPhone ?? "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A usable receiving setup needs a bank name + at least one
+  // destination (account number OR PayShap).
+  const canSubmit =
+    bankName.trim().length > 0 &&
+    (accountNumber.trim().length > 0 || payshapPhone.trim().length > 0) &&
+    !saving;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setError(null);
+    setSaving(true);
+    const result = await onSave({
+      bankName: bankName.trim(),
+      accountHolder: accountHolder.trim(),
+      accountNumber: accountNumber.trim(),
+      branchCode: branchCode.trim(),
+      payshapPhone: payshapPhone.trim(),
+    });
+    setSaving(false);
+    if (result.ok) onClose();
+    else setError(result.error);
+  };
+
+  return (
+    <SheetShell title={tr("mashonisaBankingSheetTitle", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-white/60 text-sm leading-relaxed">
+          {tr("mashonisaBankingSheetSub", lang)}
+        </p>
+        <Field
+          label={tr("bankName", lang)}
+          value={bankName}
+          onChange={setBankName}
+          placeholder={tr("settingsBankingPlaceholderBank", lang)}
+        />
+        <Field
+          label={tr("bankAccountHolder", lang)}
+          value={accountHolder}
+          onChange={setAccountHolder}
+          placeholder={tr("settingsBankingPlaceholderHolder", lang)}
+        />
+        <Field
+          label={tr("bankAccountNumber", lang)}
+          value={accountNumber}
+          onChange={setAccountNumber}
+          placeholder={tr("settingsBankingPlaceholderAccount", lang)}
+          inputMode="numeric"
+        />
+        <Field
+          label={tr("bankBranchCode", lang)}
+          value={branchCode}
+          onChange={setBranchCode}
+          placeholder={tr("settingsBankingPlaceholderBranch", lang)}
+          inputMode="numeric"
+        />
+        <Field
+          label={tr("bankPayshapPhone", lang)}
+          value={payshapPhone}
+          onChange={setPayshapPhone}
+          placeholder={tr("settingsBankingPlaceholderPayshap", lang)}
+          inputMode="tel"
+        />
+        {error && (
+          <div className="rounded-xl bg-kasi-coral/[0.08] border border-kasi-coral/25 text-kasi-coral text-xs px-3 py-2">
+            {error}
+          </div>
+        )}
+        <button
+          onClick={submit}
+          disabled={!canSubmit}
+          className={
+            "mt-1 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 " +
+            (canSubmit
+              ? "bg-kasi-green text-bg shadow-glow"
+              : "bg-white/5 text-white/30 cursor-not-allowed")
+          }
+        >
+          {saving ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Landmark size={16} />
+          )}
+          {tr("mashonisaBankingSheetSave", lang)}
         </button>
       </div>
     </SheetShell>

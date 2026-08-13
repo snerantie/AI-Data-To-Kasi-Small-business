@@ -4,14 +4,16 @@ import type { Lang, TKey } from "../i18n";
 import { tr } from "../i18n";
 import type { Screen } from "../App";
 
-// PR #35 — the Stokvel slot became the Services hub. Stokvel is now
-// reached by entering the Stokvel service card inside Services, so
-// the nav grid gains a "Services" entry (grid icon) in its place.
+// PR #36 — the bottom nav is the BUSINESS service cluster only. The
+// first item is a "Services" launcher return (grid icon), then the
+// four business screens. Tapping Services exits the business service
+// back to the launcher. Stokvel + Mashonisa are NOT in here — they
+// have their own back-to-launcher controls.
 const items: { key: Screen; icon: typeof Home; label: TKey }[] = [
+  { key: "services", icon: LayoutGrid, label: "servicesNav" },
   { key: "home", icon: Home, label: "home" },
   { key: "log", icon: Mic, label: "sales" },
   { key: "tabs", icon: Users, label: "tabs" },
-  { key: "services", icon: LayoutGrid, label: "servicesNav" },
   { key: "insights", icon: TrendingUp, label: "insights" },
 ];
 
@@ -28,13 +30,7 @@ export function BottomNav({
     <div className="absolute bottom-0 left-0 right-0 px-3 pb-4 pt-2 z-20">
       <div className="mx-auto max-w-md rounded-3xl bg-bg-card/90 backdrop-blur border border-white/5 flex items-center justify-around p-1.5 shadow-2xl">
         {items.map((it) => {
-          // PR #35 — stokvel + mashonisa are sub-screens of the
-          // Services hub, so keep the Services nav item highlighted
-          // while the user is inside either of them.
-          const active =
-            screen === it.key ||
-            (it.key === "services" &&
-              (screen === "stokvel" || screen === "mashonisa"));
+          const active = screen === it.key;
           const Icon = it.icon;
           return (
             <button

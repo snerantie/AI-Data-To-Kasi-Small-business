@@ -51,19 +51,24 @@ export type Screen =
   | "services"
   | "mashonisa";
 
-// PR #35 — the Services hub replaces the dedicated Stokvel tab in the
-// bottom nav. Stokvel + Mashonisa are reached by entering their cards
-// in the Services hub, but they KEEP the bottom nav visible (with the
-// Services item highlighted) so the user always has a way back —
-// otherwise entering a service would trap them on a nav-less screen.
+// PR #36 — navigation is now service-scoped.
+//
+// The Services launcher is the landing screen (the app's "home
+// base"), NOT a bottom-nav tab. From it the user enters a service.
+//
+// The bottom nav belongs to the BUSINESS service only — it's the
+// Home(takings) / Log / Skoroskoro / Insights cluster. A user who
+// only runs a stokvel or a mashonisa loan book never sees that nav,
+// and never gets dropped into a "Today's takings" screen.
+//
+// Stokvel + Mashonisa are single full-screen services reached from
+// the launcher; each has its own back-to-launcher control, so they
+// don't need (or show) the business bottom nav.
 const SCREENS_WITH_NAV: Screen[] = [
   "home",
   "log",
   "tabs",
-  "services",
   "insights",
-  "stokvel",
-  "mashonisa",
 ];
 
 /**
@@ -156,7 +161,9 @@ function pressComponentFor(pathname: string): React.ReactNode {
 export default function App() {
   const { state } = useStore();
   const [pathname, setPathname] = useState<string>(getPathname);
-  const [screen, setScreen] = useState<Screen>("home");
+  // PR #36 — the app lands on the Services launcher, not the business
+  // takings dashboard. Users pick a service and are taken into it.
+  const [screen, setScreen] = useState<Screen>("services");
   const [splashDone, setSplashDone] = useState(false);
   const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState>(null);
   // PR #25: invite-link handling.

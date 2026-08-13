@@ -46,6 +46,9 @@ import {
   deleteMashonisaLoan as remoteDeleteLoan,
   insertMashonisaRepayment as remoteInsertRepayment,
   deleteMashonisaRepayment as remoteDeleteRepayment,
+  // PR #36 — mashonisa banking
+  fetchMashonisaBanking,
+  saveMashonisaBanking as remoteSaveMashonisaBanking,
   joinStokvelByCode as remoteJoinStokvel,
   leaveStokvel as remoteLeaveStokvel,
   linkEmail as remoteLinkEmail,
@@ -311,7 +314,11 @@ export type BankTransaction = {
 // See supabase/migrations/013_services_mashonisa.sql for the DB shape.
 // ---------------------------------------------------------------------------
 
-export type ServiceType = "stokvel" | "mashonisa";
+// PR #36 — 'business' formalises the sales/takings dashboard (Home +
+// Log + Skoroskoro + Insights) as a service, so users who only run a
+// stokvel or a mashonisa loan book never get dropped into a
+// "Today's takings" screen they don't use.
+export type ServiceType = "stokvel" | "mashonisa" | "business";
 
 /** One user_services row — which services this profile has enabled. */
 export type UserService = {
@@ -343,6 +350,20 @@ export type MashonisaRepayment = {
   method: MashonisaRepaymentMethod;
   notes?: string;
   evidenceTier: EvidenceTier;
+};
+
+/**
+ * PR #36 — the mashonisa's receiving bank / PayShap details, so
+ * borrowers can pay loans back via the app. Mirrors
+ * StokvelBankAccount exactly so the same banking form + "pay here"
+ * display can be reused. One per lender (the current user).
+ */
+export type MashonisaBanking = {
+  bankName: string | null;
+  accountHolder: string | null;
+  accountNumber: string | null;
+  branchCode: string | null;
+  payshapPhone: string | null;
 };
 
 export type MashonisaLoan = {
@@ -391,6 +412,8 @@ export type AppState = {
   // PR #35: services + mashonisa
   services: UserService[];
   loans: MashonisaLoan[];
+  // PR #36: the mashonisa's receiving banking (null until set up).
+  mashonisaBanking: MashonisaBanking | null;
   onboarded: boolean;
 };
 
@@ -419,6 +442,7 @@ const emptyState: AppState = {
     { serviceType: "stokvel", enabledAt: Date.now() },
   ],
   loans: [],
+  mashonisaBanking: null,
   sales: [],
   expenses: [],
   tabs: [],
@@ -691,6 +715,8 @@ async function performHydrate(): Promise<void> {
       // PR #35 additions
       services,
       loans,
+      // PR #36 addition
+      mashonisaBanking,
     ] = await Promise.all([
       fetchProfile(uid),
       fetchSales(uid),
@@ -710,6 +736,9 @@ async function performHydrate(): Promise<void> {
       // Supabase instance doesn't break the app.
       fetchUserServices(uid),
       fetchMashonisaLoans(uid),
+      // PR #36 — mashonisa receiving banking (null if migration 014
+      // hasn't run or the lender hasn't set it up yet).
+      fetchMashonisaBanking(uid),
     ]);
 
     // Fetch payment config if a stokvel exists (needs to happen after
@@ -739,6 +768,10 @@ async function performHydrate(): Promise<void> {
       // an empty loans array.
       services: services.length > 0 ? services : state.services,
       loans,
+      // PR #36 — mashonisa banking. Keep prior state if the fetch
+      // returned null but we already had banking locally (avoids a
+      // transient wipe on a flaky connection).
+      mashonisaBanking: mashonisaBanking ?? state.mashonisaBanking,
     };
 
     state = merged;
@@ -856,6 +889,9 @@ export function useStore() {
   }, []);
 
   const finishOnboarding = useCallback(() => {
+    // PR #36 — onboarding's service picker explicitly sets the
+    // enabled services via setEnabledServices() before calling this,
+    // so finishOnboarding just marks onboarding complete.
     setState({ onboarded: true });
     if (userId) {
       sync(() => remoteUpsertProfile(userId!, { onboarded: true }));
@@ -1253,6 +1289,50 @@ export function useStore() {
     [],
   );
 
+  /**
+   * PR #36 — replace the full set of enabled services (used by
+   * onboarding's service picker). Sets local state to exactly the
+   * given list, then syncs the delta to cloud: enable any newly-
+   * added, delete any removed. Idempotent.
+   */
+  const setEnabledServices = useCallback(
+    async (types: ServiceType[]) => {
+      const unique = Array.from(new Set(types));
+      const prev = new Set(
+        // Read from the ref-like closure via a functional update so
+        // we compute the delta against the latest state.
+        [] as ServiceType[],
+      );
+      setState((s) => {
+        for (const svc of s.services) prev.add(svc.serviceType);
+        return {
+          services: unique.map((serviceType) => {
+            const existing = s.services.find(
+              (x) => x.serviceType === serviceType,
+            );
+            return (
+              existing ?? { serviceType, enabledAt: Date.now() }
+            );
+          }),
+        };
+      });
+      if (userId && isCloudConfigured) {
+        const target = new Set(unique);
+        // Enable additions.
+        for (const t of unique) {
+          sync(() => remoteEnableService(userId!, t));
+        }
+        // Remove ones no longer wanted.
+        for (const t of Array.from(prev)) {
+          if (!target.has(t)) {
+            sync(() => remoteDisableService(userId!, t));
+          }
+        }
+      }
+    },
+    [],
+  );
+
   /** Mashonisa: add a new loan (money-out event). */
   const addMashonisaLoan = useCallback(
     (input: {
@@ -1358,6 +1438,33 @@ export function useStore() {
         sync(() => remoteInsertRepayment(userId!, repayment));
       }
       return repayment;
+    },
+    [],
+  );
+
+  /** Mashonisa: save the lender's receiving banking so borrowers can
+   *  pay loans back via the app. Local-first + remote upsert. */
+  const saveMashonisaBankingDetails = useCallback(
+    async (banking: {
+      bankName: string;
+      accountHolder: string;
+      accountNumber: string;
+      branchCode: string;
+      payshapPhone: string;
+    }): Promise<{ ok: true } | { ok: false; error: string }> => {
+      setState(() => ({
+        mashonisaBanking: {
+          bankName: banking.bankName || null,
+          accountHolder: banking.accountHolder || null,
+          accountNumber: banking.accountNumber || null,
+          branchCode: banking.branchCode || null,
+          payshapPhone: banking.payshapPhone || null,
+        },
+      }));
+      if (userId && isCloudConfigured) {
+        return await remoteSaveMashonisaBanking(userId, banking);
+      }
+      return { ok: true };
     },
     [],
   );
@@ -1827,11 +1934,13 @@ export function useStore() {
     // PR #35 — services + mashonisa
     enableService,
     disableService,
+    setEnabledServices,
     addMashonisaLoan,
     setMashonisaLoanStatus,
     removeMashonisaLoan,
     addMashonisaRepayment,
     removeMashonisaRepayment,
+    saveMashonisaBankingDetails,
     // payments
     savePaymentConfig,
     refreshFromRemote,

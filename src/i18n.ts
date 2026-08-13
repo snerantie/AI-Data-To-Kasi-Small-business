@@ -585,6 +585,100 @@ export const t = {
     st: "Mofuta oa khoebo",
     af: "Tipe besigheid",
   },
+
+  // PR #36 — onboarding service picker (step 3). The user chooses
+  // what they use KasiKash for; only those services appear afterward.
+  onbServicesTitle: {
+    en: "What do you use KasiKash for?",
+    zu: "Usebenzisela ini i-KasiKash?",
+    st: "U sebelisa KasiKash bakeng sa eng?",
+    af: "Waarvoor gebruik jy KasiKash?",
+  },
+  onbServicesSubtitle: {
+    en: "Pick everything that fits. You'll only see what you choose.",
+    zu: "Khetha konke okufanele. Uzobona kuphela lokho okukhethayo.",
+    st: "Kgetha tsohle tse loketseng. U tla bona feela seo u se khethang.",
+    af: "Kies alles wat pas. Jy sien net wat jy kies.",
+  },
+  onbServiceSpaza: {
+    en: "Spaza shop",
+    zu: "Ivenkile yespaza",
+    st: "Lebenkele la spaza",
+    af: "Spaza-winkel",
+  },
+  onbServiceSpazaDesc: {
+    en: "Log sales, track takings & customer tabs",
+    zu: "Bhalisa ukudayisa, ulandelele imali namatabhu",
+    st: "Ngola thekiso, latela chelete le litabhu",
+    af: "Teken verkope, volg inkomste & kliëntrekeninge",
+  },
+  onbServiceFood: {
+    en: "Food",
+    zu: "Ukudla",
+    st: "Lijo",
+    af: "Kos",
+  },
+  onbServiceFoodDesc: {
+    en: "Kota shop, restaurant, tshisa nyama",
+    zu: "Ivenkile yekota, irestorenti, itshisa nyama",
+    st: "Lebenkele la kota, resturente, tshisa nyama",
+    af: "Kota-winkel, restaurant, tshisa nyama",
+  },
+  onbServiceMashonisa: {
+    en: "Mashonisa",
+    zu: "Mashonisa",
+    st: "Mashonisa",
+    af: "Mashonisa",
+  },
+  onbServiceMashonisaDesc: {
+    en: "Lend money, track repayments",
+    zu: "Boleka imali, ulandelele ukukhokhelwa",
+    st: "Adima chelete, latela litefo",
+    af: "Leen geld uit, volg terugbetalings",
+  },
+  onbServiceStokvel: {
+    en: "Stokvel",
+    zu: "Istokvel",
+    st: "Stokvel",
+    af: "Stokvel",
+  },
+  onbServiceStokvelDesc: {
+    en: "Groceries, savings or birthday stokvel",
+    zu: "Istokvel sokudla, sokonga noma sosuku lokuzalwa",
+    st: "Stokvel ea lijo, polokelo kapa letsatsi la tsoalo",
+    af: "Kruideniers-, spaar- of verjaarsdag-stokvel",
+  },
+  onbServiceBurial: {
+    en: "Burial society",
+    zu: "Umgcwabo",
+    st: "Mokgatlo oa lepato",
+    af: "Begrafnisvereniging",
+  },
+  onbServiceBurialDesc: {
+    en: "Members, contributions, claims",
+    zu: "Amalungu, iminikelo, izimangalo",
+    st: "Litho, menehelo, litleliso",
+    af: "Lede, bydraes, eise",
+  },
+  onbComingSoon: {
+    en: "Coming soon",
+    zu: "Kuyeza maduze",
+    st: "E tla haufinyane",
+    af: "Binnekort",
+  },
+  onbReadyTitle: {
+    en: "You're all set",
+    zu: "Usukulungele",
+    st: "U se u loketse",
+    af: "Jy is reg",
+  },
+  onbReadySubtitle: {
+    en: "Here's what you'll see in KasiKash:",
+    zu: "Nakhu ozokubona ku-KasiKash:",
+    st: "Sena ke seo u tla se bona ho KasiKash:",
+    af: "Hier is wat jy in KasiKash sal sien:",
+  },
+
   onbStokvelTitle: {
     en: "Your stokvel",
     zu: "Istokvel sakho",
@@ -2894,6 +2988,19 @@ export const t = {
     st: "Adima chelete 'me u latele ho lefuwa. Aha rekoto ea mekitlane eo baadimi ba ka e bonang.",
     af: "Leen geld uit en volg terugbetalings. Bou 'n leningsboek-rekord wat leners kan sien.",
   },
+  // PR #36 — the business (sales/takings) service card
+  serviceBusinessName: {
+    en: "My business",
+    zu: "Ibhizinisi lami",
+    st: "Khoebo ea ka",
+    af: "My besigheid",
+  },
+  serviceBusinessDesc: {
+    en: "Log sales by voice, track takings and customer tabs, see your KasiScore.",
+    zu: "Bhalisa ukudayisa ngezwi, ulandelele imali namatabhu amakhasimende, ubone iKasiScore yakho.",
+    st: "Ngola thekiso ka lentsoe, latela chelete le litabhu tsa bareki, bona KasiScore ea hao.",
+    af: "Teken verkope met stem aan, volg inkomste en kliëntrekeninge, sien jou KasiScore.",
+  },
 
   // =====================================================================
   // PR #35 — Stokvel sub-types
@@ -3105,6 +3212,62 @@ export const t = {
     zu: "Khansela",
     st: "Hlakola",
     af: "Kanselleer",
+  },
+
+  // PR #36 — mashonisa receiving banking + pay-via-app
+  mashonisaBankingEmptyTitle: {
+    en: "Add banking so borrowers can pay you",
+    zu: "Engeza ibhange ukuze ababoleki bakukhokhele",
+    st: "Kenya banka hore baadimi ba tsebe ho u lefa",
+    af: "Voeg bank by sodat leners jou kan betaal",
+  },
+  mashonisaBankingEmptyBody: {
+    en: "Set up where borrowers pay once, and every loan can show your details in-app.",
+    zu: "Setha lapho ababoleki bekhokha khona kanye, futhi zonke izikweletu zingakhombisa imininingwane yakho ohlelweni.",
+    st: "Beha moo baadimi ba lefang hang, 'me mokitlane o mong le o mong o ka bontša lintlha tsa hao.",
+    af: "Stel een keer op waar leners betaal, en elke lening kan jou besonderhede in die app wys.",
+  },
+  mashonisaBankingConfigured: {
+    en: "Borrowers can pay to this account",
+    zu: "Ababoleki bangakhokha kule akhawunti",
+    st: "Baadimi ba ka lefa akhaontong ena",
+    af: "Leners kan na hierdie rekening betaal",
+  },
+  mashonisaBankingSheetTitle: {
+    en: "Your receiving account",
+    zu: "I-akhawunti yakho yokwamukela",
+    st: "Akhaonto ea hao ea ho amohela",
+    af: "Jou ontvangende rekening",
+  },
+  mashonisaBankingSheetSub: {
+    en: "Where borrowers send repayments. Shown to you on each loan so you can share it.",
+    zu: "Lapho ababoleki bethumela khona ukukhokhelwa. Kuboniswa kuwe kusikweletu ngasinye ukuze ukwazi ukwabelana ngakho.",
+    st: "Moo baadimi ba romelang litefo. E bontšoa ho uena mokitlane o mong le o mong hore u tsebe ho e arolelana.",
+    af: "Waar leners terugbetalings stuur. Aan jou gewys op elke lening sodat jy dit kan deel.",
+  },
+  mashonisaBankingSheetSave: {
+    en: "Save banking",
+    zu: "Londoloza ibhange",
+    st: "Boloka banka",
+    af: "Stoor bank",
+  },
+  mashonisaPayHereTitle: {
+    en: "Where to pay",
+    zu: "Lapho okukhokhelwa khona",
+    st: "Moo ho lefuoang",
+    af: "Waar om te betaal",
+  },
+  mashonisaPayHereBody: {
+    en: "Share these details with the borrower, then record the payment below once it arrives.",
+    zu: "Yabelana ngalemininingwane nomboleki, bese ubhala inkokhelo ngezansi lapho ifika.",
+    st: "Arolelana lintlha tsena le moadimi, ebe u ngola tefo ka tlase ha e fihla.",
+    af: "Deel hierdie besonderhede met die lener, teken dan die betaling hieronder aan sodra dit aankom.",
+  },
+  mashonisaPayReference: {
+    en: "Reference",
+    zu: "Inkomba",
+    st: "Referense",
+    af: "Verwysing",
   },
 } as const;
 

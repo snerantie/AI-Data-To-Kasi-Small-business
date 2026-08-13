@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,7 +9,7 @@ import {
   KeyRound,
   SkipForward,
 } from "lucide-react";
-import type { BusinessType } from "../store";
+import type { BusinessType, ServiceType } from "../store";
 import { useStore } from "../store";
 import type { Lang } from "../i18n";
 import { LANGS, tr, trParams } from "../i18n";
@@ -17,15 +17,6 @@ import { normalizeInviteCode } from "../lib/inviteLink";
 import { Logo } from "../components/Logo";
 
 type Step = 0 | 1 | 2 | 3;
-
-const BUSINESS_TYPES: { code: BusinessType; icon: string }[] = [
-  { code: "spaza", icon: "🏪" },
-  { code: "salon", icon: "💇" },
-  { code: "taxi", icon: "🚐" },
-  { code: "tailor", icon: "🪡" },
-  { code: "food", icon: "🍲" },
-  { code: "other", icon: "✨" },
-];
 
 export function Onboarding() {
   const {
@@ -37,28 +28,49 @@ export function Onboarding() {
     finishOnboarding,
   } = useStore();
 
-  const initialStep: Step = useMemo(() => {
-    if (!state.lang) return 0;
-    if (!state.profile.ownerName) return 1;
-    if (!state.profile.businessName || !state.profile.businessType) return 2;
-    return 3;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { setEnabledServices } = useStore();
 
-  const [step, setStep] = useState<Step>(initialStep);
+  // PR #36 — ALWAYS start at the language step for a fresh onboarding.
+  // Previously we resumed at a later step if `state.lang` was already
+  // set (e.g. a returning tester whose language persisted in
+  // localStorage). That made the app appear to "skip step 1" and jump
+  // straight to the name step, which confused first-time users.
+  // Onboarding is 4 short steps — always starting at the top is
+  // predictable and worth more than resuming mid-flow.
+  const [step, setStep] = useState<Step>(0);
   const lang: Lang = state.lang ?? "en";
 
-  // Steps 0-2
+  // Steps 0-1
   const [langPick, setLangPick] = useState<Lang>(state.lang ?? "en");
   const [ownerName, setOwnerName] = useState(state.profile.ownerName ?? "");
-  const [businessName, setBusinessName] = useState(
-    state.profile.businessName ?? "",
-  );
-  const [businessType, setBusinessType] = useState<BusinessType | null>(
-    state.profile.businessType,
-  );
 
-  // Step 3: stokvel choice
+  // Step 2 — service selection. Multi-select across the service
+  // categories. The user only ever sees the services they pick here;
+  // e.g. a mashonisa-and-stokvel user never lands on a "Today's
+  // takings" business dashboard.
+  const [pickSpaza, setPickSpaza] = useState(false);
+  const [pickFood, setPickFood] = useState(false);
+  const [pickMashonisa, setPickMashonisa] = useState(false);
+  const [pickStokvel, setPickStokvel] = useState(false);
+
+  const businessChosen = pickSpaza || pickFood;
+  // If both business options are picked we record 'spaza' as the
+  // primary type — both map to the same 'business' service anyway,
+  // the type is just a label used for personalisation.
+  const chosenBusinessType: BusinessType | null = pickSpaza
+    ? "spaza"
+    : pickFood
+      ? "food"
+      : null;
+  const chosenServices: ServiceType[] = [
+    ...(businessChosen ? (["business"] as ServiceType[]) : []),
+    ...(pickMashonisa ? (["mashonisa"] as ServiceType[]) : []),
+    ...(pickStokvel ? (["stokvel"] as ServiceType[]) : []),
+  ];
+  const anyServiceChosen = chosenServices.length > 0;
+
+  // Step 3: stokvel choice (only reached when the user picked the
+  // stokvel service in step 2)
   type StokvelMode = "choose" | "create" | "join" | "skip";
   const [stokvelMode, setStokvelMode] = useState<StokvelMode>("choose");
   const [stokvelName, setStokvelName] = useState("");
@@ -73,12 +85,12 @@ export function Onboarding() {
   const canProceed = () => {
     if (step === 0) return true;
     if (step === 1) return ownerName.trim().length >= 1;
-    // Step 2 (business) is fully optional: KasiKash is also used by
-    // people who only want a stokvel with friends and don't run a
-    // spaza/salon/etc. Users tap "I don't have a business" to skip,
-    // or leave fields blank and tap Next.
-    if (step === 2) return true;
+    // Step 2 — must pick at least one service.
+    if (step === 2) return anyServiceChosen;
     if (step === 3) {
+      // If the user didn't choose the stokvel service, step 3 is a
+      // simple "you're all set" summary — always proceedable.
+      if (!pickStokvel) return true;
       if (stokvelMode === "choose") return false;
       if (stokvelMode === "skip") return true;
       if (stokvelMode === "create") return stokvelName.trim().length >= 1;
@@ -87,11 +99,20 @@ export function Onboarding() {
     return false;
   };
 
-  const skipBusiness = () => {
-    setBusinessName("");
-    setBusinessType(null);
-    setProfile({ businessName: null, businessType: null });
-    setStep(3);
+  // Apply the service selection + business profile, then complete
+  // onboarding. Called from the final step.
+  const applyAndFinish = async () => {
+    // Persist business profile (type + name fallback) only if a
+    // business service was chosen; otherwise clear it so a
+    // stokvel/mashonisa-only user isn't tagged as a business.
+    setProfile({
+      businessType: chosenBusinessType,
+      businessName: businessChosen
+        ? state.profile.businessName || ownerName.trim() || null
+        : null,
+    });
+    await setEnabledServices(chosenServices);
+    finishOnboarding();
   };
 
   const next = async () => {
@@ -103,21 +124,14 @@ export function Onboarding() {
       setProfile({ ownerName: ownerName.trim() });
       setStep(2);
     } else if (step === 2) {
-      // Only persist what the user actually filled in — either field
-      // may be empty for stokvel-only users. Storing null explicitly
-      // (rather than an empty string) keeps Home's `businessName &&`
-      // conditionals working correctly.
-      const bName = businessName.trim();
-      setProfile({
-        businessName: bName.length > 0 ? bName : null,
-        businessType: businessType ?? null,
-      });
       setStep(3);
     } else if (step === 3) {
       setError(null);
       setSubmitting(true);
       try {
-        if (stokvelMode === "create") {
+        // Stokvel setup only runs if the user picked the stokvel
+        // service AND chose create/join (not skip).
+        if (pickStokvel && stokvelMode === "create") {
           const id = await createStokvelAsAdmin({
             name: stokvelName.trim(),
             goal: Number(stokvelGoal) || 5000,
@@ -127,10 +141,7 @@ export function Onboarding() {
             setError("Could not create stokvel — please try again.");
             return;
           }
-        } else if (stokvelMode === "join") {
-          // PR #26: the Next-button check above already rejects
-          // codes that can't be normalised, so this call always
-          // gets the canonical K-XXXX-XXXX form.
+        } else if (pickStokvel && stokvelMode === "join") {
           const canonical = normalizeInviteCode(joinCode);
           if (!canonical) {
             setError(tr("stokvelJoinInvalid", lang));
@@ -146,8 +157,7 @@ export function Onboarding() {
             return;
           }
         }
-        // skip path: nothing to do
-        finishOnboarding();
+        await applyAndFinish();
       } finally {
         setSubmitting(false);
       }
@@ -155,8 +165,9 @@ export function Onboarding() {
   };
 
   const back = () => {
-    if (step === 3 && stokvelMode !== "choose") {
-      // On step 3, "Back" first returns to the choice screen
+    if (step === 3 && pickStokvel && stokvelMode !== "choose") {
+      // On the stokvel setup sub-step, "Back" first returns to the
+      // choice screen.
       setStokvelMode("choose");
       setError(null);
       return;
@@ -217,16 +228,22 @@ export function Onboarding() {
               />
             )}
             {step === 2 && (
-              <BusinessStep
-                name={businessName}
-                setName={setBusinessName}
-                type={businessType}
-                setType={setBusinessType}
+              <ServicesStep
                 lang={lang}
-                onSkip={skipBusiness}
+                pickSpaza={pickSpaza}
+                setPickSpaza={setPickSpaza}
+                pickFood={pickFood}
+                setPickFood={setPickFood}
+                pickMashonisa={pickMashonisa}
+                setPickMashonisa={setPickMashonisa}
+                pickStokvel={pickStokvel}
+                setPickStokvel={setPickStokvel}
               />
             )}
-            {step === 3 && stokvelMode === "choose" && (
+            {/* Step 3 — stokvel setup ONLY if the user picked the
+                stokvel service; otherwise a simple "you're set"
+                summary of the services they chose. */}
+            {step === 3 && pickStokvel && stokvelMode === "choose" && (
               <StokvelChoiceStep
                 lang={lang}
                 onPickCreate={() => setStokvelMode("create")}
@@ -234,7 +251,7 @@ export function Onboarding() {
                 onPickSkip={() => setStokvelMode("skip")}
               />
             )}
-            {step === 3 && stokvelMode === "create" && (
+            {step === 3 && pickStokvel && stokvelMode === "create" && (
               <StokvelCreateStep
                 name={stokvelName}
                 setName={setStokvelName}
@@ -245,15 +262,23 @@ export function Onboarding() {
                 lang={lang}
               />
             )}
-            {step === 3 && stokvelMode === "join" && (
+            {step === 3 && pickStokvel && stokvelMode === "join" && (
               <StokvelJoinStep
                 code={joinCode}
                 setCode={setJoinCode}
                 lang={lang}
               />
             )}
-            {step === 3 && stokvelMode === "skip" && (
+            {step === 3 && pickStokvel && stokvelMode === "skip" && (
               <StokvelSkipStep lang={lang} />
+            )}
+            {step === 3 && !pickStokvel && (
+              <ReadyStep
+                lang={lang}
+                spaza={pickSpaza}
+                food={pickFood}
+                mashonisa={pickMashonisa}
+              />
             )}
             {error && (
               <div className="text-kasi-coral text-sm">{error}</div>
@@ -264,7 +289,8 @@ export function Onboarding() {
 
       {/* Footer */}
       <div className="relative px-5 pb-6 pt-2 flex items-center gap-3">
-        {(step > 0 || (step === 3 && stokvelMode !== "choose")) && (
+        {(step > 0 ||
+          (step === 3 && pickStokvel && stokvelMode !== "choose")) && (
           <button
             onClick={back}
             disabled={submitting}
@@ -274,9 +300,10 @@ export function Onboarding() {
             {tr("onbBack", lang)}
           </button>
         )}
-        {/* On the "choose" sub-step, the choice buttons ARE the primary action;
-            we don't show a Next button. Otherwise show Next/Finish. */}
-        {!(step === 3 && stokvelMode === "choose") && (
+        {/* On the stokvel "choose" sub-step, the choice buttons ARE the
+            primary action; we don't show a Next button. Otherwise show
+            Next/Finish. */}
+        {!(step === 3 && pickStokvel && stokvelMode === "choose") && (
           <button
             onClick={next}
             disabled={!canProceed() || submitting}
@@ -404,102 +431,187 @@ function NameStep({
   );
 }
 
-function BusinessStep({
-  name,
-  setName,
-  type,
-  setType,
+/**
+ * PR #36 — the service picker. Multi-select cards for what the user
+ * uses KasiKash for. Only the picked services appear in the app
+ * afterward. Burial Society is shown as "coming soon" so the vision
+ * is visible without over-promising a screen that doesn't exist yet.
+ */
+function ServicesStep({
   lang,
-  onSkip,
+  pickSpaza,
+  setPickSpaza,
+  pickFood,
+  setPickFood,
+  pickMashonisa,
+  setPickMashonisa,
+  pickStokvel,
+  setPickStokvel,
 }: {
-  name: string;
-  setName: (n: string) => void;
-  type: BusinessType | null;
-  setType: (t: BusinessType) => void;
   lang: Lang;
-  onSkip: () => void;
+  pickSpaza: boolean;
+  setPickSpaza: (v: boolean) => void;
+  pickFood: boolean;
+  setPickFood: (v: boolean) => void;
+  pickMashonisa: boolean;
+  setPickMashonisa: (v: boolean) => void;
+  pickStokvel: boolean;
+  setPickStokvel: (v: boolean) => void;
 }) {
   return (
     <>
       <div>
         <h2 className="font-display text-2xl font-semibold">
-          {tr("onbBusinessTitle", lang)}
+          {tr("onbServicesTitle", lang)}
         </h2>
         <p className="text-white/60 text-sm mt-1">
-          {tr("onbBusinessSubtitle", lang)}
-        </p>
-        <p className="text-white/40 text-xs mt-2">
-          {tr("onbBusinessOptionalHint", lang)}
+          {tr("onbServicesSubtitle", lang)}
         </p>
       </div>
 
-      <div>
-        <label className="text-[11px] uppercase tracking-wider text-white/50">
-          {tr("onbBusinessNameLabel", lang)}
-        </label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={tr("onbBusinessNamePlaceholder", lang)}
-          maxLength={60}
-          className="mt-1 w-full px-4 py-3 rounded-2xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
+      <div className="flex flex-col gap-2.5">
+        <ServiceOption
+          icon="🏪"
+          title={tr("onbServiceSpaza", lang)}
+          desc={tr("onbServiceSpazaDesc", lang)}
+          selected={pickSpaza}
+          onToggle={() => setPickSpaza(!pickSpaza)}
+        />
+        <ServiceOption
+          icon="🍲"
+          title={tr("onbServiceFood", lang)}
+          desc={tr("onbServiceFoodDesc", lang)}
+          selected={pickFood}
+          onToggle={() => setPickFood(!pickFood)}
+        />
+        <ServiceOption
+          icon="💰"
+          title={tr("onbServiceMashonisa", lang)}
+          desc={tr("onbServiceMashonisaDesc", lang)}
+          selected={pickMashonisa}
+          onToggle={() => setPickMashonisa(!pickMashonisa)}
+        />
+        <ServiceOption
+          icon="🐷"
+          title={tr("onbServiceStokvel", lang)}
+          desc={tr("onbServiceStokvelDesc", lang)}
+          selected={pickStokvel}
+          onToggle={() => setPickStokvel(!pickStokvel)}
+        />
+        <ServiceOption
+          icon="🕊️"
+          title={tr("onbServiceBurial", lang)}
+          desc={tr("onbServiceBurialDesc", lang)}
+          selected={false}
+          onToggle={() => {}}
+          comingSoon={tr("onbComingSoon", lang)}
         />
       </div>
+    </>
+  );
+}
 
-      <div>
-        <label className="text-[11px] uppercase tracking-wider text-white/50">
-          {tr("onbBusinessTypeLabel", lang)}
-        </label>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {BUSINESS_TYPES.map((b) => {
-            const active = type === b.code;
-            return (
-              <motion.button
-                key={b.code}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setType(b.code)}
-                className={
-                  "flex items-center gap-2 px-3 py-3 rounded-2xl border transition-all " +
-                  (active
-                    ? "bg-kasi-green/15 border-kasi-green"
-                    : "bg-bg-card border-white/5")
-                }
-              >
-                <span className="text-lg">{b.icon}</span>
-                <span className="text-sm text-left leading-tight">
-                  {tr(
-                    ("biz" +
-                      b.code.charAt(0).toUpperCase() +
-                      b.code.slice(1)) as
-                      | "bizSpaza"
-                      | "bizSalon"
-                      | "bizTaxi"
-                      | "bizTailor"
-                      | "bizFood"
-                      | "bizOther",
-                    lang,
-                  )}
-                </span>
-              </motion.button>
-            );
-          })}
+function ServiceOption({
+  icon,
+  title,
+  desc,
+  selected,
+  onToggle,
+  comingSoon,
+}: {
+  icon: string;
+  title: string;
+  desc: string;
+  selected: boolean;
+  onToggle: () => void;
+  comingSoon?: string;
+}) {
+  const disabled = Boolean(comingSoon);
+  return (
+    <motion.button
+      whileTap={disabled ? undefined : { scale: 0.98 }}
+      onClick={disabled ? undefined : onToggle}
+      className={
+        "w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all " +
+        (disabled
+          ? "bg-white/[0.02] border-white/5 opacity-60 cursor-not-allowed"
+          : selected
+            ? "bg-kasi-green/15 border-kasi-green shadow-glow"
+            : "bg-bg-card border-white/10 hover:border-white/20")
+      }
+    >
+      <span className="text-2xl shrink-0">{icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">{title}</span>
+          {comingSoon && (
+            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 text-white/40">
+              {comingSoon}
+            </span>
+          )}
+        </div>
+        <div className="text-white/55 text-xs mt-0.5 leading-tight">
+          {desc}
         </div>
       </div>
+      {!disabled && (
+        <div
+          className={
+            "w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 " +
+            (selected
+              ? "border-kasi-green bg-kasi-green text-bg"
+              : "border-white/20")
+          }
+        >
+          {selected && <Check size={14} />}
+        </div>
+      )}
+    </motion.button>
+  );
+}
 
-      {/* Explicit skip affordance for people who only use KasiKash for a
-          stokvel and have no business. Placed after the fields so users
-          who intended to fill them in still see the form first. */}
-      <motion.button
-        whileTap={{ scale: 0.98 }}
-        onClick={onSkip}
-        className="mt-1 w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/[0.03] border border-white/10 text-white/70 hover:border-white/20 transition-colors"
-      >
-        <SkipForward size={18} className="text-white/50" />
-        <span className="text-sm text-left flex-1">
-          {tr("onbNoBusiness", lang)}
-        </span>
-        <span className="text-white/40">→</span>
-      </motion.button>
+/**
+ * Final step for users who did NOT pick the stokvel service (which
+ * has its own setup sub-flow). Confirms the services they'll see.
+ */
+function ReadyStep({
+  lang,
+  spaza,
+  food,
+  mashonisa,
+}: {
+  lang: Lang;
+  spaza: boolean;
+  food: boolean;
+  mashonisa: boolean;
+}) {
+  const rows: { icon: string; label: string }[] = [];
+  if (spaza) rows.push({ icon: "🏪", label: tr("onbServiceSpaza", lang) });
+  if (food) rows.push({ icon: "🍲", label: tr("onbServiceFood", lang) });
+  if (mashonisa)
+    rows.push({ icon: "💰", label: tr("onbServiceMashonisa", lang) });
+  return (
+    <>
+      <div>
+        <h2 className="font-display text-2xl font-semibold">
+          {tr("onbReadyTitle", lang)}
+        </h2>
+        <p className="text-white/60 text-sm mt-1">
+          {tr("onbReadySubtitle", lang)}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        {rows.map((r) => (
+          <div
+            key={r.label}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/25"
+          >
+            <span className="text-xl">{r.icon}</span>
+            <span className="font-medium">{r.label}</span>
+            <Check size={16} className="ml-auto text-kasi-green" />
+          </div>
+        ))}
+      </div>
     </>
   );
 }
