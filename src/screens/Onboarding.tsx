@@ -9,7 +9,7 @@ import {
   KeyRound,
   SkipForward,
 } from "lucide-react";
-import type { BusinessType, ServiceType, StokvelKind } from "../store";
+import type { ServiceType, StokvelKind } from "../store";
 import { useStore } from "../store";
 import type { Lang } from "../i18n";
 import { LANGS, tr, trParams } from "../i18n";
@@ -48,8 +48,6 @@ export function Onboarding() {
   // categories. The user only ever sees the services they pick here;
   // e.g. a mashonisa-and-stokvel user never lands on a "Today's
   // takings" business dashboard.
-  const [pickSpaza, setPickSpaza] = useState(false);
-  const [pickFood, setPickFood] = useState(false);
   const [pickMashonisa, setPickMashonisa] = useState(false);
   const [pickStokvel, setPickStokvel] = useState(false);
   // PR #37 — burial society is a stokvel kind, so picking it enables
@@ -64,17 +62,10 @@ export function Onboarding() {
   const onboardingStokvelKind: StokvelKind =
     pickBurial && !pickStokvel ? "burial" : "savings";
 
-  const businessChosen = pickSpaza || pickFood;
-  // If both business options are picked we record 'spaza' as the
-  // primary type — both map to the same 'business' service anyway,
-  // the type is just a label used for personalisation.
-  const chosenBusinessType: BusinessType | null = pickSpaza
-    ? "spaza"
-    : pickFood
-      ? "food"
-      : null;
+  // PR #39 — the food/business service is shelved, so onboarding only
+  // offers the financial services. `business` can no longer be enabled
+  // here; existing users keep their data (store + migration 014).
   const chosenServices: ServiceType[] = [
-    ...(businessChosen ? (["business"] as ServiceType[]) : []),
     ...(pickMashonisa ? (["mashonisa"] as ServiceType[]) : []),
     ...(wantsStokvelService ? (["stokvel"] as ServiceType[]) : []),
   ];
@@ -123,12 +114,8 @@ export function Onboarding() {
   // back into local state and drops a stokvel-only user onto the
   // takings dashboard.
   const applyServiceSelection = async () => {
-    setProfile({
-      businessType: chosenBusinessType,
-      businessName: businessChosen
-        ? state.profile.businessName || ownerName.trim() || null
-        : null,
-    });
+    // Business service is shelved (PR #39) — a newly onboarded user is
+    // stokvel/mashonisa only, so we no longer set a business profile.
     await setEnabledServices(chosenServices);
   };
 
@@ -264,10 +251,6 @@ export function Onboarding() {
             {step === 2 && (
               <ServicesStep
                 lang={lang}
-                pickSpaza={pickSpaza}
-                setPickSpaza={setPickSpaza}
-                pickFood={pickFood}
-                setPickFood={setPickFood}
                 pickMashonisa={pickMashonisa}
                 setPickMashonisa={setPickMashonisa}
                 pickStokvel={pickStokvel}
@@ -467,10 +450,6 @@ function NameStep({
  */
 function ServicesStep({
   lang,
-  pickSpaza,
-  setPickSpaza,
-  pickFood,
-  setPickFood,
   pickMashonisa,
   setPickMashonisa,
   pickStokvel,
@@ -479,10 +458,6 @@ function ServicesStep({
   setPickBurial,
 }: {
   lang: Lang;
-  pickSpaza: boolean;
-  setPickSpaza: (v: boolean) => void;
-  pickFood: boolean;
-  setPickFood: (v: boolean) => void;
   pickMashonisa: boolean;
   setPickMashonisa: (v: boolean) => void;
   pickStokvel: boolean;
@@ -502,20 +477,6 @@ function ServicesStep({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <ServiceOption
-          icon="🏪"
-          title={tr("onbServiceSpaza", lang)}
-          desc={tr("onbServiceSpazaDesc", lang)}
-          selected={pickSpaza}
-          onToggle={() => setPickSpaza(!pickSpaza)}
-        />
-        <ServiceOption
-          icon="🍲"
-          title={tr("onbServiceFood", lang)}
-          desc={tr("onbServiceFoodDesc", lang)}
-          selected={pickFood}
-          onToggle={() => setPickFood(!pickFood)}
-        />
         <ServiceOption
           icon="💰"
           title={tr("onbServiceMashonisa", lang)}
