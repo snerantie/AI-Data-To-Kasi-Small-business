@@ -1362,6 +1362,7 @@ import type {
   MashonisaRepayment,
   MashonisaLoanStatus,
   MashonisaRepaymentMethod,
+  BorrowerConfirmation,
   ServiceType,
 } from "../store";
 
@@ -1377,6 +1378,9 @@ type MashonisaLoanRow = {
   owner_id: string;
   borrower_name: string;
   borrower_phone: string | null;
+  borrower_id_number: string | null;
+  borrower_consent_at: string | null;
+  borrower_confirmation: string | null;
   amount_lent: string | number;
   interest_percentage: string | number | null;
   agreed_repayment_date: string | null;
@@ -1422,6 +1426,12 @@ function rowToLoan(
     id: r.id,
     borrowerName: r.borrower_name,
     borrowerPhone: r.borrower_phone ?? undefined,
+    borrowerIdNumber: r.borrower_id_number ?? undefined,
+    borrowerConfirmation:
+      (r.borrower_confirmation as BorrowerConfirmation) ?? "unverified",
+    consentAt: r.borrower_consent_at
+      ? new Date(r.borrower_consent_at).getTime()
+      : undefined,
     amountLent: toNum(r.amount_lent),
     interestPercentage: toNum(r.interest_percentage),
     agreedRepaymentDate: r.agreed_repayment_date ?? undefined,
@@ -1564,6 +1574,11 @@ export async function insertMashonisaLoan(
     owner_id: userId,
     borrower_name: loan.borrowerName,
     borrower_phone: loan.borrowerPhone ?? null,
+    borrower_id_number: loan.borrowerIdNumber ?? null,
+    borrower_consent_at: loan.consentAt
+      ? new Date(loan.consentAt).toISOString()
+      : null,
+    borrower_confirmation: loan.borrowerConfirmation ?? "unverified",
     amount_lent: loan.amountLent,
     interest_percentage: loan.interestPercentage,
     agreed_repayment_date: loan.agreedRepaymentDate ?? null,

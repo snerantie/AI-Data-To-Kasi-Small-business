@@ -369,10 +369,22 @@ export type MashonisaBanking = {
   payshapPhone: string | null;
 };
 
+// How the borrower's identity was captured for a loan:
+//  - in_person : borrower entered their SA ID + agreed on the lender's phone
+//  - awaiting  : a confirmation link was sent, not completed yet (Phase 2)
+//  - unverified: no ID captured (cash only) — clearly flagged as such
+export type BorrowerConfirmation = "in_person" | "awaiting" | "unverified";
+
 export type MashonisaLoan = {
   id: string;
   borrowerName: string;
   borrowerPhone?: string;
+  // Borrower identity — the borrower enters their own SA ID and agrees,
+  // binding the loan (and its repayment record) to a real person so it
+  // can build their credit history and hold them accountable.
+  borrowerIdNumber?: string;
+  borrowerConfirmation?: BorrowerConfirmation;
+  consentAt?: number; // epoch ms when the borrower agreed
   amountLent: number;
   interestPercentage: number;
   agreedRepaymentDate?: string; // ISO YYYY-MM-DD
@@ -1356,6 +1368,9 @@ export function useStore() {
     (input: {
       borrowerName: string;
       borrowerPhone?: string;
+      borrowerIdNumber?: string;
+      borrowerConfirmation?: BorrowerConfirmation;
+      consentAt?: number;
       amountLent: number;
       interestPercentage?: number;
       agreedRepaymentDate?: string;
@@ -1365,6 +1380,9 @@ export function useStore() {
         id: crypto.randomUUID(),
         borrowerName: input.borrowerName.trim(),
         borrowerPhone: input.borrowerPhone?.trim() || undefined,
+        borrowerIdNumber: input.borrowerIdNumber?.replace(/\s+/g, "") || undefined,
+        borrowerConfirmation: input.borrowerConfirmation ?? "unverified",
+        consentAt: input.consentAt,
         amountLent: input.amountLent,
         interestPercentage: input.interestPercentage ?? 0,
         agreedRepaymentDate: input.agreedRepaymentDate || undefined,

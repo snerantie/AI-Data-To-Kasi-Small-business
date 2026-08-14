@@ -34,11 +34,13 @@ import type { Screen } from "../App";
 import type { Lang } from "../i18n";
 import { tr } from "../i18n";
 import type {
+  BorrowerConfirmation,
   MashonisaBanking,
   MashonisaLoan,
   MashonisaLoanStatus,
 } from "../store";
 import { formatRand, useStore } from "../store";
+import { isValidSaId, maskSaId } from "../lib/saId";
 
 export function Mashonisa({
   lang,
@@ -339,6 +341,20 @@ function LoanCard({
             <div className="font-semibold text-white truncate">
               {loan.borrowerName}
             </div>
+            {loan.borrowerIdNumber ? (
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+                <span className="text-kasi-green">
+                  {tr("mashonisaIdConfirmedBadge", lang)}
+                </span>
+                <span className="text-white/40 font-mono">
+                  {maskSaId(loan.borrowerIdNumber)}
+                </span>
+              </div>
+            ) : loan.borrowerConfirmation === "unverified" ? (
+              <div className="mt-0.5 text-[11px] text-white/40">
+                {tr("mashonisaUnverifiedBadge", lang)}
+              </div>
+            ) : null}
             <div className="text-white/50 text-xs mt-0.5">
               {formatRand(loan.amountRepaid)} {tr("mashonisaOf", lang)}{" "}
               {formatRand(target)}
@@ -535,6 +551,9 @@ function NewLoanSheet({
   onSave: (input: {
     borrowerName: string;
     borrowerPhone?: string;
+    borrowerIdNumber?: string;
+    borrowerConfirmation?: BorrowerConfirmation;
+    consentAt?: number;
     amountLent: number;
     interestPercentage?: number;
     agreedRepaymentDate?: string;
@@ -547,9 +566,17 @@ function NewLoanSheet({
   const [interest, setInterest] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
+  // Borrower identity capture. Phase 1 supports "borrower is here"
+  // (they enter their SA ID + agree on this phone) and "cash only"
+  // (no ID). The remote confirmation link is Phase 2.
+  const [mode, setMode] = useState<"in_person" | "unverified">("in_person");
+  const [idNumber, setIdNumber] = useState("");
+  const [agreed, setAgreed] = useState(false);
 
   const amountNum = parseFloat(amount);
-  const canSubmit = name.trim().length > 0 && amountNum > 0;
+  const idOk = isValidSaId(idNumber);
+  const baseOk = name.trim().length > 0 && amountNum > 0;
+  const canSubmit = mode === "unverified" ? baseOk : baseOk && idOk && agreed;
 
   return (
     <SheetShell title={tr("mashonisaAddLoan", lang)} onClose={onClose}>
@@ -591,11 +618,108 @@ function NewLoanSheet({
           value={notes}
           onChange={setNotes}
         />
+
+        {/* Borrower confirmation — bind the loan to a real identity so
+            the borrower is accountable and it builds their record. */}
+        <div>
+          <div className="text-xs uppercase tracking-wider text-white/50 mb-2">
+            {tr("mashonisaConfirmTitle", lang)}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("in_person")}
+              className={
+                "py-2.5 rounded-xl text-sm font-medium border transition-colors " +
+                (mode === "in_person"
+                  ? "bg-kasi-gold text-bg border-kasi-gold"
+                  : "bg-bg-card text-white/70 border-white/10")
+              }
+            >
+              {tr("mashonisaBorrowerHere", lang)}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("unverified")}
+              className={
+                "py-2.5 rounded-xl text-sm font-medium border transition-colors " +
+                (mode === "unverified"
+                  ? "bg-kasi-gold text-bg border-kasi-gold"
+                  : "bg-bg-card text-white/70 border-white/10")
+              }
+            >
+              {tr("mashonisaCashOnly", lang)}
+            </button>
+          </div>
+
+          {/* Remote confirmation link — Phase 2. */}
+          <div className="mt-2 flex items-center justify-between rounded-xl bg-white/[0.02] border border-white/5 px-3 py-2">
+            <span className="text-sm text-white/40">
+              {tr("mashonisaSendLink", lang)}
+            </span>
+            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 text-white/40">
+              {tr("onbComingSoon", lang)}
+            </span>
+          </div>
+
+          {mode === "in_person" && (
+            <div className="mt-3 flex flex-col gap-3">
+              <div>
+                <Field
+                  label={tr("mashonisaIdLabel", lang)}
+                  value={idNumber}
+                  onChange={setIdNumber}
+                  inputMode="numeric"
+                  placeholder={tr("mashonisaIdPlaceholder", lang)}
+                />
+                {idNumber.trim().length > 0 && (
+                  <div
+                    className={
+                      "text-xs mt-1 " +
+                      (idOk ? "text-kasi-green" : "text-kasi-coral")
+                    }
+                  >
+                    {idOk
+                      ? tr("mashonisaIdValid", lang)
+                      : tr("mashonisaIdInvalid", lang)}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setAgreed((v) => !v)}
+                className="flex items-start gap-3 text-left rounded-2xl bg-white/[0.02] border border-white/10 p-3"
+              >
+                <div
+                  className={
+                    "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 " +
+                    (agreed
+                      ? "border-kasi-green bg-kasi-green text-bg"
+                      : "border-white/25")
+                  }
+                >
+                  {agreed && <Check size={13} />}
+                </div>
+                <div className="text-xs text-white/70 leading-relaxed">
+                  <span className="font-semibold text-white/90">
+                    {tr("mashonisaAgreeConfirm", lang)}
+                  </span>
+                  {" — "}
+                  {tr("mashonisaAgreeText", lang)}
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+
         <button
           onClick={() =>
             onSave({
               borrowerName: name,
               borrowerPhone: phone || undefined,
+              borrowerIdNumber: mode === "in_person" ? idNumber : undefined,
+              borrowerConfirmation: mode,
+              consentAt: mode === "in_person" ? Date.now() : undefined,
               amountLent: amountNum,
               interestPercentage: interest ? parseFloat(interest) : 0,
               agreedRepaymentDate: dueDate || undefined,
