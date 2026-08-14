@@ -26,13 +26,15 @@ import {
   Landmark,
   Loader2,
   Plus,
+  Send,
   Trash2,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import type { Screen } from "../App";
 import type { Lang } from "../i18n";
-import { tr } from "../i18n";
+import { tr, trParams } from "../i18n";
+import { buildBorrowerConfirmUrl } from "../lib/inviteLink";
 import type {
   BorrowerConfirmation,
   MashonisaBanking,
@@ -350,6 +352,10 @@ function LoanCard({
                   {maskSaId(loan.borrowerIdNumber)}
                 </span>
               </div>
+            ) : loan.borrowerConfirmation === "awaiting" ? (
+              <div className="mt-0.5 text-[11px] text-kasi-gold">
+                {tr("mashonisaAwaitingBadge", lang)}
+              </div>
             ) : loan.borrowerConfirmation === "unverified" ? (
               <div className="mt-0.5 text-[11px] text-white/40">
                 {tr("mashonisaUnverifiedBadge", lang)}
@@ -402,6 +408,32 @@ function LoanCard({
           </div>
         )}
       </button>
+
+      {/* Awaiting remote confirmation — share the link so the borrower
+          confirms their ID on their own phone. */}
+      {loan.borrowerConfirmation === "awaiting" && loan.confirmationToken && (
+        <div className="px-4 pb-4 -mt-1">
+          <button
+            onClick={() => {
+              const url = buildBorrowerConfirmUrl(loan.confirmationToken!);
+              const message = trParams(
+                "mashonisaConfirmWhatsAppMessage",
+                lang,
+                { amount: Math.round(loan.amountLent), url },
+              );
+              window.open(
+                "https://wa.me/?text=" + encodeURIComponent(message),
+                "_blank",
+                "noopener",
+              );
+            }}
+            className="w-full py-2.5 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 text-kasi-gold text-sm font-semibold flex items-center justify-center gap-2"
+          >
+            <Send size={15} />
+            {tr("mashonisaShareLink", lang)}
+          </button>
+        </div>
+      )}
 
       <AnimatePresence>
         {expanded && (
@@ -554,6 +586,7 @@ function NewLoanSheet({
     borrowerIdNumber?: string;
     borrowerConfirmation?: BorrowerConfirmation;
     consentAt?: number;
+    confirmationToken?: string;
     amountLent: number;
     interestPercentage?: number;
     agreedRepaymentDate?: string;
@@ -569,14 +602,19 @@ function NewLoanSheet({
   // Borrower identity capture. Phase 1 supports "borrower is here"
   // (they enter their SA ID + agree on this phone) and "cash only"
   // (no ID). The remote confirmation link is Phase 2.
-  const [mode, setMode] = useState<"in_person" | "unverified">("in_person");
+  const [mode, setMode] = useState<"in_person" | "awaiting" | "unverified">(
+    "in_person",
+  );
   const [idNumber, setIdNumber] = useState("");
   const [agreed, setAgreed] = useState(false);
 
   const amountNum = parseFloat(amount);
   const idOk = isValidSaId(idNumber);
   const baseOk = name.trim().length > 0 && amountNum > 0;
-  const canSubmit = mode === "unverified" ? baseOk : baseOk && idOk && agreed;
+  // Only in-person capture needs the ID + agreement up front. "Send a
+  // link" (awaiting) and cash-only just need the basics; the borrower
+  // supplies their ID remotely in the awaiting case.
+  const canSubmit = mode === "in_person" ? baseOk && idOk && agreed : baseOk;
 
   return (
     <SheetShell title={tr("mashonisaAddLoan", lang)} onClose={onClose}>
@@ -652,15 +690,25 @@ function NewLoanSheet({
             </button>
           </div>
 
-          {/* Remote confirmation link — Phase 2. */}
-          <div className="mt-2 flex items-center justify-between rounded-xl bg-white/[0.02] border border-white/5 px-3 py-2">
-            <span className="text-sm text-white/40">
-              {tr("mashonisaSendLink", lang)}
-            </span>
-            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 text-white/40">
-              {tr("onbComingSoon", lang)}
-            </span>
-          </div>
+          {/* Remote confirmation — the borrower confirms via a link. */}
+          <button
+            type="button"
+            onClick={() => setMode("awaiting")}
+            className={
+              "mt-2 w-full py-2.5 rounded-xl text-sm font-medium border transition-colors " +
+              (mode === "awaiting"
+                ? "bg-kasi-gold text-bg border-kasi-gold"
+                : "bg-bg-card text-white/70 border-white/10")
+            }
+          >
+            {tr("mashonisaSendLink", lang)}
+          </button>
+
+          {mode === "awaiting" && (
+            <div className="mt-3 rounded-2xl bg-white/[0.02] border border-white/10 p-3 text-xs text-white/60 leading-relaxed">
+              {tr("mashonisaAwaitingHint", lang)}
+            </div>
+          )}
 
           {mode === "in_person" && (
             <div className="mt-3 flex flex-col gap-3">
@@ -720,6 +768,8 @@ function NewLoanSheet({
               borrowerIdNumber: mode === "in_person" ? idNumber : undefined,
               borrowerConfirmation: mode,
               consentAt: mode === "in_person" ? Date.now() : undefined,
+              confirmationToken:
+                mode === "awaiting" ? crypto.randomUUID() : undefined,
               amountLent: amountNum,
               interestPercentage: interest ? parseFloat(interest) : 0,
               agreedRepaymentDate: dueDate || undefined,
