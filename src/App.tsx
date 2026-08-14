@@ -9,6 +9,7 @@ import { PassportPreview } from "./screens/PassportPreview";
 import { ScanReceipt } from "./screens/ScanReceipt";
 import { ImportStatement } from "./screens/ImportStatement";
 import { Landing } from "./screens/Landing";
+import { BorrowerConfirm } from "./screens/BorrowerConfirm";
 import { Services } from "./screens/Services";
 import { Mashonisa } from "./screens/Mashonisa";
 import { PressHowItWorks } from "./screens/PressHowItWorks";
@@ -136,6 +137,14 @@ function pressComponentFor(pathname: string): React.ReactNode {
   return <PressHowItWorks />;
 }
 
+// PR #46 — public borrower loan-confirmation page. A mashonisa shares
+// `/confirm/?t=<token>` with a remote borrower; this renders a
+// standalone, no-login screen (before the app shell + onboarding), the
+// same way the press pages short-circuit.
+function isConfirmPath(pathname: string): boolean {
+  return pathname === "/confirm" || pathname === "/confirm/";
+}
+
 export default function App() {
   const { state } = useStore();
   const [pathname, setPathname] = useState<string>(getPathname);
@@ -162,6 +171,7 @@ export default function App() {
   const lang: Lang = state.lang ?? "en";
   const onAppRoute = isAppPath(pathname);
   const onPressRoute = isPressPath(pathname);
+  const onConfirmRoute = isConfirmPath(pathname);
   const mustOnboard = needsOnboarding(state);
 
   // ─────────────────────────────────────────────────────────────────
@@ -264,6 +274,15 @@ export default function App() {
   // marketing nav, no contact form, just the poster ready to
   // screenshot.
   // ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
+  // Public borrower loan-confirmation page — a stranger with no
+  // account confirms a loan via a shared link. Standalone: no app
+  // shell, no splash, no onboarding. Checked before everything else.
+  // ─────────────────────────────────────────────────────────────────
+  if (onConfirmRoute) {
+    return <BorrowerConfirm />;
+  }
+
   if (onPressRoute) {
     return <>{pressComponentFor(pathname)}</>;
   }
