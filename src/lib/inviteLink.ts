@@ -133,3 +133,44 @@ export function clearInviteUrl(): void {
     url.hash;
   window.history.replaceState({}, "", cleaned);
 }
+
+
+/**
+ * Borrower loan-confirmation link (borrower identity, Phase 2).
+ *
+ * A mashonisa sends this to a remote borrower over WhatsApp. It opens
+ * a PUBLIC, no-login confirmation screen (App.tsx routes `/confirm`
+ * to <BorrowerConfirm/> before the app/onboarding gate). The loan's
+ * secret token rides in `?t=`.
+ *
+ * Deliberately NOT under `/app/` — a stranger confirming a loan should
+ * never touch the app shell, splash, or onboarding.
+ */
+export function buildBorrowerConfirmUrl(token: string): string {
+  const base =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "https://kasikash.com";
+  return `${base}/confirm/?t=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Extract the loan confirmation token from `?t=...` (case-insensitive
+ * key). Tokens are UUIDs; we accept a bounded alphanumeric/hyphen
+ * shape and return null on anything else so a junk URL shows the
+ * "link not valid" state rather than firing a pointless RPC.
+ */
+export function parseConfirmTokenFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  let raw: string | null = null;
+  for (const [key, value] of params) {
+    if (key.toLowerCase() === "t" && value) {
+      raw = value;
+      break;
+    }
+  }
+  if (!raw) return null;
+  const token = raw.trim();
+  return /^[A-Za-z0-9-]{8,64}$/.test(token) ? token : null;
+}
