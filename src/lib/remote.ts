@@ -1381,6 +1381,7 @@ type MashonisaLoanRow = {
   borrower_id_number: string | null;
   borrower_consent_at: string | null;
   borrower_confirmation: string | null;
+  confirmation_token: string | null;
   amount_lent: string | number;
   interest_percentage: string | number | null;
   agreed_repayment_date: string | null;
@@ -1432,6 +1433,7 @@ function rowToLoan(
     consentAt: r.borrower_consent_at
       ? new Date(r.borrower_consent_at).getTime()
       : undefined,
+    confirmationToken: r.confirmation_token ?? undefined,
     amountLent: toNum(r.amount_lent),
     interestPercentage: toNum(r.interest_percentage),
     agreedRepaymentDate: r.agreed_repayment_date ?? undefined,
@@ -1528,7 +1530,7 @@ export async function fetchMashonisaLoans(
       supabase
         .from("mashonisa_loans")
         .select(
-          "id, owner_id, borrower_name, borrower_phone, amount_lent, interest_percentage, agreed_repayment_date, notes, status, amount_repaid, created_at, repaid_at, event_type, evidence_type, evidence_tier",
+          "id, owner_id, borrower_name, borrower_phone, borrower_id_number, borrower_consent_at, borrower_confirmation, confirmation_token, amount_lent, interest_percentage, agreed_repayment_date, notes, status, amount_repaid, created_at, repaid_at, event_type, evidence_type, evidence_tier",
         )
         .eq("owner_id", userId)
         .order("created_at", { ascending: false })
@@ -1564,6 +1566,61 @@ export async function fetchMashonisaLoans(
   );
 }
 
+// ---------------------------------------------------------------------------
+// PUBLIC (borrower-facing) remote confirmation — no login required.
+//
+// A borrower who isn't a KasiKash user opens a WhatsApp link carrying a
+// loan's secret token and confirms their identity. Both calls run as
+// the anon Supabase role through SECURITY DEFINER RPCs (migration 017)
+// that are tightly scoped: they only ever touch the single loan whose
+// confirmation_token matches AND which is still 'awaiting'. The client
+// never writes to mashonisa_loans directly (RLS would reject a
+// stranger); the RPC does the write server-side and consumes the token.
+// ---------------------------------------------------------------------------
+
+/** Minimal loan summary for the borrower's confirmation screen. */
+export async function fetchLoanForConfirmation(token: string): Promise<{
+  borrowerName: string;
+  amountLent: number;
+  agreedRepaymentDate: string | null;
+} | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc(
+    "get_mashonisa_loan_for_confirmation",
+    { p_token: token },
+  );
+  if (error) {
+    console.warn("[kasikash] fetchLoanForConfirmation:", error.message);
+    return null;
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    borrowerName: row.borrower_name,
+    amountLent: toNum(row.amount_lent),
+    agreedRepaymentDate: row.agreed_repayment_date ?? null,
+  };
+}
+
+/** The borrower submits their SA ID + name + agreement against a token. */
+export async function confirmLoanByToken(
+  token: string,
+  idNumber: string,
+  borrowerName: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "not_configured" };
+  const { data, error } = await supabase.rpc("confirm_mashonisa_loan", {
+    p_token: token,
+    p_id_number: idNumber,
+    p_name: borrowerName,
+  });
+  if (error) return { ok: false, error: error.message };
+  // The RPC returns true on success, false when the token doesn't match
+  // an awaiting loan (already confirmed, expired, or wrong token).
+  if (data === false) return { ok: false, error: "invalid_or_expired" };
+  return { ok: true };
+}
+
 export async function insertMashonisaLoan(
   userId: string,
   loan: MashonisaLoan,
@@ -1579,6 +1636,7 @@ export async function insertMashonisaLoan(
       ? new Date(loan.consentAt).toISOString()
       : null,
     borrower_confirmation: loan.borrowerConfirmation ?? "unverified",
+    confirmation_token: loan.confirmationToken ?? null,
     amount_lent: loan.amountLent,
     interest_percentage: loan.interestPercentage,
     agreed_repayment_date: loan.agreedRepaymentDate ?? null,
