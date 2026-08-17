@@ -15,6 +15,7 @@ import type {
 } from "./lib/bank/types";
 import type { PersistableStatement } from "./lib/bank/pipeline";
 import { isCloudConfigured } from "./lib/supabase";
+import { trackEvent } from "./lib/analytics";
 import {
   createInvite as remoteCreateInvite,
   createStokvel as remoteCreateStokvel,
@@ -916,6 +917,7 @@ export function useStore() {
     // enabled services via setEnabledServices() before calling this,
     // so finishOnboarding just marks onboarding complete.
     setState({ onboarded: true });
+    trackEvent("onboarding_completed");
     if (userId) {
       sync(() => remoteUpsertProfile(userId!, { onboarded: true }));
     }
@@ -940,6 +942,7 @@ export function useStore() {
       const id = await remoteCreateStokvel(userId, input);
       if (id) {
         stokvelId = id;
+        trackEvent("stokvel_created", { kind: input.kind ?? "savings" });
         // Re-hydrate to pick up the new membership + stokvel row
         await hydrateFromRemote();
       }
@@ -958,6 +961,7 @@ export function useStore() {
     const result = await remoteJoinStokvel(code);
     if (result.ok) {
       stokvelId = result.stokvelId;
+      trackEvent("stokvel_joined");
       await hydrateFromRemote();
     }
     return result;
@@ -1282,6 +1286,7 @@ export function useStore() {
               ],
             },
       );
+      trackEvent("service_enabled", { service: serviceType });
       if (userId && isCloudConfigured) {
         const result = await remoteEnableService(userId, serviceType);
         return result;
@@ -1406,6 +1411,9 @@ export function useStore() {
         evidenceTier: "declared",
       };
       setState((s) => ({ loans: [loan, ...s.loans] }));
+      trackEvent("loan_created", {
+        confirmation: loan.borrowerConfirmation ?? "unverified",
+      });
       if (userId && isCloudConfigured) {
         sync(() => remoteInsertLoan(userId!, loan));
       }
@@ -1480,6 +1488,7 @@ export function useStore() {
           };
         }),
       }));
+      trackEvent("loan_repayment");
       if (userId && isCloudConfigured) {
         sync(() => remoteInsertRepayment(userId!, repayment));
       }
