@@ -7,6 +7,7 @@ import { formatRand } from "../store";
 import { isValidSaId } from "../lib/saId";
 import { fetchLoanForConfirmation, confirmLoanByToken } from "../lib/remote";
 import { parseConfirmTokenFromUrl } from "../lib/inviteLink";
+import { trackEvent } from "../lib/analytics";
 
 /**
  * Public, no-login borrower confirmation screen (borrower identity,
@@ -76,8 +77,10 @@ export function BorrowerConfirm() {
       idNumber.replace(/\s+/g, ""),
       name.trim(),
     );
-    if (res.ok) setPhase({ k: "success" });
-    else setPhase({ k: "error", summary });
+    if (res.ok) {
+      trackEvent("borrower_confirmed", { via: "link" });
+      setPhase({ k: "success" });
+    } else setPhase({ k: "error", summary });
   };
 
   const summary =
