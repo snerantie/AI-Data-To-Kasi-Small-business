@@ -37,7 +37,7 @@
  *   7. Evidence tiers          — declared / observed / verified
  *   8. For financial institutions — the B2B pitch
  *   9. Contact form            — Supabase-backed
- *  10. Founder                 — Sinethemba Mvelase, Founder
+ *  10. Founder                 — Thato Molefe, Co-Founder
  *  11. Footer                  — WhatsApp / repo / "Open the app"
  *
  * Two sections are truly interactive (Sections 6 + 7). The rest
@@ -1295,10 +1295,10 @@ function Founder() {
                 </span>
               </div>
               <div className="font-display text-xl md:text-2xl font-bold text-white">
-                Sinethemba Mvelase
+                Thato Molefe
               </div>
               <div className="text-white/60 text-sm">
-                Founder, KasiKash
+                Co-Founder, KasiKash
               </div>
             </div>
           </div>
