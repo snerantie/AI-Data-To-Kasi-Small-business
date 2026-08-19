@@ -1295,6 +1295,12 @@ function Founder() {
                 </span>
               </div>
               <div className="font-display text-xl md:text-2xl font-bold text-white">
+                Sinethemba Mvelase
+              </div>
+              <div className="text-white/60 text-sm">
+                Co-Founder, KasiKash
+              </div>
+              <div className="font-display text-lg md:text-xl font-bold text-white mt-2">
                 Thato Molefe
               </div>
               <div className="text-white/60 text-sm">

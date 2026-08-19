@@ -604,7 +604,7 @@ function TrustBanner() {
       <div className="px-5 py-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-white/40 text-[11px]">
         <div className="flex items-center gap-1.5">
           <Sparkles size={11} className="text-kasi-gold" />
-          Thato Molefe, Co-Founder
+          Sinethemba Mvelase &amp; Thato Molefe, Co-Founders
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
