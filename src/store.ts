@@ -63,6 +63,8 @@ import {
   sendSignInLink as remoteSendSignInLink,
   signOut as remoteSignOut,
   updateStokvel as remoteUpdateStokvel,
+  updateStokvelSchedule as remoteUpdateStokvelSchedule,
+  recordStokvelPayout as remoteRecordStokvelPayout,
   updateTabPaid as remoteUpdateTabPaid,
   upsertProfile as remoteUpsertProfile,
 } from "./lib/remote";
@@ -234,6 +236,33 @@ export type StokvelBankAccount = {
 // fourth stokvel kind rather than a separate service.
 export type StokvelKind = "groceries" | "savings" | "birthdays" | "burial";
 
+/**
+ * PR #51 — how often members are expected to contribute. Drives the
+ * "expected this cycle" maths and the automatic reminder cadence.
+ * Defaults to "monthly" (by far the most common for SA stokvels).
+ */
+export type StokvelFrequency = "weekly" | "monthly";
+
+/**
+ * PR #51 — one recorded payout from the pooled fund. Payouts are how
+ * a stokvel distributes money back to members (a rotating birthday
+ * pot, a groceries payout in November, a burial claim, etc.). Mirrors
+ * `public.stokvel_payouts` in the DB, minus server-only columns.
+ */
+export type StokvelPayout = {
+  id: string;
+  amount: number;
+  /** Member userId the payout went to (if it went to a member). */
+  recipientId?: string;
+  /** Free-text recipient name for display (member or external). */
+  recipientName?: string;
+  note?: string;
+  /** When the payout was made (ms epoch). */
+  paidAt: number;
+  /** Admin userId who recorded the payout. */
+  createdBy?: string;
+};
+
 export type Stokvel = {
   id: string;
   name: string;
@@ -244,6 +273,22 @@ export type Stokvel = {
   contributions: Contribution[];
   role: MemberRole; // Current user's role in this stokvel
   bankAccount: StokvelBankAccount | null;
+  // PR #51 — contribution schedule. All optional: a stokvel created
+  // before this feature (or whose admin hasn't set one up yet) simply
+  // has no schedule, and the dashboard shows a "set up schedule" CTA
+  // instead of cycle stats.
+  //   monthlyAmount   — expected contribution per member per cycle (R)
+  //   contributionDay — day of month (1..31) contributions are due
+  //   payoutDay       — day of month (1..31) the payout happens
+  //   frequency       — "monthly" (default) or "weekly"
+  monthlyAmount?: number | null;
+  contributionDay?: number | null;
+  payoutDay?: number | null;
+  frequency?: StokvelFrequency | null;
+  // PR #51 — recorded payouts from the pooled fund. Optional so older
+  // cached state (pre-feature) doesn't need a migration; selectors
+  // treat a missing array as empty.
+  payouts?: StokvelPayout[];
 };
 
 export type StokvelInvite = {
@@ -1014,6 +1059,97 @@ export function useStore() {
         },
       });
       if (stokvelId) sync(() => remoteUpdateStokvel(stokvelId!, patch));
+    },
+    [],
+  );
+
+  /**
+   * PR #51 — admin-only. Set the contribution schedule (monthly
+   * amount, contribution due day, payout day, frequency). Updates
+   * local state optimistically, then AWAITS the remote write so the
+   * caller can surface a failure — and if the write fails (e.g. a
+   * stale-admin role rejected by RLS, or migration 018 not applied)
+   * we re-hydrate to revert the optimistic change rather than leaving
+   * a "saved" schedule that silently disappears later.
+   */
+  const setStokvelSchedule = useCallback(
+    async (patch: {
+      monthlyAmount?: number | null;
+      contributionDay?: number | null;
+      payoutDay?: number | null;
+      frequency?: StokvelFrequency;
+    }): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (!state.stokvel || !stokvelId) {
+        return { ok: false, error: "no_stokvel" };
+      }
+      setState({
+        stokvel: {
+          ...state.stokvel,
+          ...(patch.monthlyAmount !== undefined
+            ? { monthlyAmount: patch.monthlyAmount }
+            : {}),
+          ...(patch.contributionDay !== undefined
+            ? { contributionDay: patch.contributionDay }
+            : {}),
+          ...(patch.payoutDay !== undefined
+            ? { payoutDay: patch.payoutDay }
+            : {}),
+          ...(patch.frequency !== undefined
+            ? { frequency: patch.frequency }
+            : {}),
+        },
+      });
+      const result = await remoteUpdateStokvelSchedule(stokvelId, patch);
+      if (result.ok) {
+        trackEvent("stokvel_schedule_set");
+      } else {
+        // Revert the optimistic change to the server's truth.
+        hydrateFromRemote();
+      }
+      return result;
+    },
+    [],
+  );
+
+  /**
+   * PR #51 — admin-only. Record a payout from the pooled fund.
+   * Optimistically prepends to the local payouts list; on success
+   * re-hydrates in the background to pull the canonical server row.
+   * Returns ok/error so the caller can surface a failure.
+   */
+  const recordPayout = useCallback(
+    async (input: {
+      amount: number;
+      recipientId?: string;
+      recipientName?: string;
+      note?: string;
+    }): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (!state.stokvel || !stokvelId) {
+        return { ok: false, error: "no_stokvel" };
+      }
+      const result = await remoteRecordStokvelPayout(stokvelId, input);
+      if (result.ok) {
+        const payout: StokvelPayout = {
+          id: crypto.randomUUID(),
+          amount: input.amount,
+          recipientId: input.recipientId,
+          recipientName: input.recipientName,
+          note: input.note,
+          paidAt: Date.now(),
+          createdBy: userId ?? undefined,
+        };
+        setState((s) => ({
+          stokvel: s.stokvel
+            ? {
+                ...s.stokvel,
+                payouts: [payout, ...(s.stokvel.payouts ?? [])],
+              }
+            : null,
+        }));
+        trackEvent("stokvel_payout_recorded", { amount: input.amount });
+        hydrateFromRemote();
+      }
+      return result;
     },
     [],
   );
@@ -1972,6 +2108,8 @@ export function useStore() {
     getLatestInvite,
     leaveStokvel,
     setStokvelMeta,
+    setStokvelSchedule,
+    recordPayout,
     saveStokvelBanking,
     confirmContribution,
     rejectContribution,

@@ -21,6 +21,8 @@ export type UsageEvent =
   | "service_enabled"
   | "stokvel_created"
   | "stokvel_joined"
+  | "stokvel_schedule_set"
+  | "stokvel_payout_recorded"
   | "loan_created"
   | "loan_repayment"
   | "borrower_confirmed";

@@ -12,6 +12,8 @@ import type {
   ContributionStatus,
   Stokvel,
   StokvelBankAccount,
+  StokvelFrequency,
+  StokvelPayout,
   Profile,
   BusinessType,
   StokvelMember,
@@ -976,6 +978,98 @@ const rowToBankAccount = (r: StokvelRow): StokvelBankAccount | null => {
   };
 };
 
+// ---- Contribution schedule + payouts (PR #51) -----------------------------
+//
+// These live in a SEPARATE resilient query rather than the main
+// stokvel select on purpose: if migration 018 hasn't been applied yet
+// (the schedule columns / stokvel_payouts table don't exist), we
+// degrade gracefully to "no schedule / no payouts" instead of breaking
+// the entire stokvel fetch. That keeps the feature purely additive.
+
+type ScheduleRow = {
+  monthly_amount: number | string | null;
+  contribution_day: number | null;
+  payout_day: number | null;
+  frequency: string | null;
+};
+
+export type StokvelScheduleFields = {
+  monthlyAmount: number | null;
+  contributionDay: number | null;
+  payoutDay: number | null;
+  frequency: StokvelFrequency | null;
+};
+
+/**
+ * Fetch just the schedule columns for a stokvel. Returns null (all
+ * fields absent) if the columns don't exist yet or the query fails.
+ */
+export async function fetchStokvelSchedule(
+  stokvelId: string,
+): Promise<StokvelScheduleFields | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("stokvels")
+    .select("monthly_amount, contribution_day, payout_day, frequency")
+    .eq("id", stokvelId)
+    .single();
+  if (error || !data) return null;
+  const r = data as ScheduleRow;
+  const amt =
+    r.monthly_amount == null
+      ? null
+      : typeof r.monthly_amount === "string"
+        ? parseFloat(r.monthly_amount)
+        : r.monthly_amount;
+  return {
+    monthlyAmount: amt,
+    contributionDay: r.contribution_day ?? null,
+    payoutDay: r.payout_day ?? null,
+    frequency:
+      r.frequency === "weekly"
+        ? "weekly"
+        : r.frequency === "monthly"
+          ? "monthly"
+          : null,
+  };
+}
+
+type PayoutRow = {
+  id: string;
+  amount: number | string;
+  recipient_id: string | null;
+  recipient_name: string | null;
+  note: string | null;
+  paid_at: string;
+  created_by: string | null;
+};
+
+/**
+ * Fetch recorded payouts for a stokvel, newest first. Returns [] if
+ * the table doesn't exist yet or the query fails.
+ */
+export async function fetchStokvelPayouts(
+  stokvelId: string,
+): Promise<StokvelPayout[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("stokvel_payouts")
+    .select("id, amount, recipient_id, recipient_name, note, paid_at, created_by")
+    .eq("stokvel_id", stokvelId)
+    .order("paid_at", { ascending: false })
+    .limit(100);
+  if (error || !data) return [];
+  return (data as PayoutRow[]).map((r) => ({
+    id: r.id,
+    amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
+    recipientId: r.recipient_id ?? undefined,
+    recipientName: r.recipient_name ?? undefined,
+    note: r.note ?? undefined,
+    paidAt: new Date(r.paid_at).getTime(),
+    createdBy: r.created_by ?? undefined,
+  }));
+}
+
 /**
  * Fetch the user's primary stokvel (currently: the first membership they have),
  * including all its members and contributions with attribution.
@@ -1043,6 +1137,14 @@ export async function fetchUserPrimaryStokvel(
     rowToContribution(r as ContributionRow, memberMap),
   );
 
+  // PR #51 — schedule + payouts, fetched resiliently (see helpers
+  // above). Both degrade to null/[] if migration 018 isn't applied,
+  // so the core stokvel still loads on an out-of-date backend.
+  const [schedule, payouts] = await Promise.all([
+    fetchStokvelSchedule(stokvelId),
+    fetchStokvelPayouts(stokvelId),
+  ]);
+
   const stokvel: Stokvel = {
     id: skRow.id,
     name: skRow.name,
@@ -1065,6 +1167,11 @@ export async function fetchUserPrimaryStokvel(
     contributions,
     role: myRole,
     bankAccount: rowToBankAccount(skRow),
+    monthlyAmount: schedule?.monthlyAmount ?? null,
+    contributionDay: schedule?.contributionDay ?? null,
+    payoutDay: schedule?.payoutDay ?? null,
+    frequency: schedule?.frequency ?? null,
+    payouts,
   };
 
   return { stokvel, stokvelId, role: myRole };
@@ -1126,6 +1233,70 @@ export async function updateStokvel(
     .update(patch)
     .eq("id", stokvelId);
   if (error) console.warn("[kasikash] updateStokvel:", error.message);
+}
+
+/**
+ * PR #51 — admin-only. Update the stokvel's contribution schedule.
+ * Uses a direct UPDATE (protected by the stokvels_admin_update RLS
+ * policy) and maps the camelCase client fields to the snake_case
+ * columns added by migration 018.
+ */
+export async function updateStokvelSchedule(
+  stokvelId: string,
+  patch: Partial<{
+    monthlyAmount: number | null;
+    contributionDay: number | null;
+    payoutDay: number | null;
+    frequency: StokvelFrequency;
+  }>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const dbPatch: Record<string, unknown> = {};
+  if (patch.monthlyAmount !== undefined)
+    dbPatch.monthly_amount = patch.monthlyAmount;
+  if (patch.contributionDay !== undefined)
+    dbPatch.contribution_day = patch.contributionDay;
+  if (patch.payoutDay !== undefined) dbPatch.payout_day = patch.payoutDay;
+  if (patch.frequency !== undefined) dbPatch.frequency = patch.frequency;
+  const { error } = await supabase
+    .from("stokvels")
+    .update(dbPatch)
+    .eq("id", stokvelId);
+  if (error) {
+    console.warn("[kasikash] updateStokvelSchedule:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+/**
+ * PR #51 — admin-only. Record a payout from the pooled fund. Goes
+ * through a SECURITY DEFINER RPC (record_stokvel_payout) that verifies
+ * the caller is an admin of the stokvel, mirroring the contribution
+ * verification pattern.
+ */
+export async function recordStokvelPayout(
+  stokvelId: string,
+  payout: {
+    amount: number;
+    recipientId?: string | null;
+    recipientName?: string | null;
+    note?: string | null;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!supabase) return { ok: false, error: "Cloud not configured" };
+  const { error } = await supabase.rpc("record_stokvel_payout", {
+    p_stokvel_id: stokvelId,
+    p_amount: payout.amount,
+    p_recipient_id: payout.recipientId ?? null,
+    p_recipient_name: payout.recipientName ?? null,
+    p_note: payout.note ?? null,
+  });
+  if (error) {
+    console.warn("[kasikash] recordStokvelPayout:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 export async function insertContribution(
