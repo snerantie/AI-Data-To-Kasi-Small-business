@@ -17,6 +17,15 @@ import {
   Zap,
   Landmark,
   ArrowLeft,
+  CalendarClock,
+  CalendarCheck,
+  Wallet,
+  Activity,
+  ChevronDown,
+  HandCoins,
+  AlertCircle,
+  Settings2,
+  Clock,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Lang, TKey } from "../i18n";
@@ -35,10 +44,52 @@ import type {
   Contribution,
   ContributionMethod,
   StokvelBankAccount,
+  StokvelFrequency,
   StokvelInvite,
   StokvelKind,
+  StokvelMember,
 } from "../store";
+import {
+  availableBalance,
+  computeContributionReminder,
+  expectedThisCycle,
+  hasAnySchedule,
+  hasContributionSchedule,
+  healthTier,
+  memberOnTimeStats,
+  membersOutstandingThisCycle,
+  membersPaidThisCycle,
+  nextContributionDate,
+  nextPayoutDate,
+  outstandingThisCycle,
+  paidThisCycle,
+  payoutsTotal,
+  reminderCycleKey,
+  shouldRemind,
+  sortedPayouts,
+  stokvelOnTimeStats,
+} from "../lib/stokvelSchedule";
+import { emitNotification } from "../lib/notify";
 import type { Screen } from "../App";
+
+/** Format a ms timestamp as a short SA date, e.g. "25 Aug". */
+function formatShortDate(ms: number, lang: Lang): string {
+  const locale =
+    lang === "af" ? "af-ZA" : lang === "zu" ? "zu-ZA" : "en-ZA";
+  try {
+    return new Date(ms).toLocaleDateString(locale, {
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return new Date(ms).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "short",
+    });
+  }
+}
+
+
 
 const QUICK_AMOUNTS = [50, 100, 250, 500];
 
@@ -98,7 +149,12 @@ type Sheet =
   // PR #29 — Stokvel-side banking form. Same fields as the
   // Settings section, but reachable directly from the Stokvel
   // screen so admins aren't sent hunting for it.
-  | "banking";
+  | "banking"
+  // PR #51 — contribution schedule editor (admin) + record-payout
+  // form (admin) + full contribution history viewer.
+  | "schedule"
+  | "payout"
+  | "history";
 
 /**
  * Props (PR #25 additions):
@@ -136,6 +192,9 @@ export function Stokvel(props: {
     // save directly from the Stokvel screen instead of forcing the
     // admin to navigate to Settings first.
     saveStokvelBanking,
+    // PR #51 — contribution schedule + payout tracking.
+    setStokvelSchedule,
+    recordPayout,
   } = useStore();
   const stokvel = state.stokvel;
 
@@ -222,6 +281,54 @@ export function Stokvel(props: {
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetProgress]);
+
+  // PR #51 — automatic contribution reminder. There's no server-side
+  // scheduler, so we nudge the member client-side when they open the
+  // stokvel: if a schedule exists, they haven't fully paid this cycle,
+  // and the due date is today / overdue / within 3 days, emit an
+  // in-app (and, when backgrounded + opted-in, system) notification.
+  // A localStorage key throttles it to at most once per stokvel per
+  // calendar month so members aren't nagged on every open.
+  useEffect(() => {
+    if (!stokvel) return;
+    const reminder = computeContributionReminder(stokvel, userId);
+    if (!reminder || !shouldRemind(reminder)) return;
+    // Keyed on status so an early "upcoming" nudge doesn't suppress the
+    // later "due"/"overdue" one — the reminder can escalate.
+    const key = reminderCycleKey(stokvel.id, reminder.status);
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {
+      // localStorage blocked — fall through and emit once per mount.
+    }
+    const amountLabel = formatRand(reminder.expectedAmount);
+    const body =
+      reminder.status === "overdue"
+        ? trParams("remindOverdueBody", lang, { amount: amountLabel })
+        : reminder.status === "due"
+          ? trParams("remindDueBody", lang, { amount: amountLabel })
+          : trParams("remindUpcomingBody", lang, {
+              amount: amountLabel,
+              days: reminder.daysUntil,
+            });
+    emitNotification({
+      title: tr("remindTitle", lang),
+      body,
+      tone: reminder.status === "overdue" ? "warning" : "info",
+    });
+    try {
+      localStorage.setItem(key, String(Date.now()));
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stokvel?.id,
+    stokvel?.contributionDay,
+    stokvel?.monthlyAmount,
+    userId,
+    lang,
+  ]);
 
   const daysAgo = (ts: number) =>
     Math.max(0, Math.round((Date.now() - ts) / (1000 * 60 * 60 * 24)));
@@ -408,6 +515,23 @@ export function Stokvel(props: {
   // just "Stokvel". Mechanics are identical; the framing differs.
   const kindMeta = stokvelKindMeta(stokvel.kind);
 
+  // PR #51 — dashboard + health + payout metrics. All pure functions
+  // of the stokvel (see lib/stokvelSchedule); cheap enough to compute
+  // each render.
+  const scheduled = hasContributionSchedule(stokvel);
+  const anySchedule = hasAnySchedule(stokvel);
+  const balance = availableBalance(stokvel);
+  const paidCycle = paidThisCycle(stokvel);
+  const expectedCycle = expectedThisCycle(stokvel);
+  const outstandingCycle = outstandingThisCycle(stokvel);
+  const membersPaid = membersPaidThisCycle(stokvel);
+  const membersOutstanding = membersOutstandingThisCycle(stokvel);
+  const nextPay = nextPayoutDate(stokvel);
+  const nextContrib = nextContributionDate(stokvel);
+  const groupOnTime = stokvelOnTimeStats(stokvel);
+  const payouts = sortedPayouts(stokvel);
+  const paidOut = payoutsTotal(stokvel);
+
   return (
     <div className="h-full overflow-y-auto pb-32 px-5 pt-8">
       {/* Back to the Services launcher — PR #37 fix. Entering a
@@ -514,6 +638,278 @@ export function Stokvel(props: {
           )}
         </div>
       </motion.div>
+
+      {/* ================= Dashboard (PR #51) ================= */}
+      <div className="mt-6">
+        <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span>{tr("dashboardTitle", lang)}</span>
+          {isAdmin && anySchedule && (
+            <button
+              onClick={() => setSheet("schedule")}
+              className="normal-case tracking-normal text-[11px] text-kasi-gold flex items-center gap-1"
+            >
+              <Settings2 size={12} />
+              {tr("scheduleEdit", lang)}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {/* Group balance = confirmed contributions − payouts */}
+          <div className="rounded-2xl bg-bg-card border border-white/5 p-3.5">
+            <div className="flex items-center gap-1.5 text-white/50 text-[11px] uppercase tracking-wider">
+              <Wallet size={13} className="text-kasi-green" />
+              {tr("dashBalance", lang)}
+            </div>
+            <div className="font-display font-bold text-xl mt-1">
+              {formatRand(balance)}
+            </div>
+            {paidOut > 0 && (
+              <div className="text-[10px] text-white/40 mt-0.5">
+                {trParams("dashPaidOut", lang, { amount: formatRand(paidOut) })}
+              </div>
+            )}
+          </div>
+
+          {/* Members */}
+          <div className="rounded-2xl bg-bg-card border border-white/5 p-3.5">
+            <div className="flex items-center gap-1.5 text-white/50 text-[11px] uppercase tracking-wider">
+              <Users size={13} className="text-kasi-gold" />
+              {tr("dashMembers", lang)}
+            </div>
+            <div className="font-display font-bold text-xl mt-1">
+              {stokvel.memberships.length}
+              <span className="text-white/40 text-sm font-normal">
+                {" "}
+                / {stokvel.members}
+              </span>
+            </div>
+            <div className="text-[10px] text-white/40 mt-0.5">
+              {tr("dashMembersSub", lang)}
+            </div>
+          </div>
+
+          {/* Paid this month */}
+          <div className="rounded-2xl bg-bg-card border border-white/5 p-3.5">
+            <div className="flex items-center gap-1.5 text-white/50 text-[11px] uppercase tracking-wider">
+              <CalendarCheck size={13} className="text-kasi-green" />
+              {tr("dashPaidThisMonth", lang)}
+            </div>
+            <div className="font-display font-bold text-xl mt-1">
+              {formatRand(paidCycle)}
+              {scheduled && (
+                <span className="text-white/40 text-sm font-normal">
+                  {" "}
+                  / {formatRand(expectedCycle)}
+                </span>
+              )}
+            </div>
+            {scheduled ? (
+              <>
+                <div className="h-1.5 rounded-full bg-white/5 overflow-hidden mt-1.5">
+                  <div
+                    className="h-full rounded-full bg-kasi-green"
+                    style={{
+                      width: `${
+                        expectedCycle > 0
+                          ? Math.min(
+                              100,
+                              Math.round((paidCycle / expectedCycle) * 100),
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <div className="text-[10px] text-white/40 mt-1">
+                  {trParams("dashMembersPaid", lang, {
+                    paid: membersPaid,
+                    total: stokvel.memberships.length,
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="text-[10px] text-white/40 mt-0.5">
+                {tr("dashThisMonth", lang)}
+              </div>
+            )}
+          </div>
+
+          {/* Outstanding */}
+          <div className="rounded-2xl bg-bg-card border border-white/5 p-3.5">
+            <div className="flex items-center gap-1.5 text-white/50 text-[11px] uppercase tracking-wider">
+              <AlertCircle
+                size={13}
+                className={
+                  outstandingCycle > 0 ? "text-kasi-coral" : "text-kasi-green"
+                }
+              />
+              {tr("dashOutstanding", lang)}
+            </div>
+            {scheduled ? (
+              <>
+                <div
+                  className={
+                    "font-display font-bold text-xl mt-1 " +
+                    (outstandingCycle > 0 ? "text-kasi-coral" : "text-kasi-green")
+                  }
+                >
+                  {formatRand(outstandingCycle)}
+                </div>
+                <div className="text-[10px] text-white/40 mt-0.5">
+                  {trParams("dashMembersOwe", lang, {
+                    count: membersOutstanding,
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="text-white/40 text-sm mt-2">
+                {tr("dashNoSchedule", lang)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Next key dates */}
+        {(nextContrib || nextPay) && (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {nextContrib && (
+              <div className="rounded-2xl bg-kasi-gold/[0.05] border border-kasi-gold/20 p-3 flex items-center gap-2.5">
+                <CalendarClock size={16} className="text-kasi-gold shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-white/50">
+                    {tr("dashNextDue", lang)}
+                  </div>
+                  <div className="font-semibold text-sm truncate">
+                    {formatShortDate(nextContrib, lang)}
+                  </div>
+                </div>
+              </div>
+            )}
+            {nextPay && (
+              <div className="rounded-2xl bg-kasi-green/[0.05] border border-kasi-green/20 p-3 flex items-center gap-2.5">
+                <HandCoins size={16} className="text-kasi-green shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-white/50">
+                    {tr("dashNextPayday", lang)}
+                  </div>
+                  <div className="font-semibold text-sm truncate">
+                    {formatShortDate(nextPay, lang)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schedule setup CTA — admin, no schedule configured yet */}
+        {isAdmin && !anySchedule && (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setSheet("schedule")}
+            className="w-full mt-2 flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-kasi-gold/[0.06] border border-kasi-gold/30 text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-kasi-gold/15 border border-kasi-gold/30 flex items-center justify-center text-kasi-gold shrink-0">
+              <CalendarClock size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-white text-sm">
+                {tr("scheduleEmptyTitle", lang)}
+              </div>
+              <div className="text-white/60 text-xs mt-0.5 leading-relaxed">
+                {tr("scheduleEmptyBody", lang)}
+              </div>
+            </div>
+            <span className="text-kasi-gold shrink-0 self-center">→</span>
+          </motion.button>
+        )}
+      </div>
+
+      {/* ================= Group health (PR #51) ================= */}
+      {groupOnTime && (
+        <div className="mt-6">
+          <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Activity size={12} className="text-kasi-green" />
+            {tr("healthTitle", lang)}
+          </div>
+          <div className="rounded-2xl bg-bg-card border border-white/5 p-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  "w-3.5 h-3.5 rounded-full shrink-0 " +
+                  (healthTier(groupOnTime.rate) === "healthy"
+                    ? "bg-kasi-green shadow-glow"
+                    : "bg-kasi-coral")
+                }
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-display font-bold text-lg">
+                  {trParams("healthOnTimePct", lang, { pct: groupOnTime.rate })}
+                </div>
+                <div className="text-white/50 text-xs">
+                  {trParams("healthOnTimeSub", lang, {
+                    onTime: groupOnTime.onTime,
+                    total: groupOnTime.total,
+                  })}
+                </div>
+              </div>
+              <div
+                className={
+                  "text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border font-semibold shrink-0 " +
+                  (healthTier(groupOnTime.rate) === "healthy"
+                    ? "text-kasi-green border-kasi-green/30 bg-kasi-green/[0.08]"
+                    : "text-kasi-coral border-kasi-coral/30 bg-kasi-coral/[0.08]")
+                }
+              >
+                {tr(
+                  healthTier(groupOnTime.rate) === "healthy"
+                    ? "healthHealthy"
+                    : "healthAtRisk",
+                  lang,
+                )}
+              </div>
+            </div>
+
+            {/* Per-member on-time breakdown */}
+            <div className="mt-3 pt-3 border-t border-white/5 flex flex-col gap-2">
+              {sortedMembers.map((m) => {
+                const st = memberOnTimeStats(stokvel, m.userId);
+                if (!st) return null;
+                const tier = healthTier(st.rate);
+                return (
+                  <div
+                    key={m.userId}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <div
+                      className={
+                        "w-2 h-2 rounded-full shrink-0 " +
+                        (tier === "healthy" ? "bg-kasi-green" : "bg-kasi-coral")
+                      }
+                    />
+                    <span className="flex-1 min-w-0 truncate text-white/80">
+                      {m.displayName}
+                      {m.userId === userId && (
+                        <span className="text-white/40 text-xs"> (you)</span>
+                      )}
+                    </span>
+                    <span
+                      className={
+                        "font-semibold " +
+                        (tier === "healthy"
+                          ? "text-kasi-green"
+                          : "text-kasi-coral")
+                      }
+                    >
+                      {st.rate}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Admin action: Invite */}
       {isAdmin && (
@@ -843,8 +1239,17 @@ export function Stokvel(props: {
         if (nonPending.length === 0) return null;
         return (
           <div className="mt-6">
-            <div className="text-white/50 text-xs uppercase tracking-wider mb-3">
-              {tr("recentContributions", lang)}
+            <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center justify-between">
+              <span>{tr("recentContributions", lang)}</span>
+              {nonPending.length > 10 && (
+                <button
+                  onClick={() => setSheet("history")}
+                  className="normal-case tracking-normal text-[11px] text-kasi-gold flex items-center gap-1"
+                >
+                  {tr("historyViewAll", lang)}
+                  <ChevronDown size={12} />
+                </button>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               {nonPending.slice(0, 10).map((c) => {
@@ -937,6 +1342,76 @@ export function Stokvel(props: {
         );
       })()}
 
+      {/* ================= Payouts (PR #51) ================= */}
+      <div className="mt-6">
+        <div className="text-white/50 text-xs uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <HandCoins size={12} className="text-kasi-green" />
+            {tr("payoutsTitle", lang)}
+          </span>
+          {paidOut > 0 && (
+            <span className="normal-case tracking-normal text-[11px] text-white/50">
+              {trParams("payoutsTotalLabel", lang, {
+                amount: formatRand(paidOut),
+              })}
+            </span>
+          )}
+        </div>
+
+        {/* Admin: record a payout */}
+        {isAdmin && (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setSheet("payout")}
+            className="w-full mb-2 flex items-center gap-3 px-4 py-3 rounded-2xl bg-kasi-green/10 border border-kasi-green/30 text-kasi-green"
+          >
+            <HandCoins size={18} />
+            <span className="font-semibold text-sm">
+              {tr("payoutRecordBtn", lang)}
+            </span>
+            <span className="ml-auto">→</span>
+          </motion.button>
+        )}
+
+        {payouts.length === 0 ? (
+          <div className="rounded-2xl bg-white/[0.02] border border-white/10 p-3 text-white/50 text-xs leading-relaxed">
+            {tr("payoutsEmpty", lang)}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {payouts.slice(0, 8).map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between rounded-2xl bg-bg-card border border-white/5 px-4 py-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-kasi-green/15 border border-kasi-green/30">
+                    <HandCoins size={16} className="text-kasi-green" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {p.recipientName || tr("payoutToFund", lang)}
+                    </div>
+                    <div className="text-[11px] text-white/50 truncate">
+                      {formatShortDate(p.paidAt, lang)}
+                      {p.note && (
+                        <>
+                          <span className="text-white/30 mx-1">·</span>
+                          <span className="text-white/60">{p.note}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="font-display font-semibold text-kasi-green text-right shrink-0">
+                  −{formatRand(p.amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Leave stokvel — subtle at the bottom */}
       <button
         onClick={() => setSheet("leave")}
@@ -1006,6 +1481,36 @@ export function Stokvel(props: {
             existing={stokvel.bankAccount}
             onClose={() => setSheet(null)}
             onSave={saveStokvelBanking}
+          />
+        )}
+        {/* PR #51 — contribution schedule editor (admin). */}
+        {sheet === "schedule" && (
+          <ScheduleSheet
+            lang={lang}
+            monthlyAmount={stokvel.monthlyAmount ?? null}
+            contributionDay={stokvel.contributionDay ?? null}
+            payoutDay={stokvel.payoutDay ?? null}
+            frequency={stokvel.frequency ?? "monthly"}
+            onClose={() => setSheet(null)}
+            onSave={setStokvelSchedule}
+          />
+        )}
+        {/* PR #51 — record a payout from the fund (admin). */}
+        {sheet === "payout" && (
+          <PayoutSheet
+            lang={lang}
+            members={sortedMembers}
+            available={balance}
+            onClose={() => setSheet(null)}
+            onSubmit={recordPayout}
+          />
+        )}
+        {/* PR #51 — full contribution history viewer. */}
+        {sheet === "history" && (
+          <HistorySheet
+            lang={lang}
+            contributions={stokvel.contributions}
+            onClose={() => setSheet(null)}
           />
         )}
       </AnimatePresence>
@@ -2283,5 +2788,446 @@ function BankingSheetField({
         }
       />
     </label>
+  );
+}
+
+
+// ============================================================================
+// PR #51 — Schedule / Payout / History sheets
+// ============================================================================
+
+/** Clamp a numeric string to [min, max]; empty string -> null. */
+function parseDayInput(
+  raw: string,
+  min: number,
+  max: number,
+): number | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  const n = Math.round(Number(t));
+  if (!Number.isFinite(n)) return null;
+  return Math.min(max, Math.max(min, n));
+}
+
+function ScheduleSheet({
+  lang,
+  monthlyAmount,
+  contributionDay,
+  payoutDay,
+  frequency,
+  onClose,
+  onSave,
+}: {
+  lang: Lang;
+  monthlyAmount: number | null;
+  contributionDay: number | null;
+  payoutDay: number | null;
+  frequency: StokvelFrequency;
+  onClose: () => void;
+  onSave: (patch: {
+    monthlyAmount: number | null;
+    contributionDay: number | null;
+    payoutDay: number | null;
+    frequency: StokvelFrequency;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+}) {
+  const [amount, setAmount] = useState<string>(
+    monthlyAmount != null ? String(monthlyAmount) : "",
+  );
+  const [contribDay, setContribDay] = useState<string>(
+    contributionDay != null ? String(contributionDay) : "",
+  );
+  const [payDay, setPayDay] = useState<string>(
+    payoutDay != null ? String(payoutDay) : "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    // Parse the amount defensively: empty OR non-numeric both mean
+    // "no amount set" (null) rather than silently collapsing garbage
+    // to R0, which would clear the schedule. Mirrors parseDayInput.
+    const parsed = amount.trim() === "" ? null : Number(amount);
+    const amt =
+      parsed != null && Number.isFinite(parsed)
+        ? Math.max(0, Math.round(parsed))
+        : null;
+    setSaving(true);
+    setError(null);
+    const result = await onSave({
+      monthlyAmount: amt,
+      contributionDay: parseDayInput(contribDay, 1, 31),
+      payoutDay: parseDayInput(payDay, 1, 31),
+      // Monthly-only for now: the dashboard/reminder maths bucket by
+      // calendar month, so we don't expose a weekly toggle that would
+      // misreport. We pass the existing frequency through unchanged.
+      frequency,
+    });
+    setSaving(false);
+    if (result.ok) {
+      onClose();
+    } else {
+      setError(tr("scheduleSaveError", lang));
+    }
+  };
+
+  return (
+    <SheetShell title={tr("scheduleSheetTitle", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-white/60 text-sm leading-relaxed">
+          {tr("scheduleSheetIntro", lang)}
+        </p>
+
+        {/* Monthly / expected amount */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("scheduleAmountLabel", lang)}
+          </label>
+          <div className="mt-1 flex items-center rounded-xl bg-bg-card border border-white/10 focus-within:border-kasi-green">
+            <span className="pl-4 pr-1 text-white/50 font-display">R</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="200"
+              className="flex-1 bg-transparent px-1 py-3.5 text-white text-base outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Days of month */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("scheduleContribDayLabel", lang)}
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={31}
+              value={contribDay}
+              onChange={(e) => setContribDay(e.target.value)}
+              placeholder="25"
+              className="mt-1 w-full px-4 py-3.5 rounded-xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-white/50">
+              {tr("schedulePayoutDayLabel", lang)}
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={31}
+              value={payDay}
+              onChange={(e) => setPayDay(e.target.value)}
+              placeholder="5"
+              className="mt-1 w-full px-4 py-3.5 rounded-xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
+            />
+          </div>
+        </div>
+        <p className="text-white/40 text-xs leading-relaxed flex items-start gap-1.5">
+          <Info size={13} className="text-kasi-gold shrink-0 mt-0.5" />
+          {tr("scheduleDayHint", lang)}
+        </p>
+
+        {error && <div className="text-kasi-coral text-sm">{error}</div>}
+
+        <button
+          onClick={save}
+          disabled={saving}
+          className={
+            "mt-2 py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
+            (saving
+              ? "bg-white/5 text-white/30 cursor-not-allowed"
+              : "bg-kasi-gold text-bg shadow-gold")
+          }
+        >
+          {saving ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <CalendarCheck size={18} />
+          )}
+          {tr("scheduleSaveBtn", lang)}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
+
+function PayoutSheet({
+  lang,
+  members,
+  available,
+  onClose,
+  onSubmit,
+}: {
+  lang: Lang;
+  members: StokvelMember[];
+  available: number;
+  onClose: () => void;
+  onSubmit: (input: {
+    amount: number;
+    recipientId?: string;
+    recipientName?: string;
+    note?: string;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+}) {
+  const [amount, setAmount] = useState("");
+  // "" = external / other (free-text name), otherwise a member userId.
+  const [recipientId, setRecipientId] = useState<string>("");
+  const [externalName, setExternalName] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const amt = Math.max(0, Math.round(Number(amount) || 0));
+  const canSubmit = amt > 0 && !submitting;
+  const overAvailable = amt > available;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError(null);
+    const member = members.find((m) => m.userId === recipientId);
+    const result = await onSubmit({
+      amount: amt,
+      recipientId: recipientId || undefined,
+      recipientName: member
+        ? member.displayName
+        : externalName.trim() || undefined,
+      note: note.trim() || undefined,
+    });
+    setSubmitting(false);
+    if (result.ok) {
+      onClose();
+    } else {
+      setError(
+        result.error === "no_stokvel"
+          ? tr("payoutErrorGeneric", lang)
+          : result.error,
+      );
+    }
+  };
+
+  return (
+    <SheetShell title={tr("payoutSheetTitle", lang)} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-2xl bg-kasi-green/[0.06] border border-kasi-green/25 px-4 py-3 flex items-center justify-between">
+          <span className="text-white/60 text-xs uppercase tracking-wider">
+            {tr("payoutAvailable", lang)}
+          </span>
+          <span className="font-display font-bold text-kasi-green">
+            {formatRand(available)}
+          </span>
+        </div>
+
+        {/* Amount */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("payoutAmountLabel", lang)}
+          </label>
+          <div className="mt-1 flex items-center rounded-xl bg-bg-card border border-white/10 focus-within:border-kasi-green">
+            <span className="pl-4 pr-1 text-white/50 font-display">R</span>
+            <input
+              autoFocus
+              type="number"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="0"
+              className="flex-1 bg-transparent px-1 py-3.5 text-white text-base outline-none"
+            />
+          </div>
+          {overAvailable && (
+            <div className="text-kasi-gold text-xs mt-1.5 flex items-center gap-1.5">
+              <AlertCircle size={12} />
+              {tr("payoutOverAvailable", lang)}
+            </div>
+          )}
+        </div>
+
+        {/* Recipient */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("payoutRecipientLabel", lang)}
+          </label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {members.map((m) => (
+              <button
+                key={m.userId}
+                onClick={() => setRecipientId(m.userId)}
+                className={
+                  "px-3 py-2 rounded-xl border text-sm font-medium transition-colors " +
+                  (recipientId === m.userId
+                    ? "bg-kasi-green/15 border-kasi-green/50 text-kasi-green"
+                    : "bg-bg-card border-white/10 text-white/70")
+                }
+              >
+                {m.displayName}
+              </button>
+            ))}
+            <button
+              onClick={() => setRecipientId("")}
+              className={
+                "px-3 py-2 rounded-xl border text-sm font-medium transition-colors " +
+                (recipientId === ""
+                  ? "bg-kasi-gold/15 border-kasi-gold/50 text-kasi-gold"
+                  : "bg-bg-card border-white/10 text-white/70")
+              }
+            >
+              {tr("payoutRecipientOther", lang)}
+            </button>
+          </div>
+          {recipientId === "" && (
+            <input
+              value={externalName}
+              onChange={(e) => setExternalName(e.target.value)}
+              placeholder={tr("payoutRecipientNamePlaceholder", lang)}
+              maxLength={60}
+              className="mt-2 w-full px-4 py-3 rounded-xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
+            />
+          )}
+        </div>
+
+        {/* Note */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider text-white/50">
+            {tr("payoutNoteLabel", lang)}
+          </label>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={tr("payoutNotePlaceholder", lang)}
+            maxLength={80}
+            className="mt-1 w-full px-4 py-3 rounded-xl bg-bg-card border border-white/10 text-white outline-none focus:border-kasi-green"
+          />
+        </div>
+
+        {error && <div className="text-kasi-coral text-sm">{error}</div>}
+
+        <button
+          onClick={submit}
+          disabled={!canSubmit}
+          className={
+            "mt-2 py-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 " +
+            (canSubmit
+              ? "bg-kasi-green text-bg shadow-glow"
+              : "bg-white/5 text-white/30 cursor-not-allowed")
+          }
+        >
+          {submitting ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {tr("payoutSavingProgress", lang)}
+            </>
+          ) : (
+            <>
+              <HandCoins size={18} />
+              {tr("payoutRecordSubmit", lang)}
+            </>
+          )}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
+
+function HistorySheet({
+  lang,
+  contributions,
+  onClose,
+}: {
+  lang: Lang;
+  contributions: Contribution[];
+  onClose: () => void;
+}) {
+  const sorted = [...contributions].sort((a, b) => b.createdAt - a.createdAt);
+
+  const statusMeta = (c: Contribution) => {
+    const status = c.status ?? "confirmed";
+    if (status === "rejected") {
+      return {
+        badge: tr("rejectedBadge", lang),
+        cls: "text-kasi-coral border-kasi-coral/30 bg-kasi-coral/[0.08]",
+        amountCls: "text-kasi-coral line-through",
+      };
+    }
+    if (status === "pending") {
+      return {
+        badge: tr("pendingBadge", lang),
+        cls: "text-kasi-gold border-kasi-gold/30 bg-kasi-gold/[0.08]",
+        amountCls: "text-kasi-gold",
+      };
+    }
+    return {
+      badge: tr("confirmedBadge", lang),
+      cls: "text-kasi-green border-kasi-green/30 bg-kasi-green/[0.08]",
+      amountCls: "text-kasi-green",
+    };
+  };
+
+  return (
+    <SheetShell title={tr("historySheetTitle", lang)} onClose={onClose}>
+      {sorted.length === 0 ? (
+        <div className="text-white/50 text-sm">{tr("historyEmpty", lang)}</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {sorted.map((c) => {
+            const meta = statusMeta(c);
+            return (
+              <div
+                key={c.id}
+                className="flex items-center justify-between rounded-2xl bg-bg-card border border-white/5 px-4 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">
+                    {c.memberName ? (
+                      <>
+                        <span className="text-white/50 text-xs">
+                          {tr("contribBy", lang)}{" "}
+                        </span>
+                        {c.memberName}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                  <div className="text-[11px] text-white/50 truncate flex items-center gap-1">
+                    <Clock size={10} />
+                    {formatShortDate(c.createdAt, lang)}
+                    {c.note && (
+                      <>
+                        <span className="text-white/30 mx-0.5">·</span>
+                        <span className="text-white/60">{c.note}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                  <div className={"font-display font-semibold " + meta.amountCls}>
+                    {formatRand(c.amount)}
+                  </div>
+                  <div
+                    className={
+                      "text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border font-semibold " +
+                      meta.cls
+                    }
+                  >
+                    {meta.badge}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SheetShell>
   );
 }
